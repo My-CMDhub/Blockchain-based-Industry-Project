@@ -260,10 +260,21 @@ app.get('/merchant', (req, res) => {
 app.get('/api/wallet-balance', async (req, res) => {
     try {
         console.log('Retrieving wallet balance...');
-        const keys = getStoredKeys();
-        let mnemonic;
+        let keys;
         try {
-            mnemonic = decrypt(keys.mnemonic);
+            keys = getStoredKeys();
+            if (!keys || !keys.mnemonic) {
+                throw new Error('No wallet keys found. Please generate new keys.');
+            }
+
+            let mnemonic;
+            try {
+                mnemonic = decrypt(keys.mnemonic);
+                
+                // Additional validation
+                if (!bip39.validateMnemonic(mnemonic)) {
+                    throw new Error('Decrypted mnemonic is invalid');
+                }
         } catch (error) {
             if (error.message.includes('DECRYPTION_FAILED')) {
                 // Create recovery file
@@ -329,9 +340,17 @@ To recover:
     } catch (error) {
         console.error('Error getting wallet balance:', error);
         logToFile(`ERROR: Error getting wallet balance: ${error.message}`);
+        let errorMessage = 'Failed to get wallet balance';
+        if (error.message.includes('ENOENT')) {
+            errorMessage = 'Wallet keys not found. Please generate new keys.';
+        } else if (error.message.includes('bip39')) {
+            errorMessage = 'Wallet recovery error. Please check your encryption key.';
+        }
+
         res.status(500).json({
             success: false,
-            error: 'Failed to get wallet balance'
+            error: errorMessage,
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });

@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
-const path = require('path');  
+const path = require('path');
+const bip39 = require('bip39');
 
 const algorithm = 'aes-256-cbc';
 const key = process.env.ENCRYPTION_KEY;

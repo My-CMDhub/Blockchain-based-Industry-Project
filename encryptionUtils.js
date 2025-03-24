@@ -4,14 +4,20 @@ const path = require('path');
 
 const algorithm = 'aes-256-cbc';
 const key = process.env.ENCRYPTION_KEY;
+const salt = process.env.ENCRYPTION_SALT || 'default-salt';
 
-// Convert and validate key length
+// Derive key using PBKDF2
 let keyBuffer;
-if (key && key.length === 64) {
-    // Assume the key is in hexadecimal format
-    keyBuffer = Buffer.from(key, 'hex');
+if (key) {
+    keyBuffer = crypto.pbkdf2Sync(
+        key,
+        salt,
+        100000, // iterations
+        32,     // key length (32 bytes = 256 bits)
+        'sha512'
+    );
 } else {
-    throw new Error('Invalid encryption key length. The key must be 32 bytes (64 characters in hexadecimal format).');
+    throw new Error('Encryption key not configured');
 }
 
 if (keyBuffer.length !== 32) {

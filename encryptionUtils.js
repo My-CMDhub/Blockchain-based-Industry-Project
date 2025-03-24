@@ -41,17 +41,52 @@ const encrypt = (text) => {
 // Function to decrypt data
 const decrypt = (text) => {
     try {
-        if (!text.iv || !text.encryptedData) {
-            throw new Error('Decryption data is missing required properties');
+        // Validate input structure
+        if (!text || typeof text !== 'object' || !text.iv || !text.encryptedData) {
+            throw new Error('Invalid encrypted data format');
         }
+
+        // Convert from hex
         const iv = Buffer.from(text.iv, 'hex');
         const encryptedText = Buffer.from(text.encryptedData, 'hex');
+
+        // Validate lengths
+        if (iv.length !== 16) {
+            throw new Error('Invalid IV length');
+        }
+        if (encryptedText.length === 0) {
+            throw new Error('Empty encrypted data');
+        }
+
+        // Try decryption with padding
         const decipher = crypto.createDecipheriv(algorithm, keyBuffer, iv);
+        decipher.setAutoPadding(true);
+
         let decrypted = decipher.update(encryptedText);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
-        return decrypted.toString();
+
+        const result = decrypted.toString();
+        
+        // Basic validation of decrypted data
+        if (!result || !bip39.validateMnemonic(result)) {
+            throw new Error('Decrypted data is not a valid mnemonic');
+        }
+
+        return result;
     } catch (error) {
-        console.error('Error decrypting data:', error);
+        console.error('Decryption failed:', {
+            error: error.message,
+            inputIV: text?.iv?.substring(0, 8) + '...',
+            inputData: text?.encryptedData?.substring(0, 8) + '...'
+        });
+
+        // Special handling for common errors
+        if (error.code === 'ERR_OSSL_BAD_DECRYPT') {
+            const keyError = new Error('DECRYPTION_FAILED: Likely due to incorrect encryption key');
+            keyError.recovery = 'Please verify your ENCRYPTION_KEY environment variable matches what was used to encrypt this data';
+            throw keyError;
+        }
+
         throw error;
     }
 };

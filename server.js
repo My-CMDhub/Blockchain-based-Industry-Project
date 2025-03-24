@@ -261,7 +261,39 @@ app.get('/api/wallet-balance', async (req, res) => {
     try {
         console.log('Retrieving wallet balance...');
         const keys = getStoredKeys();
-        const mnemonic = decrypt(keys.mnemonic);
+        let mnemonic;
+        try {
+            mnemonic = decrypt(keys.mnemonic);
+        } catch (error) {
+            if (error.message.includes('DECRYPTION_FAILED')) {
+                // Create recovery file
+                const recoveryFile = './key_recovery_instructions.txt';
+                const instructions = `
+CRITICAL ENCRYPTION ERROR
+=========================
+
+Error: ${error.message}
+
+To recover:
+
+1. Verify your ENCRYPTION_KEY environment variable matches what was used originally
+   Current key: ${process.env.ENCRYPTION_KEY ? 'set' : 'not set'}
+
+2. If you've lost the original key, you'll need to:
+   a) Delete the existing keys file: rm Json/keys.json
+   b) Restart the server to generate new keys
+
+3. If you need to recover funds from the old wallet:
+   - The original encrypted data is in Json/keys.json
+   - You'll need the original encryption key to decrypt it
+                `;
+                
+                fs.writeFileSync(recoveryFile, instructions);
+                console.error(`\n\n!!! CRITICAL ERROR !!!\n${instructions}\nDetails written to ${recoveryFile}\n`);
+            }
+            throw error;
+        }
+        
         const { address } = await recoverWallet(mnemonic);
         
         logBlockchain('WALLET_RECOVERY', { address });

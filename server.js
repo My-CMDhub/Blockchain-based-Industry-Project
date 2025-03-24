@@ -262,13 +262,19 @@ app.get('/api/wallet-balance', async (req, res) => {
         console.log('Retrieving wallet balance...');
         let keys;
         try {
+            // Check if keys file exists first
+            if (!fs.existsSync('./Json/keys.json')) {
+                throw new Error('Wallet keys file not found. Please generate new keys.');
+            }
+
             keys = getStoredKeys();
             if (!keys || !keys.mnemonic) {
-                throw new Error('No wallet keys found. Please generate new keys.');
+                throw new Error('Invalid keys file format. Please generate new keys.');
             }
 
             let mnemonic;
             try {
+                console.log('Attempting to decrypt wallet data...');
                 mnemonic = decrypt(keys.mnemonic);
                 
                 // Additional validation
@@ -341,10 +347,17 @@ To recover:
         console.error('Error getting wallet balance:', error);
         logToFile(`ERROR: Error getting wallet balance: ${error.message}`);
         let errorMessage = 'Failed to get wallet balance';
-        if (error.message.includes('ENOENT')) {
-            errorMessage = 'Wallet keys not found. Please generate new keys.';
-        } else if (error.message.includes('bip39')) {
-            errorMessage = 'Wallet recovery error. Please check your encryption key.';
+        let recoverySteps = '';
+        
+        if (error.message.includes('ENOENT') || error.message.includes('not found')) {
+            errorMessage = 'Wallet keys not found.';
+            recoverySteps = 'Please restart the server to generate new keys.';
+        } else if (error.message.includes('bip39') || error.message.includes('DECRYPTION_FAILED')) {
+            errorMessage = 'Wallet decryption failed.';
+            recoverySteps = 'Please verify your ENCRYPTION_KEY environment variable matches what was used originally.';
+        } else if (error.message.includes('Invalid keys file')) {
+            errorMessage = 'Invalid wallet keys format.';
+            recoverySteps = 'Please delete Json/keys.json and restart the server.';
         }
 
         res.status(500).json({

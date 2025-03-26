@@ -1,197 +1,146 @@
-# Ethereum Payment Gateway
+# HD Wallet Payment Gateway
 
-A secure payment gateway implementation for processing Ethereum transactions using HD wallets.
+A secure and reliable HD wallet-based payment gateway that allows merchants to accept cryptocurrency payments with automated transaction monitoring and fund management.
 
-## Features
+## 📋 Features
 
-- HD Wallet integration for secure key management
-- Real-time payment simulation and verification
-- Automated funds release mechanism
-- Web3 integration with Ethereum network
-- AES-256-CBC encryption for sensitive data
-- Interactive merchant dashboard
-- Real-time balance tracking
-- Transaction history with Etherscan integration
+- **Hierarchical Deterministic Wallet**: Generates unique payment addresses for each transaction
+- **Secure Key Management**: All keys are stored encrypted
+- **Real-time Transaction Monitoring**: Track payment status in real-time
+- **Merchant Dashboard**: View and manage transactions
+- **One-click Fund Release**: Transfer received funds to merchant wallet
+- **Multiple RPC Providers**: Fault-tolerant connections to Ethereum network
 
-## Prerequisites
+## 🚀 Quick Start
 
-- Node.js (v16 or higher)
-- npm (comes with Node.js)
-- Ethereum wallet (MetaMask recommended)
-- Infura account (for Ethereum network access)
-- Git
+### Prerequisites
 
-## Installation
+- Node.js (v14 or higher)
+- npm or yarn
+- An Ethereum RPC provider (Infura, Alchemy, etc.)
+- Sepolia testnet ETH for testing (get from a faucet)
 
-1. **Clone the repository:**
+### Installation
 
-    ```bash
-    git clone [repository URL]
-    cd payment-gateway
-    ```
+1. **Clone the repository**
 
-2. **Install dependencies:**
+   ```bash
+   git clone https://github.com/yourusername/hd-wallet-payment-gateway.git
+   cd hd-wallet-payment-gateway
+   ```
 
-    Make the setup script executable and run it:
-    ```bash
-    chmod +x setup.sh
-    ./setup.sh
-    ```
+2. **Run the setup script**
 
-    The setup script will:
-    - Check Node.js version
-    - Create necessary directories
-    - Install all required dependencies
-    - Create configuration templates
-    - Set up npm scripts
+   This will install dependencies, create necessary files, and generate the HD wallet keys.
 
-3. **Configure environment variables:**
+   ```bash
+   bash setup.sh
+   ```
 
-    Create a `.env` file in the root directory with the following variables:
+3. **Start the server**
 
-    ```env
-    INFURA_URL=your_infura_url
-    ENCRYPTION_KEY=your_encryption_key  # Must be a 64-character hex string
-    MERCHANT_ADDRESS=your_merchant_address
-    PORT=3000
-    ```
+   ```bash
+   node server.js
+   ```
 
-    Important notes:
-    - Get your Infura URL by creating a project at [infura.io](https://infura.io)
-    - Generate ENCRYPTION_KEY using: `openssl rand -hex 32`
-    - MERCHANT_ADDRESS should be your Ethereum address (from MetaMask)
+4. **Access the application**
 
-4. **Generate wallet keys:**
+   - E-commerce store: http://localhost:3000
+   - Merchant dashboard: http://localhost:3000/merchant
 
-    ```bash
-    node generateKeys.js
-    ```
-
-    This will:
-    - Generate a new HD wallet mnemonic
-    - Derive the private key
-    - Encrypt sensitive data
-    - Save to `Json/keys.json` and `secure/privateKey.json`
-
-5. **Start the server:**
-
-    Development mode (with auto-reload):
-    ```bash
-    npm run dev
-    ```
-
-    Production mode:
-    ```bash
-    npm start
-    ```
-
-## Directory Structure
+## 🔍 Project Structure
 
 ```
-payment-gateway/
-├── Json/                 # Encrypted wallet data
-├── secure/              # Private key storage
-├── Public/              # Frontend files
-│   ├── Product.html
-│   ├── Cart.html
-│   └── payment-flow.html
-├── server.js            # Main server file
-├── generateKeys.js      # Key generation utility
-├── encryptionUtils.js   # Encryption functions
-├── recover.js           # Wallet recovery functions
-└── setup.sh            # Setup script
+├── Public/                  # Frontend assets
+│   ├── merchant-dashboard.html  # Merchant interface
+│   ├── Product.html         # Sample e-commerce store
+│   └── Cart.html            # Shopping cart with payment
+├── Json/                    # Stored data
+│   └── keys.json            # Encrypted wallet keys
+├── server.js                # Main server code
+├── encryptionUtils.js       # Encryption/decryption utilities
+├── recover.js               # Wallet recovery tools
+├── generateKeys.js          # HD wallet generation
+├── fix-derivation-indexes.js  # Utility to fix wallet derivation paths
+├── recover-and-release.js   # Fund release testing tool
+├── TROUBLESHOOTING.md       # Detailed troubleshooting guide
+└── .env                     # Environment configuration
 ```
 
-## Usage
+## 💼 Usage
 
-1.  Access the e-commerce store at `http://localhost:3000/`.
-2.  Add items to the cart and select the cryptocurrency payment option.
-3.  Follow the on-screen instructions to generate a payment address and initiate the payment.
-4.  The merchant dashboard can be accessed at `http://localhost:3000/merchant`.
+### Setting Up a Merchant Account
 
-## API Endpoints
+1. Run the setup script to generate your HD wallet
+2. Configure your merchant address in the `.env` file
+3. Start the server and access the merchant dashboard
 
-### Wallet Operations
-- `GET /api/wallet-balance`
-  - Returns current HD wallet balance and address
-  - Response: `{ success: true, balance: "0.1", address: "0x..." }`
+### Managing Payments
 
-- `POST /api/generate-payment-address`
-  - Generates new payment address
-  - Response: `{ success: true, address: "0x...", expiresAt: "ISO-date" }`
+1. **Viewing Transactions**: All transactions can be viewed on the merchant dashboard
+2. **Checking Balances**: View your HD wallet balance from the dashboard
+3. **Releasing Funds**: Click the "Release Funds" button on the dashboard to transfer funds to your merchant wallet
 
-### Payment Operations
-- `POST /api/process-payment`
-  - Processes incoming payment
-  - Body: `{ amount: "0.1", cryptoType: "ETH" }`
-  - Response: `{ success: true, txHash: "0x..." }`
+### Testing the Payment Flow
 
-- `POST /api/release-funds`
-  - Releases funds to merchant address
-  - Body: `{ amount: "0.1" }`
-  - Response: `{ success: true, txHash: "0x..." }`
+1. Browse to http://localhost:3000 to access the demo store
+2. Add products to your cart and proceed to checkout
+3. Choose a cryptocurrency and complete the payment
+4. Monitor the transaction in real-time on the dashboard
+5. Release funds when ready
 
-## Security Best Practices
-
-1. **Environment Variables:**
-   - Never commit `.env` file
-   - Use strong ENCRYPTION_KEY
-   - Rotate keys periodically
-
-2. **Wallet Security:**
-   - Backup mnemonic phrase securely
-   - Use hardware wallet for production
-   - Regular security audits
-
-3. **Server Security:**
-   - Use HTTPS in production
-   - Implement rate limiting
-   - Regular dependency updates
-
-## Troubleshooting
+## 🛠 Maintenance and Troubleshooting
 
 ### Common Issues
 
-1. **"Unable to generate crypto address"**
-   - Check INFURA_URL in `.env`
-   - Verify `Json/keys.json` exists
-   - Ensure ENCRYPTION_KEY is correct
+If you encounter issues, please check the `TROUBLESHOOTING.md` file for detailed guidance.
 
-2. **Transaction Verification Failed**
-   - Check Sepolia network status
-   - Verify sufficient gas funds
-   - Check transaction on Etherscan
+**Quick Fixes:**
 
-3. **Server Won't Start**
-   - Verify Node.js version (v16+)
-   - Check port availability
-   - Confirm all dependencies installed
+- **Fund Release Issues**: Run `node fix-derivation-indexes.js` to correct address derivation paths
+- **Transaction Monitoring Problems**: Check the blockchain_tx.log for details
+- **Server Crashes**: Ensure your environment variables are correctly set in .env
 
-### Debug Commands
+## 🧪 Testing
+
+### Testing Fund Release
+
+The `recover-and-release.js` script provides a direct way to test fund releases:
 
 ```bash
-# Check Node.js version
-node -v
-
-# Verify environment
-node -e "console.log(require('dotenv').config())"
-
-# Test wallet recovery
-node -e "require('./recover.js').testRecovery()"
+node recover-and-release.js
 ```
 
-## Contributing
+This will check all addresses, verify derivation paths, and attempt to release all available funds.
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
+## 🔒 Security Considerations
 
-## License
+- Store your `.env` file securely and never commit it to version control
+- Use a strong ENCRYPTION_KEY (generated automatically by setup.sh)
+- For production, use dedicated and secure RPC providers
+- Regularly back up your keys.json file
 
-MIT License - See LICENSE file for details
+## 📝 Development and Extension
 
-## Support
+### Adding New Features
 
-For support, email [support@example.com](mailto:support@example.com) or open an issue.
+1. **Custom Notification System**: Edit webhook.js to integrate with your notification service
+2. **New Cryptocurrencies**: Extend the server.js payment processing logic
+3. **User Authentication**: Add authentication middleware to secure the merchant dashboard
+
+## 📚 API Documentation
+
+The payment gateway provides several API endpoints:
+
+- `GET /api/wallet-balance` - Get current wallet balance
+- `GET /api/merchant-transactions` - List all transactions
+- `POST /api/release-funds` - Release funds to merchant address
+- `POST /api/generate-payment-address` - Create new payment address
+
+## 📜 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## ❓ Support
+
+For additional help or questions, please refer to the TROUBLESHOOTING.md file or open an issue.

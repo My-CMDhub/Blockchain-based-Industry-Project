@@ -1,0 +1,73 @@
+[
+  {
+    "txHash": "0x93f24bbd7f1b5c1e75a7c3efa1788f708c4d73aa6339c25f30654e55243f694f",
+    "from": "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078",
+    "to": "0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b",
+    "amount": "0.00239702",
+    "type": "release",
+    "timestamp": "2025-03-26T07:02:00.871Z",
+    "status": true,
+    "blockNumber": 7983730,
+    "gasUsed": 21000,
+    "fullBalance": true,
+    "adjustedForGas": true
+  },
+  {
+    "txId": "tx_1742970904185_607prql",
+    "txHash": "0xc20f43e466256435de633d1d9ddd3720ed638386763de63986cb3df39a88ad19",
+    "from": "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078",
+    "to": "0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b",
+    "amount": "0.0009",
+    "amountWei": "900000000000000",
+    "timestamp": "2025-03-26T06:35:04.185Z",
+    "status": true,
+    "blockNumber": 7983595,
+    "gasUsed": 21000,
+    "type": "release"
+  },
+  {
+    "txId": "tx_1742963726910_22ttb1m",
+    "txHash": "0xc9006cc58d86c9f4966ac6b476b9db6d8cdfd50f84caf2ba375605304d968e7c",
+    "from": "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078",
+    "to": "0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b",
+    "amount": "0.001",
+    "amountWei": "1000000000000000",
+    "timestamp": "2025-03-26T04:35:26.910Z",
+    "status": true,
+    "blockNumber": 7982998,
+    "gasUsed": 21000,
+    "type": "release"
+  },
+  {
+    "txId": "tx_1742963499599_dl8f69j",
+    "txHash": "0xa51679cdad6b2d94ccab1b9be5afd872019d262ca0651599ee914dcb5a701f41",
+    "from": "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078",
+    "to": "0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b",
+    "amount": "0.0023",
+    "amountWei": "2300000000000000",
+    "timestamp": "2025-03-26T04:31:39.600Z",
+    "status": true,
+    "blockNumber": 7982979,
+    "gasUsed": 21000,
+    "type": "release"
+  },
+  {
+    "address": "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078",
+    "amount": "0.007723",
+    "timestamp": "2025-03-26T00:31:01.022Z",
+    "status": true,
+    "type": "payment",
+    "cryptoType": "ETH"
+  },
+  {
+    "txHash": "0xff4749304baaee9ccc8a1b2149ad744ef05df9f792e85bafcc60bdccfa4b9d80",
+    "from": "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078",
+    "to": "0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b",
+    "amount": "0.001",
+    "timestamp": "2025-03-26T02:05:52.209Z",
+    "status": true,
+    "blockNumber": 7982254,
+    "type": "release",
+    "id": "tx_1742954752209_0ohq7k4e"
+  }
+]

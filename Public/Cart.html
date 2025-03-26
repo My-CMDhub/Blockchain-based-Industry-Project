@@ -1,524 +1,991 @@
-<html><head><base href="Cart.html">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shopping Cart - Eco-Friendly E-commerce Store</title>
-<style>
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #f0f8f0;
-    color: #333;
-}
-
-header {
-    background-color: #2ecc71;
-    color: white;
-    padding: 20px;
-    text-align: center;
-}
-
-h1 {
-    margin: 0;
-    font-size: 2.5em;
-}
-
-main {
-    max-width: 800px;
-    margin: 40px auto;
-    padding: 0 20px;
-}
-
-.cart-item {
-    display: flex;
-    align-items: center;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-    padding: 20px;
-}
-
-.cart-item img {
-    width: 100px;
-    height: 100px;
-    object-fit: cover;
-    border-radius: 5px;
-    margin-right: 20px;
-}
-
-.item-details {
-    flex-grow: 1;
-}
-
-.item-name {
-    font-size: 1.2em;
-    font-weight: bold;
-    margin: 0 0 10px 0;
-}
-
-.item-price {
-    font-weight: bold;
-    color: #27ae60;
-}
-
-.remove-item {
-    background-color: #e74c3c;
-    border: none;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-.remove-item:hover {
-    background-color: #c0392b;
-}
-
-.order-summary {
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    padding: 20px;
-    margin-top: 40px;
-}
-
-.order-summary h2 {
-    margin-top: 0;
-    color: #2c3e50;
-}
-
-.total-price {
-    font-size: 1.5em;
-    font-weight: bold;
-    color: #27ae60;
-    margin-top: 10px;
-}
-
-.crypto-price {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #3498db;
-    margin-top: 10px;
-    display: none;
-}
-
-.continue-shopping {
-    display: inline-block;
-    background-color: #3498db;
-    color: white;
-    text-decoration: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    margin-top: 20px;
-    transition: background-color 0.3s ease;
-}
-
-.continue-shopping:hover {
-    background-color: #2980b9;
-}
-
-.payment-options {
-    margin-top: 40px;
-}
-
-.payment-options h2 {
-    color: #2c3e50;
-}
-
-.payment-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    margin-top: 20px;
-}
-
-.payment-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background-color: white;
-    border: 2px solid #3498db;
-    color: #3498db;
-    padding: 15px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    width: 120px;
-}
-
-.payment-button:hover, .payment-button.selected {
-    background-color: #3498db;
-    color: white;
-}
-
-.payment-button img {
-    width: 50px;
-    height: 50px;
-    margin-bottom: 10px;
-}
-
-.crypto-options {
-    display: none;
-    margin-top: 20px;
-}
-
-.crypto-option {
-    display: flex;
-    align-items: center;
-    background-color: white;
-    border: 1px solid #3498db;
-    color: #3498db;
-    padding: 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-}
-
-.crypto-option:hover, .crypto-option.selected {
-    background-color: #3498db;
-    color: white;
-}
-
-.crypto-option img {
-    width: 30px;
-    height: 30px;
-    margin-right: 10px;
-}
-
-.pay-button {
-    display: none;
-    background-color: #27ae60;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin-top: 20px;
-}
-
-.pay-button:hover {
-    background-color: #2ecc71;
-}
-
-footer {
-    background-color: #2ecc71;
-    color: white;
-    text-align: center;
-    padding: 20px;
-    margin-top: 40px;
-}
-
-.payment-page {
-    max-width: 600px;
-    margin: 40px auto;
-    padding: 20px;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.payment-page h2 {
-    color: #2c3e50;
-    margin-top: 0;
-}
-
-.payment-details {
-    margin-top: 20px;
-}
-
-.payment-details p {
-    margin: 10px 0;
-}
-
-.qr-code {
-    text-align: center;
-    margin-top: 20px;
-}
-
-.qr-code img {
-    max-width: 200px;
-    height: auto;
-}
-</style>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart - Eco Store</title>
+    <!-- Add favicon -->
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Update QR code library to a more reliable version -->
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <!-- Update ethers.js source -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <!-- Add loading spinner -->
+    <style>
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid #48bb78;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-enter {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        .fade-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 300ms, transform 300ms;
+        }
+    </style>
 </head>
-<body>
-    <header>
-        <h1>Shopping Cart</h1>
-    </header>
-    <main id="main-content">
-        <div id="cart-items">
-            <!-- Cart items will be dynamically added here -->
-        </div>
-        <div class="order-summary">
-            <h2>Order Summary</h2>
-            <p class="total-price">Total: $<span id="total-price">0.00</span></p>
-            <p class="crypto-price">Crypto Price: <span id="crypto-price"></span></p>
-            <a href="Product.html" class="continue-shopping">Continue Shopping</a>
-        </div>
-        <div class="payment-options">
-            <h2>Payment Options</h2>
-            <div class="payment-buttons">
-                <button class="payment-button" data-payment="credit-card">
-                    <img src="https://cdn-icons-png.flaticon.com/512/179/179457.png" alt="Credit Card Icon">
-                    Credit Card
-                </button>
-                <button class="payment-button" data-payment="paypal">
-                    <img src="https://cdn-icons-png.flaticon.com/512/174/174861.png" alt="PayPal Icon">
-                    PayPal
-                </button>
-                <button class="payment-button" data-payment="visa">
-                    <img src="https://cdn-icons-png.flaticon.com/512/349/349221.png" alt="Visa Icon">
-                    Visa
-                </button>
-                <button class="payment-button" data-payment="crypto" id="crypto-button">
-                    <img src="https://cdn-icons-png.flaticon.com/512/5968/5968260.png" alt="Cryptocurrency Icon">
-                    Cryptocurrency
-                </button>
-            </div>
-            <div class="crypto-options" id="crypto-options">
-                <div class="crypto-option" data-crypto="ETH">
-                    <img src="https://cdn-icons-png.flaticon.com/512/6001/6001368.png" alt="Ethereum Icon">
-                    Ethereum (ETH)
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg fixed w-full z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="Product.html" class="flex items-center hover:text-green-600 transition-colors">
+                        <i class="fas fa-leaf text-green-600 text-2xl mr-2"></i>
+                        <span class="text-xl font-bold text-gray-800">Eco Store</span>
+                    </a>
                 </div>
-                <div class="crypto-option" data-crypto="LTC">
-                    <img src="https://cryptologos.cc/logos/litecoin-ltc-logo.png" alt="Litecoin Icon">
-                    Litecoin (LTC)
-                </div>
-                <div class="crypto-option" data-crypto="USDT">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ41DXN4q9WhKLC-ZI-48MUcLCYk-X4PBEI2w&s" alt="Tether Icon">
-                    Tether (USDT)
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center px-3 py-1 rounded-full bg-green-50 text-sm text-green-700">
+                        <i class="fas fa-network-wired mr-2"></i>
+                        <span id="networkStatus">
+                            <span class="flex items-center">
+                                <span class="mr-2">Connecting...</span>
+                                <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                            </span>
+                        </span>
+                    </div>
                 </div>
             </div>
-            <button id="pay-button" class="pay-button">Pay Now</button>
         </div>
-    </main>
-    <footer>
-        <p>&copy; 2023 Eco-Friendly E-commerce Store. All rights reserved.</p>
-    </footer>
+    </nav>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script>
-    let cart = [];
-    const cartItemsContainer = document.getElementById('cart-items');
-    const totalPriceElement = document.getElementById('total-price');
-    const cryptoPriceElement = document.getElementById('crypto-price');
-    const cryptoButton = document.getElementById('crypto-button');
-    const cryptoOptions = document.getElementById('crypto-options');
-    const payButton = document.getElementById('pay-button');
-    const apiKey = "0de0e6bbe20532ee0cd76b9e5b9df43e0c22039ac62d6f2d9f524f9fffd054ba"; // Replace with your CryptoCompare API key
+    <!-- Main Content -->
+    <div class="pt-20 pb-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" id="main-content">
+            <!-- Cart Items -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Shopping Cart</h2>
+                <div id="cart-items" class="space-y-4">
+                    <!-- Cart items will be dynamically added here -->
+                </div>
+                <div id="empty-cart" class="hidden text-center py-8">
+                    <i class="fas fa-shopping-cart text-gray-300 text-5xl mb-4"></i>
+                    <p class="text-gray-500">Your cart is empty</p>
+                    <a href="Product.html" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                        Start Shopping
+                    </a>
+                </div>
+            </div>
 
-    let selectedCrypto = null;
-    let selectedPaymentMethod = null;
+            <!-- Order Summary -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Order Summary</h2>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center pb-4 border-b">
+                        <span class="text-gray-600">Subtotal</span>
+                        <span class="text-xl font-bold text-gray-900">$<span id="total-price">0.00</span></span>
+                    </div>
+                    <div class="crypto-price hidden">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-600">Selected Currency</span>
+                            <span id="selected-crypto" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-gray-600">Estimated Amount</span>
+                            <div class="flex items-center">
+                                <span id="crypto-price" class="font-semibold"></span>
+                                <div id="price-loading" class="spinner ml-2 hidden"></div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">* Price updates every 30 seconds</p>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-between items-center">
+                    <a href="Product.html" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Continue Shopping
+                    </a>
+                    <div class="text-sm text-gray-500">
+                        <i class="fas fa-shield-alt mr-1"></i>
+                        Secure Payment
+                    </div>
+                </div>
+            </div>
 
-    function loadCart() {
-        const savedCart = JSON.parse(localStorage.getItem('cart'));
-        if (savedCart) {
-            cart = savedCart;
+            <!-- Payment Options -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Select Payment Method</h2>
+                
+                <!-- Crypto Selection -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <label class="crypto-option relative">
+                        <input type="radio" name="crypto" value="ETH" class="hidden" onchange="selectCrypto('ETH')">
+                        <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                            <i class="fab fa-ethereum text-3xl mb-3 text-blue-600"></i>
+                            <span class="font-medium text-gray-900">Ethereum</span>
+                            <span class="text-sm text-gray-500 mt-1">ETH</span>
+                            <div class="mt-2 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full" id="ethPrice">
+                                Loading...
+                            </div>
+                        </div>
+                    </label>
+                    <label class="crypto-option relative">
+                        <input type="radio" name="crypto" value="BTC" class="hidden" onchange="selectCrypto('BTC')">
+                        <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                            <i class="fab fa-bitcoin text-3xl mb-3 text-yellow-500"></i>
+                            <span class="font-medium text-gray-900">Bitcoin</span>
+                            <span class="text-sm text-gray-500 mt-1">BTC</span>
+                            <div class="mt-2 text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full" id="btcPrice">
+                                Loading...
+                            </div>
+                        </div>
+                    </label>
+                    <label class="crypto-option relative">
+                        <input type="radio" name="crypto" value="USDT" class="hidden" onchange="selectCrypto('USDT')">
+                        <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                            <i class="fas fa-dollar-sign text-3xl mb-3 text-green-600"></i>
+                            <span class="font-medium text-gray-900">Tether</span>
+                            <span class="text-sm text-gray-500 mt-1">USDT</span>
+                            <div class="mt-2 text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full" id="usdtPrice">
+                                Loading...
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <button id="pay-button" onclick="proceedToPayment()" class="w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 hidden">
+                    <span class="flex items-center justify-center">
+                        <i class="fas fa-lock mr-2"></i>
+                        Proceed to Secure Payment
+                        <div id="payment-loading" class="spinner ml-2 hidden"></div>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Section Template -->
+    <template id="payment-template">
+        <div class="bg-white rounded-lg shadow-md p-6 my-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-gray-800">Cryptocurrency Payment</h2>
+                <span class="text-gray-500 text-sm">Order ID: <span id="order-id" class="font-mono"></span></span>
+            </div>
+            
+            <div class="border-b border-gray-200 pb-4 mb-4">
+                <div class="flex justify-between mb-2">
+                    <span class="text-gray-600">Amount:</span>
+                    <span id="crypto-amount" class="font-medium"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Expires:</span>
+                    <span id="countdown" class="font-medium text-orange-600"></span>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <div class="flex flex-col items-center space-y-4">
+                    <h3 class="text-gray-700 font-medium">Scan QR Code or Copy Address</h3>
+                    <div id="qr-code" class="border border-gray-200 p-2 rounded bg-white"></div>
+                    <div class="flex flex-col items-center space-y-1 w-full">
+                        <p class="text-gray-500 text-sm">Payment Address:</p>
+                        <div class="flex items-center w-full">
+                            <code id="payment-address" class="bg-gray-100 px-3 py-2 rounded text-sm font-mono truncate flex-grow text-center"></code>
+                            <button onclick="copyPaymentAddress()" class="ml-2 p-2 text-blue-600 hover:text-blue-800 focus:outline-none">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="payment-instructions" class="mb-6">
+                <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-900 mb-3">Payment Instructions</h3>
+                    <div class="space-y-3 text-blue-800">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fas fa-info-circle text-blue-500"></i>
+                            </div>
+                            <p class="ml-3 text-sm">Please send the exact amount shown above. Sending a different amount may result in payment processing issues.</p>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fas fa-clock text-blue-500"></i>
+                            </div>
+                            <p class="ml-3 text-sm">The payment address will expire in 30 minutes. Please complete the payment before the countdown timer reaches zero.</p>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fas fa-network-wired text-blue-500"></i>
+                            </div>
+                            <p class="ml-3 text-sm">Make sure you're sending the payment on the <strong>Sepolia Test Network</strong>. Transactions on other networks will not be detected.</p>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fas fa-shield-alt text-blue-500"></i>
+                            </div>
+                            <p class="ml-3 text-sm">Double-check the payment address before sending. Cryptocurrency transactions cannot be reversed once confirmed.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">How to Pay</h3>
+                    <ol class="space-y-3 text-gray-700">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">1</span>
+                            <p class="text-sm">Open your cryptocurrency wallet (e.g., MetaMask) and ensure you're connected to the Sepolia Test Network.</p>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">2</span>
+                            <p class="text-sm">Copy the payment address or scan the QR code with your wallet app.</p>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">3</span>
+                            <p class="text-sm">Enter the exact amount shown above and confirm the transaction in your wallet.</p>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">4</span>
+                            <p class="text-sm">Wait for the transaction to be confirmed. The status will update automatically once payment is detected.</p>
+                        </li>
+                    </ol>
+                </div>
+                <div class="mt-4 bg-yellow-50 border border-yellow-100 rounded-lg p-4">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-lightbulb text-yellow-500"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-yellow-800">Need Test ETH?</h3>
+                            <p class="mt-1 text-sm text-yellow-700">
+                                This is a test environment using the Sepolia network. You can get test ETH from the 
+                                <a href="https://sepoliafaucet.com/" target="_blank" class="underline hover:text-yellow-900">Sepolia Faucet</a>.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="transaction-status" class="border border-yellow-100 rounded-lg p-4 bg-yellow-50 my-6 hidden"></div>
+            
+            <div class="flex justify-between mt-8">
+                <button onclick="goBackToCart()" class="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200 focus:outline-none transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i> Back to Cart
+                </button>
+                <a href="Product.html" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
+                    <i class="fas fa-shopping-bag mr-2"></i> Continue Shopping
+                </a>
+            </div>
+        </div>
+    </template>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
+
+    <script>
+        let cart = [];
+        let selectedCrypto = null;
+        let priceUpdateInterval = null;
+        let networkCheckAttempts = 0;
+        const MAX_RETRY_ATTEMPTS = 3;
+        const cryptoPrices = {};
+
+        // Add network status check function
+        async function checkNetworkStatus() {
+            const networkStatusElement = document.getElementById('networkStatus');
+            const INFURA_URL = 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9';
+            
+            try {
+                const provider = new ethers.providers.JsonRpcProvider(INFURA_URL);
+                const network = await provider.getNetwork();
+                
+                if (network.chainId === 11155111) { // Sepolia chainId
+                    networkStatusElement.innerHTML = `
+                        <span class="flex items-center">
+                            <span class="mr-2">Sepolia Network</span>
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        </span>
+                    `;
+                    networkCheckAttempts = 0; // Reset attempts on success
+                    return true;
+                } else {
+                    throw new Error('Wrong network');
+                }
+            } catch (error) {
+                networkCheckAttempts++;
+                console.warn(`Network check attempt ${networkCheckAttempts} failed:`, error.message);
+                
+                if (networkCheckAttempts < MAX_RETRY_ATTEMPTS) {
+                    networkStatusElement.innerHTML = `
+                        <span class="flex items-center">
+                            <span class="mr-2">Connecting...</span>
+                            <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                        </span>
+                    `;
+                    // Retry with exponential backoff
+                    setTimeout(checkNetworkStatus, 1000 * Math.pow(2, networkCheckAttempts));
+                } else {
+                    networkStatusElement.innerHTML = `
+                        <span class="flex items-center">
+                            <span class="mr-2">Network Error</span>
+                            <span class="w-2 h-2 bg-red-500 rounded-full"></span>
+                        </span>
+                    `;
+                    // Show a helpful message to the user
+                    showToast('Network connection issues. Please check your internet connection or try again later.', 'warning');
+                }
+                return false;
+            }
+        }
+
+        // Load cart from localStorage
+        function loadCart() {
+            const savedCart = JSON.parse(localStorage.getItem('cart'));
+            if (savedCart && savedCart.length > 0) {
+                cart = savedCart;
+                displayCart();
+                updateTotalPrice();
+                document.getElementById('cart-items').classList.remove('hidden');
+                document.getElementById('empty-cart').classList.add('hidden');
+            } else {
+                document.getElementById('cart-items').classList.add('hidden');
+                document.getElementById('empty-cart').classList.remove('hidden');
+            }
+            // Initialize crypto prices
+            updateAllCryptoPrices();
+        }
+
+        // Display cart items
+        function displayCart() {
+            const cartItemsContainer = document.getElementById('cart-items');
+            cartItemsContainer.innerHTML = '';
+            
+            if (cart.length === 0) {
+                document.getElementById('cart-items').classList.add('hidden');
+                document.getElementById('empty-cart').classList.remove('hidden');
+                return;
+            }
+            
+            document.getElementById('cart-items').classList.remove('hidden');
+            document.getElementById('empty-cart').classList.add('hidden');
+            
+            cart.forEach((item, index) => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'flex items-center justify-between p-4 border-b last:border-b-0 hover:bg-gray-50 transition-colors';
+                itemElement.innerHTML = `
+                    <div class="flex items-center flex-1">
+                        <div class="relative">
+                            <img src="${item.image}" alt="${item.name}" class="w-20 h-20 object-cover rounded-lg">
+                            ${item.badge === 'eco' ? '<span class="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">Eco</span>' : ''}
+                        </div>
+                        <div class="ml-6">
+                            <h3 class="text-lg font-medium text-gray-900">${item.name}</h3>
+                            <p class="text-gray-600">$${item.price.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <button onclick="removeItem(${index})" class="ml-4 p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                cartItemsContainer.appendChild(itemElement);
+            });
+        }
+
+        // Update total price
+        function updateTotalPrice() {
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            document.getElementById('total-price').textContent = total.toFixed(2);
+            if (selectedCrypto) {
+                updateCryptoPrice(selectedCrypto);
+            }
+        }
+
+        // Remove item from cart
+        function removeItem(index) {
+            cart.splice(index, 1);
+            localStorage.setItem('cart', JSON.stringify(cart));
             displayCart();
             updateTotalPrice();
-        }
-    }
-
-    function displayCart() {
-        cartItemsContainer.innerHTML = '';
-        cart.forEach((item, index) => {
-            const cartItemElement = document.createElement('div');
-            cartItemElement.className = 'cart-item';
-            cartItemElement.innerHTML = `
-                <img src="${item.image}" alt="${item.name}">
-                <div class="item-details">
-                    <h3 class="item-name">${item.name}</h3>
-                    <p class="item-price">$${item.price.toFixed(2)}</p>
-                </div>
-                <button class="remove-item" data-index="${index}">Remove</button>
-            `;
-            cartItemsContainer.appendChild(cartItemElement);
-        });
-    }
-
-    function updateTotalPrice() {
-        const total = cart.reduce((sum, item) => sum + item.price, 0);
-        totalPriceElement.textContent = total.toFixed(2);
-    }
-
-    function removeItem(index) {
-        cart.splice(index, 1);
-        saveCart();
-        displayCart();
-        updateTotalPrice();
-    }
-
-    function saveCart() {
-        localStorage.setItem('cart', JSON.stringify(cart));
-    }
-
-    async function fetchCryptoPrice(crypto) {
-        const apiUrl = `https://min-api.cryptocompare.com/data/price?fsym=${crypto.toUpperCase()}&tsyms=USD&api_key=${apiKey}`;
-        try {
-            const response = await fetch(apiUrl);
-            const data = await response.json();
-            return data['USD'];
-        } catch (error) {
-            console.error('Error fetching crypto price:', error);
-            return null;
-        }
-    }
-
-    async function updateCryptoPrice(crypto) {
-        const cryptoPrice = await fetchCryptoPrice(crypto);
-        if (cryptoPrice) {
-            const totalUSD = parseFloat(totalPriceElement.textContent);
-            const cryptoAmount = totalUSD / cryptoPrice;
-            cryptoPriceElement.textContent = `${cryptoAmount.toFixed(6)} ${crypto.toUpperCase()}`;
-            document.querySelector('.crypto-price').style.display = 'block';
-            return cryptoAmount;
-        } else {
-            cryptoPriceElement.textContent = 'Unable to fetch price';
-            return null;
-        }
-    }
-
-    function updatePayButton() {
-        if (selectedPaymentMethod === 'crypto' && selectedCrypto) {
-            payButton.style.display = 'block';
-        } else if (selectedPaymentMethod && selectedPaymentMethod !== 'crypto') {
-            payButton.style.display = 'block';
-        } else {
-            payButton.style.display = 'none';
-        }
-    }
-
-    // Load cart from localStorage
-    loadCart();
-
-    // Remove item event listener
-    cartItemsContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-item')) {
-            const index = parseInt(e.target.dataset.index);
-            removeItem(index);
-        }
-    });
-
-    // Payment option event listeners
-    const paymentButtons = document.querySelectorAll('.payment-button');
-    paymentButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-            const paymentMethod = e.target.closest('.payment-button').dataset.payment;
-            selectedPaymentMethod = paymentMethod;
-
-            // Remove 'selected' class from all payment buttons
-            paymentButtons.forEach(btn => btn.classList.remove('selected'));
-            // Add 'selected' class to the clicked button
-            e.target.closest('.payment-button').classList.add('selected');
-
-            if (paymentMethod === 'crypto') {
-                cryptoOptions.style.display = 'block';
-                selectedCrypto = null;
-            } else {
-                cryptoOptions.style.display = 'none';
-                document.querySelector('.crypto-price').style.display = 'none';
+            showToast('Item removed from cart');
+            
+            if (cart.length === 0) {
+                document.getElementById('cart-items').classList.add('hidden');
+                document.getElementById('empty-cart').classList.remove('hidden');
+                document.getElementById('pay-button').classList.add('hidden');
             }
-            updatePayButton();
+        }
+
+        // Update all crypto prices
+        async function updateAllCryptoPrices() {
+            const cryptos = ['ethereum', 'bitcoin', 'tether'];
+            
+            try {
+                // Try CoinCap API first (more reliable and no API key needed)
+                const prices = await Promise.all([
+                    fetch('https://api.coincap.io/v2/assets/ethereum').then(r => r.json()),
+                    fetch('https://api.coincap.io/v2/assets/bitcoin').then(r => r.json()),
+                    fetch('https://api.coincap.io/v2/assets/tether').then(r => r.json())
+                ]);
+                
+                cryptoPrices.ETH = parseFloat(prices[0].data.priceUsd);
+                cryptoPrices.BTC = parseFloat(prices[1].data.priceUsd);
+                cryptoPrices.USDT = parseFloat(prices[2].data.priceUsd);
+                
+            } catch (error) {
+                console.warn('API error, using fallback prices:', error);
+                // Use fallback prices
+                cryptoPrices.ETH = 2200;
+                cryptoPrices.BTC = 43000;
+                cryptoPrices.USDT = 1;
+            }
+            
+            updatePriceDisplays();
+        }
+
+        // Update price displays
+        function updatePriceDisplays() {
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            
+            document.getElementById('ethPrice').textContent = `1 ETH ≈ $${cryptoPrices.ETH?.toFixed(2) || '---'}`;
+            document.getElementById('btcPrice').textContent = `1 BTC ≈ $${cryptoPrices.BTC?.toFixed(2) || '---'}`;
+            document.getElementById('usdtPrice').textContent = `1 USDT ≈ $${cryptoPrices.USDT?.toFixed(2) || '---'}`;
+
+            if (selectedCrypto && cryptoPrices[selectedCrypto]) {
+                const cryptoAmount = total / cryptoPrices[selectedCrypto];
+                document.getElementById('crypto-price').textContent = `${cryptoAmount.toFixed(6)} ${selectedCrypto}`;
+                document.getElementById('selected-crypto').textContent = selectedCrypto;
+            }
+        }
+
+        // Select cryptocurrency
+        function selectCrypto(crypto) {
+            selectedCrypto = crypto;
+            
+            // Update radio button
+            const radioButton = document.querySelector(`input[name="crypto"][value="${crypto}"]`);
+            if (radioButton) {
+                radioButton.checked = true;
+            }
+            
+            // Update visual selection
+            document.querySelectorAll('.crypto-option').forEach(option => {
+                const div = option.querySelector('div');
+                if (div) {
+                    div.classList.remove('border-green-500', 'bg-green-50');
+                    if (option.querySelector(`input[value="${crypto}"]`)) {
+                        div.classList.add('border-green-500', 'bg-green-50');
+                    }
+                }
+            });
+            
+            // Show pay button and crypto price
+            document.getElementById('pay-button').classList.remove('hidden');
+            document.querySelector('.crypto-price').classList.remove('hidden');
+            
+            // Show loading spinner
+            document.getElementById('price-loading').classList.remove('hidden');
+            
+            // Update price and start interval
+            updateCryptoPrice(crypto);
+            if (priceUpdateInterval) clearInterval(priceUpdateInterval);
+            priceUpdateInterval = setInterval(() => updateAllCryptoPrices(), 30000);
+        }
+
+        // Update crypto price
+        async function updateCryptoPrice(crypto) {
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            document.getElementById('price-loading').classList.remove('hidden');
+            
+            try {
+                const coinCapId = getCoinCapId(crypto);
+                const response = await fetch(`https://api.coincap.io/v2/assets/${coinCapId}`);
+                if (!response.ok) {
+                    throw new Error(`API responded with status: ${response.status}`);
+                }
+                const data = await response.json();
+                const price = parseFloat(data.data.priceUsd);
+                
+                cryptoPrices[crypto] = price;
+                const cryptoAmount = total / price;
+                
+                document.getElementById('crypto-price').textContent = `${cryptoAmount.toFixed(6)} ${crypto}`;
+                document.getElementById('selected-crypto').textContent = crypto;
+                
+            } catch (error) {
+                console.warn('API error, using fallback price:', error);
+                // Use fallback price
+                const fallbackPrice = getDefaultPrice(crypto);
+                cryptoPrices[crypto] = fallbackPrice;
+                const cryptoAmount = total / fallbackPrice;
+                
+                document.getElementById('crypto-price').textContent = `${cryptoAmount.toFixed(6)} ${crypto} (est.)`;
+                document.getElementById('selected-crypto').textContent = `${crypto} (estimated)`;
+                showToast('Using estimated exchange rate', 'warning');
+            }
+            
+            document.getElementById('price-loading').classList.add('hidden');
+        }
+
+        // Get CoinGecko ID
+        function getCoinGeckoId(crypto) {
+            const mapping = {
+                'ETH': 'ethereum',
+                'BTC': 'bitcoin',
+                'USDT': 'tether'
+            };
+            return mapping[crypto];
+        }
+        
+        // Get CoinCap API ID
+        function getCoinCapId(crypto) {
+            const mapping = {
+                'ETH': 'ethereum',
+                'BTC': 'bitcoin',
+                'USDT': 'tether'
+            };
+            return mapping[crypto];
+        }
+
+        // Add the calculateTotal function at the top of your script section
+        function calculateTotal() {
+            let total = 0;
+            const cartItems = document.querySelectorAll('.cart-item');
+            
+            cartItems.forEach(item => {
+                const price = parseFloat(item.querySelector('.price').textContent.replace('$', ''));
+                const quantity = parseInt(item.querySelector('.quantity').value);
+                total += price * quantity;
+            });
+            
+            return total.toFixed(2); // Return with 2 decimal places
+        }
+
+        // Update total display whenever cart changes
+        function updateTotalDisplay() {
+            const total = calculateTotal();
+            document.getElementById('total-price').textContent = total;
+        }
+
+        // Add event listeners to quantity inputs
+        document.addEventListener('DOMContentLoaded', () => {
+            const quantityInputs = document.querySelectorAll('.quantity');
+            quantityInputs.forEach(input => {
+                input.addEventListener('change', updateTotalDisplay);
+            });
+            updateTotalDisplay(); // Initial total calculation
         });
-    });
 
-    // Crypto option event listeners
-    const cryptoOptionButtons = document.querySelectorAll('.crypto-option');
-    cryptoOptionButtons.forEach(button => {
-        button.addEventListener('click', async (e) => {
-            const cryptoMethod = e.target.closest('.crypto-option').dataset.crypto;
-            selectedCrypto = cryptoMethod;
+        // Handle payment
+        async function proceedToPayment() {
+            if (!selectedCrypto) {
+                showToast('Please select a cryptocurrency for payment', 'warning');
+                return;
+            }
 
-            // Remove 'selected' class from all crypto options
-            cryptoOptionButtons.forEach(btn => btn.classList.remove('selected'));
-            // Add 'selected' class to the clicked option
-            e.target.closest('.crypto-option').classList.add('selected');
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            if (total <= 0) {
+                showToast('Your cart is empty', 'warning');
+                return;
+            }
 
-            const cryptoAmount = await updateCryptoPrice(cryptoMethod.toLowerCase());
-            updatePayButton();
+            // Pre-calculate values that don't need server response
+            const orderId = generateOrderId();
+            const cryptoAmount = (total / (cryptoPrices[selectedCrypto] || getDefaultPrice(selectedCrypto))).toFixed(8);
+            const expiryTime = new Date(Date.now() + 30 * 60000);
+
+            // Show payment template immediately
+            const mainContent = document.getElementById('main-content');
+            const template = document.getElementById('payment-template');
+            mainContent.innerHTML = template.innerHTML;
+
+            // Update static information immediately
+            document.getElementById('order-id').textContent = orderId;
+            document.getElementById('crypto-amount').textContent = `${cryptoAmount} ${selectedCrypto}`;
+            startCountdown(expiryTime);
+
+            // Show initial loading state in a non-blocking way
+            const transactionStatus = document.getElementById('transaction-status');
+            transactionStatus.classList.remove('hidden');
+            transactionStatus.innerHTML = `
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-spinner fa-spin text-blue-500 text-lg"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-sm font-medium text-blue-800">Generating Payment Address</h3>
+                        <p class="mt-1 text-sm text-blue-700">
+                            Please wait while we prepare your payment details...
+                        </p>
+                    </div>
+                </div>
+            `;
+
+            try {
+                // Start address generation request immediately
+                const addressPromise = fetch('/api/generate-payment-address', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: total,
+                        cryptoType: selectedCrypto
+                    })
+                });
+
+                // While waiting for the address, prepare the QR code container
+                const qrContainer = document.getElementById('qr-code');
+                if (qrContainer) {
+                    qrContainer.innerHTML = `
+                        <div class="animate-pulse bg-gray-200 w-32 h-32 rounded"></div>
+                    `;
+                }
+
+                // Wait for address generation
+                const response = await addressPromise;
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to generate payment address');
+                }
+
+                // Update payment address immediately when received
+                document.getElementById('payment-address').textContent = data.address;
+
+                // Generate QR code in parallel with other operations
+                if (qrContainer) {
+                    qrContainer.innerHTML = '';
+                    new QRCode(qrContainer, {
+                        text: data.address,
+                        width: 128,
+                        height: 128,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                }
+
+                // Update transaction status
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-spinner fa-spin text-yellow-500 text-lg"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-sm font-medium text-yellow-800">Waiting for Payment</h3>
+                            <p class="mt-1 text-sm text-yellow-700">
+                                Send ${cryptoAmount} ${selectedCrypto} to the address above
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Start transaction detection in parallel
+                startTransactionDetection(data.address, selectedCrypto);
+
+            } catch (error) {
+                console.error('Payment processing error:', error);
+                showToast('Error processing payment: ' + error.message, 'error');
+                
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-sm font-medium text-red-800">Payment Error</h3>
+                            <p class="mt-1 text-sm text-red-700">
+                                ${error.message}. Please try again.
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Start countdown timer
+        function startCountdown(expiresAt) {
+            const timerElement = document.getElementById('countdown');
+            
+            // Validate expiry time
+            if (isNaN(expiresAt) || expiresAt <= Date.now()) {
+                // Default to 30 minutes if invalid
+                expiresAt = Date.now() + 30 * 60000;
+                console.warn('Invalid expiry time, defaulting to 30 minutes');
+            }
+            
+            const interval = setInterval(() => {
+                const now = Date.now();
+                const timeLeft = expiresAt - now;
+
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    timerElement.textContent = '<span class="text-red-600">Expired</span>';
+                    document.getElementById('transaction-status').innerHTML = `
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-sm font-medium text-red-800">Payment Time Expired</h3>
+                                <p class="mt-1 text-sm text-red-700">
+                                    Please start a new payment session.
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        // Generate order ID
+        function generateOrderId() {
+            return 'ORD-' + Date.now().toString(36).toUpperCase();
+        }
+
+        // Copy payment address function
+        function copyPaymentAddress() {
+            const address = document.getElementById('payment-address').textContent;
+            navigator.clipboard.writeText(address).then(() => {
+                showToast('Payment address copied to clipboard', 'success');
+            });
+        }
+
+        // Go back to cart function
+        function goBackToCart() {
+            showMainCart();
+            // Clear any intervals
+            if (window.transactionMonitorInterval) {
+                clearInterval(window.transactionMonitorInterval);
+            }
+            if (window.countdownInterval) {
+                clearInterval(window.countdownInterval);
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            // Create toast container if it doesn't exist
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'fixed top-4 right-4 z-50 flex flex-col space-y-2';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // Create toast
+            const toast = document.createElement('div');
+            
+            // Set toast style based on type
+            let iconClass = 'fa-info-circle text-blue-500';
+            let bgColor = 'bg-blue-50 border-blue-100';
+            let textColor = 'text-blue-800';
+            
+            if (type === 'success') {
+                iconClass = 'fa-check-circle text-green-500';
+                bgColor = 'bg-green-50 border-green-100';
+                textColor = 'text-green-800';
+            } else if (type === 'error') {
+                iconClass = 'fa-exclamation-circle text-red-500';
+                bgColor = 'bg-red-50 border-red-100';
+                textColor = 'text-red-800';
+            } else if (type === 'warning') {
+                iconClass = 'fa-exclamation-triangle text-yellow-500';
+                bgColor = 'bg-yellow-50 border-yellow-100';
+                textColor = 'text-yellow-800';
+            }
+            
+            toast.className = `${bgColor} border p-3 rounded-lg shadow-md flex items-center space-x-2 min-w-[250px] transform transition-all duration-500 ease-in-out translate-x-0`;
+            toast.innerHTML = `
+                <i class="fas ${iconClass} text-lg"></i>
+                <p class="${textColor} text-sm">${message}</p>
+            `;
+            
+            // Add to container
+            toastContainer.appendChild(toast);
+            
+            // Animate and remove after timeout
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.parentElement.removeChild(toast);
+                    }
+                }, 500);
+            }, 3000);
+        }
+
+        // Helper function to get default price
+        function getDefaultPrice(crypto) {
+            const defaults = {
+                'ETH': 2200,
+                'BTC': 43000,
+                'USDT': 1
+            };
+            return defaults[crypto] || 2200;
+        }
+
+        // Update the startTransactionDetection function to be more efficient
+        async function startTransactionDetection(address, cryptoType) {
+            console.log('Starting transaction detection for:', address);
+            
+            let provider;
+            const INFURA_URL = 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9';
+            const BACKUP_URL = 'https://rpc.sepolia.org';
+            
+            try {
+                // Try Infura first
+                provider = new ethers.providers.JsonRpcProvider(INFURA_URL);
+                const network = await provider.getNetwork();
+                console.log('Connected to Infura on network:', network.name);
+            } catch (error) {
+                console.warn('Infura connection failed, trying backup RPC');
+                try {
+                    provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
+                    await provider.getNetwork();
+                    console.log('Connected to backup RPC');
+                } catch (backupError) {
+                    console.error('All providers failed');
+                    const transactionStatus = document.getElementById('transaction-status');
+                    if (transactionStatus) {
+                        transactionStatus.innerHTML = `
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h3 class="text-sm font-medium text-red-800">Network Connection Error</h3>
+                                    <p class="mt-1 text-sm text-red-700">
+                                        Unable to monitor transactions. Please check your payment on the blockchain explorer.
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    showToast('Network connection error', 'error');
+                    return;
+                }
+            }
+
+            // Set up transaction monitoring
+            let checkCount = 0;
+            let lastBalance = 0;
+            const interval = setInterval(async () => {
+                try {
+                    checkCount++;
+                    const balance = await provider.getBalance(address);
+                    const balanceInEth = ethers.utils.formatEther(balance);
+                    console.log(`Checking balance for ${address}: ${balanceInEth} ETH`);
+
+                    if (!balance.isZero()) {
+                        clearInterval(interval);
+                        console.log('Payment detected!');
+                        
+                        // Notify backend about the payment to update HD wallet records
+                        try {
+                            await fetch('/api/record-payment', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    address,
+                                    amount: balanceInEth,
+                                    cryptoType
+                                })
+                            });
+                            console.log('Payment recorded with backend');
+                        } catch (recordError) {
+                            console.error('Failed to record payment with backend:', recordError);
+                            // Continue anyway since we detected the payment
+                        }
+                        
+                        const transactionStatus = document.getElementById('transaction-status');
+                        if (transactionStatus) {
+                            transactionStatus.innerHTML = `
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas fa-check-circle text-green-500 text-lg"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <h3 class="text-sm font-medium text-green-800">Payment Received!</h3>
+                                        <p class="mt-1 text-sm text-green-700">
+                                            ${balanceInEth} ETH received. Transaction has been confirmed on the blockchain.
+                                        </p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        // Clear cart after successful payment
+                        cart = [];
+                        localStorage.setItem('cart', JSON.stringify(cart));
+                        showToast('Payment received successfully!', 'success');
+                    } else if (checkCount >= 60) { // Check for 5 minutes max (60 * 5 seconds)
+                        clearInterval(interval);
+                        const transactionStatus = document.getElementById('transaction-status');
+                        if (transactionStatus) {
+                            transactionStatus.innerHTML = `
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas fa-exclamation-triangle text-yellow-500 text-lg"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <h3 class="text-sm font-medium text-yellow-800">No Payment Detected</h3>
+                                        <p class="mt-1 text-sm text-yellow-700">
+                                            We haven't detected your payment yet. If you've already sent the funds, please check the transaction status on a blockchain explorer.
+                                        </p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error checking transaction:', error);
+                    // Try to reconnect if connection fails
+                    try {
+                        provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
+                    } catch (reconnectError) {
+                        console.warn('Failed to reconnect to backup provider');
+                    }
+                }
+            }, 5000); // Check every 5 seconds
+
+            // Store interval ID for cleanup
+            window.transactionMonitorInterval = interval;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check network status first
+            await checkNetworkStatus();
+            
+            // Load cart and start price updates only if network is available
+            loadCart();
+            updateAllCryptoPrices();
+            
+            // Set up periodic price updates with error handling
+            setInterval(() => {
+                try {
+                    updateAllCryptoPrices();
+                } catch (error) {
+                    console.warn('Price update failed:', error);
+                }
+            }, 30000);
         });
-    });
-
-    // Pay button event listener
-    payButton.addEventListener('click', async () => {                                                                                                             
-     if (selectedPaymentMethod === 'crypto' && selectedCrypto) {                                                                                               
-         const cryptoAmount = await updateCryptoPrice(selectedCrypto.toLowerCase());                                                                           
-         if (!cryptoAmount || isNaN(cryptoAmount)) {                                                                                                           
-             alert('Unable to calculate the crypto amount. Please try again.');                                                                                
-             return;                                                                                                                                           
-         }                                                                                                                                                     
-                                                                                                                                                               
-         const orderId = Math.random().toString(36).substr(2, 9).toUpperCase();                                                                                
-                                                                                                                                                               
-         // Display payment page with the calculated amount                                                                                                    
-         displayPaymentPage(orderId, cryptoAmount, selectedCrypto);                                                                                            
-     } else if (selectedPaymentMethod) {                                                                                                                       
-         alert(`Processing payment with ${selectedPaymentMethod}. This is a demo, no actual payment will be processed.`);                                      
-     } else {                                                                                                                                                  
-         alert('Please select a payment method before proceeding.');                                                                                           
-     }                                                                                                                                                         
- });                
-
-    async function displayPaymentPage(orderId, amount, crypto) {                                                                                                  
-     try {                                                                                                                                                     
-         const response = await fetch('/api/generate-payment-address', {
-            method: 'POST',
-         });
-         const data = await response.json();
-         const address = data.address;
-         const expiresAt = data.expiresAt;                                                                                                                          
-                                                                                                                                                               
-         const mainContent = document.getElementById('main-content');                                                                                          
-         mainContent.innerHTML = `                                                                                                                             
-             <div class="payment-page">                                                                                                                        
-                 <h2>Crypto Payment Details</h2>                                                                                                               
-                 <div class="payment-details">                                                                                                                 
-                     <p><strong>Order ID:</strong> ${orderId}</p>                                                                                              
-                     <p><strong>Total Amount:</strong> ${amount.toFixed(6)} ${crypto.toUpperCase()}</p>                                                        
-                     <p><strong>Send payment to this address:</strong></p>                                                                                     
-                     <p>${address}</p>
-                     <p><strong>Expires at:</strong> <span id="countdown-timer"></span></p>                                                                                                                          
-                 </div>                                                                                                                                        
-                 <div class="qr-code" id="qrcode"></div>                                                                                                       
-             </div>                                                                                                                                            
-         `;                                                                                                                                                    
-                                                                                                                                                               
-         // Generate QR code                                                                                                                                   
-         new QRCode(document.getElementById("qrcode"), {                                                                                                       
-             text: `${crypto.toUpperCase()}:${address}?amount=${amount}`,                                                                                      
-             width: 200,                                                                                                                                       
-             height: 200                                                                                                                                       
-         });    
-         
-         // Start countdown timer
-         const expiresAtTimestamp = new Date(expiresAt).getTime();
-         startCountdown(expiresAtTimestamp);
-     } catch (error) {
-         console.error('Error fetching crypto address:', error);
-         alert('Unable to generate crypto address. Please try again.');
-     }
- }
-
- function startCountdown(expiresAt) {
-     const countdownTimer = document.getElementById('countdown-timer');
-     const interval = setInterval(() => {
-         const now = Date.now();
-         const remainingTime = expiresAt - now;
-         if (remainingTime <= 0) {
-             clearInterval(interval);
-             countdownTimer.textContent = 'Expired';
-         } else {
-             const minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
-             const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-             countdownTimer.textContent = `${minutes}m ${seconds}s`;
-         }
-     }, 1000);
- }
-</script>
-
+    </script>
 </body>
 </html>

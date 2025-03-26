@@ -23,11 +23,16 @@ const getStoredKeys = () => {
 };
 
 // Function to recover wallet from mnemonic
-const recoverWallet = async (mnemonic) => {
+const recoverWallet = async (mnemonic, index = 0) => {
     try {
         const seed = await bip39.mnemonicToSeed(mnemonic);
         const masterKey = bip32.fromSeed(seed);
-        const path = "m/44'/60'/0'/0/0";
+        
+        // Ensure index is UInt32
+        const safeIndex = Number(index) >>> 0;
+        const path = `m/44'/60'/0'/0/${safeIndex}`;
+        console.log(`Deriving address with path: ${path}`);
+        
         const child = masterKey.derivePath(path);
         const privateKey = '0x' + child.privateKey.toString('hex');
         const address = web3.eth.accounts.privateKeyToAccount(privateKey).address;

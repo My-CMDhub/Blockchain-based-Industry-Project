@@ -5,148 +5,1726 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Merchant Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        .container { margin-top: 30px; }
-        .card { margin-bottom: 20px; }
-        .success { color: green; }
-        .error { color: red; }
-        .pending { color: orange; }
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            padding-bottom: 30px;
+        }
+        
+        .container { 
+            margin-top: 30px; 
+            max-width: 1200px;
+        }
+        
+        .card { 
+            margin-bottom: 25px; 
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-title {
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 1.2rem;
+        }
+        
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.2rem 1.5rem;
+        }
+        
+        .card-body {
+            padding: 1.5rem;
+        }
+        
+        .success { color: var(--secondary-color); font-weight: 500; }
+        .error { color: var(--danger-color); font-weight: 500; }
+        .pending { color: var(--warning-color); font-weight: 500; }
+        
+        .spinner-border { 
+            width: 1rem; 
+            height: 1rem; 
+        }
+        
+        .loader-container { 
+            display: flex; 
+            justify-content: center; 
+            padding: 30px; 
+        }
+        
+        .address-info { 
+            font-size: 0.9rem; 
+            word-break: break-all; 
+            padding: 0.75rem;
+            background-color: #f0f4f8;
+            border-radius: 5px;
+            margin-top: 0.25rem;
+            font-family: monospace;
+            border-left: 3px solid var(--primary-color);
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .empty-state { 
+            text-align: center; 
+            padding: 40px; 
+            color: #6c757d; 
+        }
+        
+        #hdWalletBalance {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .badge {
+            padding: 0.5em 0.8em;
+            font-weight: 500;
+        }
+        
+        .btn {
+            padding: 0.5rem 1.2rem;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+        
+        .btn-warning:hover {
+            background-color: #e67e22;
+            border-color: #e67e22;
+        }
+        
+        .btn-secondary {
+            background-color: #95a5a6;
+            border-color: #95a5a6;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+            border-color: #7f8c8d;
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        /* Toast notification styles */
+        #toast-container {
+            position: fixed;
+            z-index: 1050;
+            bottom: 20px;
+            right: 20px;
+        }
+        
+        .toast {
+            min-width: 300px;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            border-radius: 8px;
+            border: none;
+        }
+        
+        .toast-body {
+            padding: 1rem 1.25rem;
+        }
+        
+        /* Table improvements */
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            border-top: none;
+        }
+        
+        .table td, .table th {
+            padding: 1rem;
+            vertical-align: middle;
+        }
+        
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        /* Wallet info improvements */
+        .wallet-info-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 1rem;
+        }
+        
+        .wallet-info-item {
+            flex: 1 1 300px;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: none;
+            padding: 1.25rem;
+        }
+        
+        @media (max-width: 768px) {
+            #hdWalletBalance {
+                font-size: 2rem;
+            }
+            
+            .card-body {
+                padding: 1.25rem;
+            }
+            
+            .btn {
+                padding: 0.4rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #121212;
+                color: #e0e0e0;
+            }
+            
+            .card {
+                background-color: #1e1e1e;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            }
+            
+            .card-header {
+                background-color: #1e1e1e;
+                border-bottom-color: rgba(255,255,255,0.1);
+            }
+            
+            .card-title {
+                color: #e0e0e0;
+            }
+            
+            .table th {
+                background-color: #2a2a2a;
+                color: #e0e0e0;
+            }
+            
+            .table td {
+                color: #e0e0e0;
+            }
+            
+            .address-info {
+                background-color: #2a2a2a;
+                color: #e0e0e0;
+                border-left: 3px solid var(--primary-color);
+            }
+            
+            .wallet-info-item {
+                background-color: #2a2a2a;
+            }
+            
+            .collapse .card-body {
+                background-color: #1a1a1a;
+            }
+            
+            .collapse h6 {
+                color: #e0e0e0;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            .list-group-item {
+                background-color: #2a2a2a;
+                border-color: rgba(255,255,255,0.1);
+            }
+            
+            .list-group-item:hover {
+                background-color: rgba(52, 152, 219, 0.1);
+            }
+            
+            .list-group-item h6 {
+                color: #e0e0e0;
+            }
+        }
+        
+        /* Improve the visibility of active payment addresses section */
+        .collapse .card-body {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .collapse h6 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        /* Better list group styling for addresses */
+        .list-group-item {
+            padding: 1rem;
+            border-left: none;
+            border-right: none;
+            border-radius: 0 !important;
+            transition: all 0.2s ease;
+        }
+        
+        .list-group-item:first-child {
+            border-top-left-radius: 5px !important;
+            border-top-right-radius: 5px !important;
+        }
+        
+        .list-group-item:last-child {
+            border-bottom-left-radius: 5px !important;
+            border-bottom-right-radius: 5px !important;
+        }
+        
+        .list-group-item:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .list-group-item h6 {
+            color: var(--dark-color);
+            font-weight: 600;
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Add these styles to improve the transaction history table */
+        .transaction-hash {
+            font-family: monospace;
+            font-weight: 500;
+            padding: 0.25rem 0.5rem;
+            background-color: #f0f4f8;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            display: inline-block;
+            max-width: 180px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s ease;
+        }
+        
+        .transaction-hash:hover {
+            max-width: 100%;
+        }
+        
+        .table td {
+            vertical-align: middle;
+        }
+        
+        /* Transaction type badges */
+        .tx-type {
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .tx-type-payment {
+            background-color: rgba(46, 204, 113, 0.15);
+            color: #27ae60;
+        }
+        
+        .tx-type-release {
+            background-color: rgba(52, 152, 219, 0.15);
+            color: #2980b9;
+        }
+        
+        /* Dark mode adjustments */
+        @media (prefers-color-scheme: dark) {
+            .transaction-hash {
+                background-color: #2a2a2a;
+            }
+            
+            .tx-type-payment {
+                background-color: rgba(46, 204, 113, 0.2);
+                color: #2ecc71;
+            }
+            
+            .tx-type-release {
+                background-color: rgba(52, 152, 219, 0.2);
+                color: #3498db;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="mb-4">Merchant Dashboard (Live Mode)</h1>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">
+                <i class="fas fa-wallet me-2"></i>
+                Merchant Dashboard
+                <span class="badge bg-info ms-2">Live</span>
+            </h1>
+            <button class="btn btn-outline-primary" onclick="refreshBalance(true)">
+                <i class="fas fa-sync-alt me-1"></i>
+                <span id="refresh-btn-text">Refresh Data</span>
+                <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+        </div>
         
         <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-wallet me-2"></i>
+                    HD Wallet Status
+                </h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">HD Wallet Status</h5>
-                <h2 class="text-primary" id="hdWalletBalance">0.00 ETH</h2>
-                <p class="text-muted">Wallet Address: <span id="hdWalletAddress">Loading...</span></p>
-                <p class="text-muted">Network: <span id="networkStatus">Sepolia Testnet</span></p>
-                <button class="btn btn-secondary" onclick="refreshBalance()">Refresh Balance</button>
+                <div id="wallet-loading" class="loader-container">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="wallet-content" class="d-none">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h2 class="text-primary d-flex align-items-center" id="hdWalletBalance">
+                                <span>0.00 ETH</span>
+                                <span class="badge bg-light text-primary ms-2 fs-6" id="hdWalletBalanceUSD">$0.00</span>
+                            </h2>
+                            <p class="text-muted">
+                                <i class="fas fa-key me-2"></i>
+                                Root Wallet Address:
+                                <div class="address-info position-relative mt-2 mb-2">
+                                    <span id="hdWalletAddress">Loading...</span>
+                                    <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-1" 
+                                            onclick="copyToClipboard(document.getElementById('hdWalletAddress').textContent, this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex flex-column h-100 justify-content-between">
+                                <div>
+                                    <p class="text-muted mb-1">
+                                        <i class="fas fa-network-wired me-2"></i>
+                                        Network: <span id="networkStatus" class="badge bg-success">Sepolia Testnet</span>
+                                    </p>
+                                    <div class="mb-3">
+                                        <span class="badge bg-info" id="activeAddressesCount">0 active payment addresses</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline-primary w-100 mt-auto" data-bs-toggle="collapse" data-bs-target="#addressDetails">
+                                    <i class="fas fa-list-ul me-2"></i>
+                                    View All Addresses
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="collapse mt-3" id="addressDetails">
+                        <div class="card card-body bg-light">
+                            <h6 class="mb-3">
+                                <i class="fas fa-address-book me-2"></i>
+                                <span class="fw-bold">Active Payment Addresses</span>
+                            </h6>
+                            <div id="address-list">
+                                <p class="text-muted">No active payment addresses found.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Release Funds to Merchant</h5>
-                <div class="alert alert-info">
-                    Funds will be sent to: ${MERCHANT_ADDRESS}
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Amount to Release (ETH)</label>
-                    <input type="number" class="form-control" id="releaseAmount" 
-                           step="0.001" min="0.001" placeholder="Enter amount in ETH">
-                </div>
-                <button class="btn btn-primary" id="releaseButton" onclick="releaseFunds()">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-money-bill-transfer me-2"></i>
                     Release Funds to Merchant
-                </button>
-                <div id="releaseStatus" class="mt-3"></div>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info" id="merchant-address-container">
+                    <i class="fas fa-user-tie me-2"></i>
+                    Funds will be sent to: <span id="merchant-address" class="fw-bold"></span>
+                </div>
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="mb-3">
+                            <label class="form-label">Amount to Release (ETH)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="releaseAmount" 
+                                       step="0.001" min="0.001" placeholder="Enter amount in ETH">
+                                <span class="input-group-text">ETH</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" id="releaseButton" onclick="releaseFunds()">
+                                <i class="fas fa-paper-plane me-1"></i>
+                                Release Specified Amount
+                                <span id="release-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            </button>
+                            <button class="btn btn-warning" id="releaseAllButton" onclick="releaseAllFunds()">
+                                <i class="fas fa-bolt me-1"></i>
+                                Release All Funds
+                                <span id="release-all-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div id="releaseStatus" class="mt-3 mt-lg-0"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Transaction History
+                </h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">Transaction History</h5>
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Amount (ETH)</th>
-                                <th>Status</th>
-                                <th>Transaction Hash</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactionHistory">
-                        </tbody>
-                    </table>
+                <div id="tx-loading" class="loader-container">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="tx-content" class="d-none">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Type</th>
+                                    <th>Amount (ETH)</th>
+                                    <th>Status</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionHistory">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="tx-empty-state" class="empty-state d-none">
+                        <i class="fas fa-info-circle fs-3 mb-3 text-muted"></i>
+                        <p>No transaction history found.</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        async function refreshBalance() {
+        // Cache for balance data to avoid unnecessary fetches
+        let lastBalanceData = null;
+        let refreshTimerId = null;
+        let isRefreshing = false;
+        
+        // MERCHANT_ADDRESS placeholder replacement
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/config')
+                .then(res => res.json())
+                .then(config => {
+                    if (config.merchantAddress) {
+                        document.getElementById('merchant-address').textContent = config.merchantAddress;
+                    } else {
+                        document.getElementById('merchant-address').textContent = 'Not configured';
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to load merchant config:', err);
+                    document.getElementById('merchant-address').textContent = '0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b';
+                });
+        });
+        
+        // Fetch data with timeout and retry functionality
+        async function fetchWithTimeout(url, options = {}, timeout = 10000, retries = 2) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            
             try {
-                const response = await fetch('/api/wallet-balance');
-                const data = await response.json();
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (retries > 0) {
+                    console.log(`Retrying fetch to ${url}, ${retries} retries left`);
+                    return fetchWithTimeout(url, options, timeout, retries - 1);
+                }
+                throw error;
+            }
+        }
+        
+        // Main balance refresh function
+        async function refreshBalance(userInitiated = false) {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            
+            // Function to update balance with USD conversion (mock price of $2,500 per ETH for demonstration purposes)
+            function updateBalanceDisplay(ethBalance) {
+                const ethBalanceValue = parseFloat(ethBalance);
+                const usdPrice = 2500; // Mock ETH price in USD
+                const usdValue = (ethBalanceValue * usdPrice).toFixed(2);
                 
-                if (data.success) {
-                    document.getElementById('hdWalletBalance').textContent = `${data.balance} ETH`;
-                    document.getElementById('hdWalletAddress').textContent = data.address;
+                document.getElementById('hdWalletBalance').firstElementChild.textContent = `${ethBalance} ETH`;
+                document.getElementById('hdWalletBalanceUSD').textContent = `$${usdValue}`;
+            }
+            
+            if (userInitiated) {
+                // Show spinner on the refresh button
+                const refreshBtnText = document.getElementById('refresh-btn-text');
+                const refreshSpinner = document.getElementById('refresh-spinner');
+                refreshBtnText.textContent = 'Refreshing...';
+                refreshSpinner.classList.remove('d-none');
+            } else {
+                // Only show loading indicators on first load
+                if (!lastBalanceData) {
+                    document.getElementById('wallet-loading').classList.remove('d-none');
+                    document.getElementById('wallet-content').classList.add('d-none');
+                    document.getElementById('tx-loading').classList.remove('d-none');
+                    document.getElementById('tx-content').classList.add('d-none');
+                }
+            }
+            
+            try {
+                // Fetch balance and transactions with timeout protection
+                const [balanceRes, historyRes] = await Promise.all([
+                    fetchWithTimeout('/api/wallet-balance', {}, 15000, 3),
+                    fetchWithTimeout('/api/merchant-transactions', {}, 15000, 3)
+                ]);
+                
+                const balanceData = await balanceRes.json();
+                const historyData = await historyRes.json();
+                
+                // Hide loading indicators
+                document.getElementById('wallet-loading').classList.add('d-none');
+                document.getElementById('wallet-content').classList.remove('d-none');
+                document.getElementById('tx-loading').classList.add('d-none');
+                document.getElementById('tx-content').classList.remove('d-none');
+                
+                if (balanceData.success) {
+                    // Cache the data
+                    lastBalanceData = balanceData;
+                    
+                    // Update wallet info
+                    updateBalanceDisplay(balanceData.balance);
+                    document.getElementById('hdWalletAddress').textContent = balanceData.rootAddress || 'Not available';
+                    document.getElementById('activeAddressesCount').textContent = 
+                        `${balanceData.activeAddresses.length} active payment addresses`;
+                    
+                    // Update address details section
+                    updateAddressDetails(balanceData);
                 } else {
-                    throw new Error(data.error);
+                    throw new Error(balanceData.error || 'Failed to fetch wallet balance');
+                }
+
+                if (historyData.success) {
+                    renderTransactionHistory(historyData.transactions);
+                } else {
+                    throw new Error(historyData.error || 'Failed to fetch transaction history');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                alert('Error fetching balance. Please try again.');
+                console.error('Error refreshing data:', error);
+                
+                // Show error notification
+                const errorMessage = error.message || 'Connection error. Please try again.';
+                
+                // Only show alert for user-initiated refreshes
+                if (userInitiated) {
+                    alert('Error: ' + errorMessage);
+                }
+                
+                // If we have cached data, display it instead
+                if (lastBalanceData) {
+                    document.getElementById('wallet-loading').classList.add('d-none');
+                    document.getElementById('wallet-content').classList.remove('d-none');
+                }
+            } finally {
+                isRefreshing = false;
+                
+                if (userInitiated) {
+                    // Reset refresh button
+                    const refreshBtnText = document.getElementById('refresh-btn-text');
+                    const refreshSpinner = document.getElementById('refresh-spinner');
+                    refreshBtnText.textContent = 'Refresh Balance';
+                    refreshSpinner.classList.add('d-none');
+                }
+                
+                // Set up next auto-refresh
+                if (refreshTimerId) {
+                    clearTimeout(refreshTimerId);
+                }
+                refreshTimerId = setTimeout(() => refreshBalance(false), 30000); // Auto-refresh every 30 seconds
+            }
+        }
+        
+        // Update address details section
+        function updateAddressDetails(balanceData) {
+            const addressList = document.getElementById('address-list');
+            
+            if (!balanceData.activeAddresses || balanceData.activeAddresses.length === 0) {
+                addressList.innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i> No active payment addresses found.</div>';
+                return;
+            }
+            
+            let html = '<div class="list-group">';
+            
+            // Add root address first
+            html += `
+                <div class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1"><i class="fas fa-crown me-2 text-warning"></i> Root Address</h6>
+                        <span class="badge bg-success">${balanceData.balances[balanceData.rootAddress] || '0.00'} ETH</span>
+                    </div>
+                    <div class="position-relative">
+                        <p class="mb-1 address-info">${balanceData.rootAddress}</p>
+                        <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-1" 
+                                onclick="copyToClipboard('${balanceData.rootAddress}', this)">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Add active addresses
+            balanceData.activeAddresses.forEach(address => {
+                const addressDetail = balanceData.addressDetails?.[address] || {};
+                const balance = balanceData.balances[address] || '0.00';
+                
+                html += `
+                    <div class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1"><i class="fas fa-wallet me-2 text-primary"></i> Payment Address</h6>
+                            <span class="badge bg-success">${balance} ETH</span>
+                        </div>
+                        <div class="position-relative">
+                            <p class="mb-1 address-info">${address}</p>
+                            <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-1" 
+                                    onclick="copyToClipboard('${address}', this)">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                        ${addressDetail.recordedAmount ? 
+                            `<div class="mt-2 small text-muted">
+                                <i class="fas fa-hourglass-half me-1"></i> Expected: 
+                                <span class="fw-bold">${addressDetail.recordedAmount} ${addressDetail.cryptoType || 'ETH'}</span>
+                            </div>` : ''}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            addressList.innerHTML = html;
+        }
+
+        // Render transaction history
+        function renderTransactionHistory(transactions) {
+            const tbody = document.getElementById('transactionHistory');
+            const emptyState = document.getElementById('tx-empty-state');
+            
+            tbody.innerHTML = '';
+            
+            if (!transactions || transactions.length === 0) {
+                emptyState.classList.remove('d-none');
+                return;
+            }
+            
+            emptyState.classList.add('d-none');
+            
+            // Track if we have any pending transactions to poll
+            let hasPendingTransactions = false;
+            
+            transactions.forEach(tx => {
+                const row = tbody.insertRow();
+                
+                // Determine transaction type
+                let txType = 'Transaction';
+                let txTypeClass = '';
+                
+                if (tx.type) {
+                    if (tx.type === 'payment') {
+                        txType = 'Payment Received';
+                        txTypeClass = 'tx-type-payment';
+                    } else if (tx.type === 'release') {
+                        txType = 'Funds Released';
+                        txTypeClass = 'tx-type-release';
+                    }
+                }
+                    
+                const amountDisplay = tx.adjustedForGas ? 
+                    `${tx.amount} <small class="text-muted">(adjusted for gas)</small>` : 
+                    tx.amount;
+                
+                // Determine transaction status display
+                let statusHtml = '';
+                let txStatus = 'unknown';
+                
+                if (tx.confirmations && tx.confirmations > 0) {
+                    // Confirmed transaction
+                    statusHtml = `<span class="success" id="tx-status-${tx.txHash ? tx.txHash.substring(0, 10) : 'unknown'}">Confirmed (${tx.confirmations} confirmations)</span>`;
+                    txStatus = 'confirmed';
+                } else if (tx.status === false) {
+                    // Failed transaction
+                    statusHtml = `<span class="error" id="tx-status-${tx.txHash ? tx.txHash.substring(0, 10) : 'unknown'}">Failed</span>`;
+                    txStatus = 'failed';
+                } else if (tx.status === true) {
+                    // Successful but may still be pending confirmations
+                    statusHtml = `<span class="success" id="tx-status-${tx.txHash ? tx.txHash.substring(0, 10) : 'unknown'}">Confirmed</span>`;
+                    txStatus = 'confirmed';
+                } else if (tx.txHash) {
+                    // Has hash but unknown/pending status
+                    statusHtml = `
+                        <span class="pending" id="tx-status-${tx.txHash.substring(0, 10)}">Pending</span>
+                        <div class="spinner-border spinner-border-sm text-warning ms-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    `;
+                    txStatus = 'pending';
+                    hasPendingTransactions = true;
+                } else {
+                    // No hash, probably a recorded payment
+                    statusHtml = `<span class="success">Recorded</span>`;
+                    txStatus = 'recorded';
+                }
+                
+                // Set up transaction hash link if available
+                const txLink = tx.txHash ? 
+                    `<a href="https://sepolia.etherscan.io/tx/${tx.txHash}" target="_blank" class="btn btn-sm btn-outline-secondary transaction-hash">
+                        ${tx.txHash.substring(0, 10)}...
+                    </a>` : 
+                    '<span class="text-muted">N/A</span>';
+                    
+                // Add attributes for transaction polling
+                if (tx.txHash) {
+                    row.setAttribute('data-tx-hash', tx.txHash);
+                    row.setAttribute('data-status', txStatus);
+                }
+                
+                row.innerHTML = `
+                    <td>${new Date(tx.timestamp).toLocaleString()}</td>
+                    <td><span class="tx-type ${txTypeClass}">${txType}</span></td>
+                    <td>${amountDisplay}</td>
+                    <td class="tx-status">${statusHtml}</td>
+                    <td>${txLink}</td>
+                `;
+            });
+            
+            // Start polling for pending transactions if needed
+            if (hasPendingTransactions) {
+                console.log('Starting transaction polling for pending transactions');
+                setTimeout(startTransactionPolling, 2000); // Start polling after 2 seconds
+                
+                // Set up recurring polling every 30 seconds
+                if (!window.txPollingInterval) {
+                    window.txPollingInterval = setInterval(startTransactionPolling, 30000);
+                }
+            } else {
+                // Clear polling interval if no pending transactions
+                if (window.txPollingInterval) {
+                    clearInterval(window.txPollingInterval);
+                    window.txPollingInterval = null;
+                }
             }
         }
 
+        // Fund release function with improved error handling
         async function releaseFunds() {
             const amount = document.getElementById('releaseAmount').value;
             const releaseStatus = document.getElementById('releaseStatus');
             const releaseButton = document.getElementById('releaseButton');
+            const releaseSpinner = document.getElementById('release-spinner');
 
             if (!amount) {
                 alert('Please enter an amount to release');
                 return;
             }
 
+            // Add confirmation dialog
             if (!confirm(`Are you sure you want to release ${amount} ETH to the merchant?`)) {
                 return;
             }
 
+            // Clear previous status
+            releaseStatus.innerHTML = '';
+            
+            // Disable input and button
+            document.getElementById('releaseAmount').disabled = true;
             releaseButton.disabled = true;
-            releaseStatus.innerHTML = '<p class="pending">Processing transfer...</p>';
+            releaseSpinner.classList.remove('d-none');
+            releaseStatus.innerHTML = '<div class="alert alert-warning">' +
+                '<h5><i class="fas fa-info-circle"></i> Processing your request...</h5>' +
+                '<p>Checking for existing transactions and preparing fund release...</p>' +
+                '<div class="progress mt-2">' +
+                '<div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>' +
+                '</div>' +
+                '</div>';
 
             try {
-                const response = await fetch('/api/release-funds', {
+                const response = await fetchWithTimeout('/api/release-funds', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ amount })
-                });
+                }, 60000, 0); // 60 second timeout, no retries for fund release
 
                 const data = await response.json();
                 
                 if (data.success) {
+                    // Check if this is a newly sent transaction or an existing one
+                    if (data.message && data.message.includes('existing transaction')) {
+                        // Show that we found an existing transaction
+                        releaseStatus.innerHTML = `
+                            <div class="alert alert-info">
+                                <h5><i class="fas fa-check-circle"></i> Transaction Already In Progress</h5>
+                                <p>A transaction of ${data.amount} ETH is already being processed. No new transaction needed.</p>
+                                <p class="mb-1">Transaction Hash: 
+                                    <a href="https://sepolia.etherscan.io/tx/${data.txHash}" target="_blank">
+                                        ${data.txHash.substring(0, 10)}...
+                                    </a>
+                                </p>
+                                <p class="mb-0 mt-2 text-success">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Please wait for this transaction to complete before making another request.</strong>
+                                </p>
+                            </div>
+                        `;
+                        
+                        // Inform user with a toast message
+                        showToast("A transaction is already in progress. Please wait for it to complete.", "info");
+                        
+                        // Start polling for this transaction
+                        pollTransactionStatus(data.txHash, releaseStatus);
+                    } else {
+                        // New transaction was sent successfully
                     releaseStatus.innerHTML = `
-                        <p class="success">Transfer successful!</p>
-                        <p>Transaction Hash: <a href="https://sepolia.etherscan.io/tx/${data.txHash}" target="_blank">
-                            ${data.txHash}
-                        </a></p>
-                    `;
-                    addToHistory(amount, 'Success', data.txHash);
-                    refreshBalance();
+                            <div class="alert alert-success">
+                                <h5><i class="fas fa-check-circle"></i> Transfer Initiated!</h5>
+                                <p class="mb-1">Amount: ${data.amount} ETH</p>
+                                <p class="mb-0">Transaction Hash: 
+                                    <a href="https://sepolia.etherscan.io/tx/${data.txHash}" target="_blank">
+                                        ${data.txHash.substring(0, 10)}...
+                                    </a>
+                                </p>
+                                <div class="mt-2">
+                                    <span class="badge bg-warning">Confirming...</span>
+                                    <div class="spinner-border spinner-border-sm text-warning ms-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Show success toast
+                        showToast(`Funds release of ${data.amount} ETH initiated successfully!`, 'success');
+                        
+                        // Clear the input field
+                        document.getElementById('releaseAmount').value = '';
+                        
+                        // Start polling for this transaction
+                        pollTransactionStatus(data.txHash, releaseStatus);
+                        
+                        // Refresh balances after a successful transfer
+                        setTimeout(() => refreshBalance(true), 2000);
+                    }
                 } else {
-                    throw new Error(data.error);
+                    throw new Error(data.error || 'Unknown error occurred');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                releaseStatus.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                console.error('Error releasing funds:', error);
+                let errorMessage = error.message || 'Connection error. Please try again.';
+                
+                // Provide more friendly error messages for common issues
+                if (errorMessage.includes('insufficient funds')) {
+                    errorMessage = 'Not enough funds in the wallet to complete this transaction. Please try a smaller amount.';
+                } else if (errorMessage.includes('nonce')) {
+                    errorMessage = 'Transaction sequence issue. The system will resolve this automatically. Please try again in a few minutes.';
+                } else if (errorMessage.includes('timeout')) {
+                    errorMessage = 'The request timed out. This may mean the network is congested. Please try again in a few minutes.';
+                }
+                
+                releaseStatus.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Transfer Failed</h5>
+                        <p class="mb-0">${errorMessage}</p>
+                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="refreshBalance(true)">
+                            Refresh Wallet Status
+                        </button>
+                    </div>
+                `;
+                
+                // Show error toast
+                showToast('Fund release failed. See the detailed message below.', 'error');
             } finally {
-                releaseButton.disabled = false;
+                // Re-enable input and button
+                document.getElementById('releaseAmount').disabled = false;
+                document.getElementById('releaseButton').disabled = false;
+                releaseSpinner.classList.add('d-none');
+            }
+        }
+        
+        // Function to poll transaction status until confirmed
+        async function pollTransactionStatus(txHash, statusElement) {
+            if (!txHash || !statusElement) return;
+            
+            // Create a unique identifier for the polling interval
+            const pollerId = `poller_${txHash}`;
+            
+            // Clear any existing polling for this transaction
+            if (window[pollerId]) {
+                clearInterval(window[pollerId]);
+            }
+            
+            // Set up polling interval (every 5 seconds)
+            let attempts = 0;
+            const maxAttempts = 60; // 5 minutes max polling (5s * 60)
+            let consecutiveErrors = 0; // Track consecutive errors
+            
+            async function checkStatus() {
+                attempts++;
+                console.log(`Polling transaction ${txHash}, attempt ${attempts}/${maxAttempts}`);
+                
+                try {
+                    const response = await fetchWithTimeout(`/api/release-status/${txHash}`, {}, 10000, 1);
+                    
+                    // Handle non-200 responses (except 404 which is handled specially)
+                    if (!response.ok && response.status !== 404) {
+                        consecutiveErrors++;
+                        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    // Reset error counter on successful response
+                    consecutiveErrors = 0;
+                    
+                    const data = await response.json();
+                    
+                    // Log the response for debugging
+                    console.log(`Transaction status response:`, data);
+                    
+                    // Always check if we have data first, not just response.ok
+                    if (data) {
+                        if (data.status === true) {
+                            // Transaction confirmed!
+                            clearInterval(window[pollerId]);
+                            
+                            // Update status display
+                            const confirmations = data.confirmations || 1;
+                            statusElement.innerHTML = `
+                                <div class="alert alert-success">
+                                    <h5><i class="fas fa-check-circle"></i> Transfer Complete!</h5>
+                                    <p class="mb-1">Transaction successfully confirmed on the blockchain.</p>
+                                    <p class="mb-0">Transaction Hash: 
+                                        <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                            ${txHash.substring(0, 10)}...
+                                        </a>
+                                    </p>
+                                    <p class="mt-2 mb-0">
+                                        <span class="badge bg-success">Confirmed with ${confirmations} confirmation${confirmations !== 1 ? 's' : ''}</span>
+                                    </p>
+                                </div>
+                            `;
+                            
+                            // Update all status elements for this transaction
+                            updateAllTxStatusElements(txHash, true, confirmations);
+                            
+                            // Show success toast
+                            showToast('Transaction confirmed! Funds have been released successfully.', 'success');
+                            
+                            // Refresh balance
+                            refreshBalance(false);
+                        } 
+                        else if (data.status === false) {
+                            // Transaction failed
+                            clearInterval(window[pollerId]);
+                            
+                            statusElement.innerHTML = `
+                                <div class="alert alert-danger">
+                                    <h5><i class="fas fa-times-circle"></i> Transfer Failed</h5>
+                                    <p>The transaction was rejected by the network.</p>
+                                    <p class="mb-0">Transaction Hash: 
+                                        <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                            ${txHash.substring(0, 10)}...
+                                        </a>
+                                    </p>
+                                </div>
+                            `;
+                            
+                            // Update all status elements for this transaction
+                            updateAllTxStatusElements(txHash, false);
+                            
+                            // Show error toast
+                            showToast('Transaction failed on the blockchain. Please try again.', 'error');
+                        }
+                        else if (data.pending || (!data.found && !data.success)) {
+                            // Still pending or not found yet - keep polling but maybe update the UI
+                            if (attempts % 12 === 0) { // Update UI every ~60 seconds
+                                statusElement.innerHTML = `
+                                    <div class="alert alert-warning">
+                                        <h5><i class="fas fa-clock"></i> Transaction Still Processing</h5>
+                                        <p>The transaction is still being processed on the blockchain.</p>
+                                        <p class="mb-0">Transaction Hash: 
+                                            <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                                ${txHash.substring(0, 10)}...
+                                            </a>
+                                        </p>
+                                        <div class="mt-2">
+                                            <span class="badge bg-warning">Confirming...</span>
+                                            <div class="spinner-border spinner-border-sm text-warning ms-2" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        }
+                        // If transaction not found on the blockchain or in our records after sufficient attempts, stop polling
+                        else if (!data.found && !data.pending && attempts > 8) {
+                            clearInterval(window[pollerId]);
+                            statusElement.innerHTML = `
+                                <div class="alert alert-danger">
+                                    <h5><i class="fas fa-exclamation-triangle"></i> Transaction Not Found</h5>
+                                    <p>The transaction could not be found on the blockchain after multiple attempts.</p>
+                                    <p class="mb-0">Transaction Hash: 
+                                        <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                            ${txHash.substring(0, 10)}...
+                                        </a>
+                                    </p>
+                                    <button class="btn btn-primary mt-2" onclick="refreshBalance(true)">
+                                        Refresh Wallet Status
+                                    </button>
+                                </div>
+                            `;
+                            showToast('Transaction could not be found. It may have failed or never been broadcast.', 'warning');
+                        }
+                        // Continue polling for other statuses
+                    } else {
+                        console.error('Empty response body or parsing error');
+                        consecutiveErrors++;
+                    }
+                } catch (error) {
+                    console.error('Error polling transaction:', error);
+                    consecutiveErrors++;
+                    
+                    // If we have too many consecutive errors, show it in the UI
+                    if (consecutiveErrors >= 3) {
+                        // After 3 consecutive errors, show the connection issue in UI
+                        statusElement.innerHTML = `
+                            <div class="alert alert-warning">
+                                <h5><i class="fas fa-exclamation-triangle"></i> Connection Issues</h5>
+                                <p>We're having trouble checking this transaction status.</p>
+                                <p class="mb-0">Transaction Hash: 
+                                    <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                        ${txHash.substring(0, 10)}...
+                                    </a>
+                                </p>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button class="btn btn-sm btn-primary" onclick="manualCheckTransaction('${txHash}', this)">
+                                        Try Again
+                                    </button>
+                                    <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        View on Etherscan
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Stop after max attempts
+                if (attempts >= maxAttempts) {
+                    clearInterval(window[pollerId]);
+                    
+                    // Update status to indicate we stopped polling
+                    statusElement.innerHTML = `
+                        <div class="alert alert-warning">
+                            <h5><i class="fas fa-exclamation-triangle"></i> Transaction Status Unknown</h5>
+                            <p>We've stopped checking this transaction automatically.</p>
+                            <p class="mb-1">Transaction Hash: 
+                                <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                    ${txHash.substring(0, 10)}...
+                                </a>
+                            </p>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-primary" onclick="manualCheckTransaction('${txHash}', this)">
+                                    Check Status Manually
+                                </button>
+                                <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    View on Etherscan
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Start polling immediately and then at intervals
+            await checkStatus();
+            window[pollerId] = setInterval(checkStatus, 5000);
+        }
+        
+        // Manual transaction status check
+        async function manualCheckTransaction(txHash, buttonElement) {
+            if (!txHash || !buttonElement) return;
+            
+            // Show loading state
+            const originalText = buttonElement.textContent;
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = `
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Checking...
+            `;
+            
+            try {
+                const response = await fetchWithTimeout(`/api/release-status/${txHash}`, {}, 15000, 2);
+                
+                // Handle HTTP errors (except 404 which might return JSON with error info)
+                if (!response.ok && response.status !== 404) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Find status container (parent of button's parent)
+                const statusElement = buttonElement.closest('.alert').parentElement;
+                
+                if (data.success) {
+                    if (data.status === true) {
+                        // Transaction confirmed!
+                        statusElement.innerHTML = `
+                            <div class="alert alert-success">
+                                <h5><i class="fas fa-check-circle"></i> Transfer Complete!</h5>
+                                <p>Transaction successfully confirmed on the blockchain.</p>
+                                <p class="mb-0">Transaction Hash: 
+                                    <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                        ${txHash.substring(0, 10)}...
+                                    </a>
+                                </p>
+                                <p class="mt-2 mb-0">
+                                    <span class="badge bg-success">Confirmed${data.confirmations ? ` with ${data.confirmations} confirmation(s)` : ''}</span>
+                                </p>
+                            </div>
+                        `;
+                        
+                        // Show success toast
+                        showToast('Transaction confirmed! Funds have been released.', 'success');
+                        
+                        // Refresh balance
+                        refreshBalance(false);
+                    }
+                    else if (data.status === false) {
+                        // Transaction failed
+                        statusElement.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h5><i class="fas fa-times-circle"></i> Transfer Failed</h5>
+                                <p>The transaction was rejected by the network.</p>
+                                <p class="mb-0">Transaction Hash: 
+                                    <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                        ${txHash.substring(0, 10)}...
+                                    </a>
+                                </p>
+                            </div>
+                        `;
+                        
+                        // Also update any other instances of this transaction status on the page
+                        const txStatusElement = document.getElementById(`tx-status-${txHash.substring(0, 10)}`);
+                        if (txStatusElement) {
+                            txStatusElement.innerHTML = `
+                                <span class="badge bg-danger">Failed</span>
+                            `;
+                        }
+                        
+                        // Show error toast
+                        showToast('Transaction failed on the blockchain. Please try again.', 'error');
+                    }
+                    else {
+                        // Still pending
+                        buttonElement.disabled = false;
+                        buttonElement.textContent = originalText;
+                        
+                        // Show info toast
+                        showToast('Transaction is still pending. Please check again later.', 'info');
+                    }
+                } else {
+                    // Transaction not found or other error
+                    const errorMsg = data.error || data.message || 'Transaction not found';
+                    
+                    statusElement.innerHTML = `
+                        <div class="alert alert-warning">
+                            <h5><i class="fas fa-exclamation-triangle"></i> Transaction Status Unknown</h5>
+                            <p>${errorMsg}</p>
+                            <p class="mb-0">Transaction Hash: 
+                                <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                    ${txHash.substring(0, 10)}...
+                                </a>
+                            </p>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-primary" onclick="manualCheckTransaction('${txHash}', this)">
+                                    Try Again
+                                </button>
+                                <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    View on Etherscan
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger" onclick="refreshBalance(true)">
+                                    Refresh Wallet Status
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    showToast(`${errorMsg}. Check Etherscan for details.`, 'warning');
+                }
+            } catch (error) {
+                console.error('Error checking transaction:', error);
+                
+                // Reset button
+                buttonElement.disabled = false;
+                buttonElement.textContent = originalText;
+                
+                // Find status container to update with error
+                const statusContainer = buttonElement.closest('.alert');
+                if (statusContainer) {
+                    statusContainer.innerHTML = `
+                        <h5><i class="fas fa-exclamation-triangle"></i> Connection Error</h5>
+                        <p>Could not connect to the server to check transaction status.</p>
+                        <p class="mb-0">Transaction Hash: 
+                            <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                                ${txHash.substring(0, 10)}...
+                            </a>
+                        </p>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-primary" onclick="manualCheckTransaction('${txHash}', this)">
+                                Try Again
+                            </button>
+                            <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                View on Etherscan
+                            </a>
+                        </div>
+                    `;
+                }
+                
+                // Show error toast
+                showToast(`Error checking transaction: ${error.message}`, 'error');
             }
         }
 
-        function addToHistory(amount, status, txHash) {
-            const tbody = document.getElementById('transactionHistory');
-            const row = tbody.insertRow(0);
-            row.innerHTML = `
-                <td>${new Date().toLocaleString()}</td>
-                <td>${amount}</td>
-                <td><span class="${status.toLowerCase()}">${status}</span></td>
-                <td><a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
-                    ${txHash.substring(0,10)}...
-                </a></td>
-            `;
+        // Release All Funds function
+        async function releaseAllFunds() {
+            console.log("releaseAllFunds function triggered");
+            
+            const releaseStatus = document.getElementById('releaseStatus');
+            const releaseAllButton = document.getElementById('releaseAllButton');
+            const releaseAllSpinner = document.getElementById('release-all-spinner');
+
+            // Check if balance is zero first
+            const hdWalletBalanceText = document.getElementById('hdWalletBalance').textContent;
+            const balanceMatch = hdWalletBalanceText.match(/(\d+\.\d+|\d+)/);
+            const balance = balanceMatch ? parseFloat(balanceMatch[0]) : 0;
+            
+            // Check active addresses for additional funds
+            let totalBalance = balance;
+            if (lastBalanceData && lastBalanceData.activeAddresses) {
+                lastBalanceData.activeAddresses.forEach(address => {
+                    const addressBalance = lastBalanceData.balances[address] || '0';
+                    totalBalance += parseFloat(addressBalance);
+                });
+            }
+            
+            console.log(`Total balance across all addresses: ${totalBalance.toFixed(8)} ETH`);
+            
+            if (totalBalance <= 0) {
+                releaseStatus.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Cannot Release Funds</h5>
+                        <p class="mb-0">There are no funds available in the wallet to release. Your current balance is 0 ETH.</p>
+                        <button class="btn btn-outline-primary btn-sm mt-2" onclick="refreshBalance(true)">
+                            Refresh Wallet Status
+                        </button>
+                    </div>
+                `;
+                showToast('No funds available to release', 'warning');
+                return;
+            }
+
+            // Add confirmation dialog
+            if (!confirm(`Are you sure you want to release ALL available funds (${totalBalance.toFixed(8)} ETH) to the merchant? This will send the entire wallet balance.`)) {
+                return;
+            }
+
+            // Clear previous status
+            releaseStatus.innerHTML = '';
+            
+            // Disable buttons
+            document.getElementById('releaseAmount').disabled = true;
+            document.getElementById('releaseButton').disabled = true;
+            releaseAllButton.disabled = true;
+            releaseAllSpinner.classList.remove('d-none');
+            
+            releaseStatus.innerHTML = '<div class="alert alert-warning">' +
+                '<h5><i class="fas fa-info-circle"></i> Processing Full Balance Release...</h5>' +
+                '<p>Preparing to send all available funds to the merchant address...</p>' +
+                '<div class="progress mt-2">' +
+                '<div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>' +
+                '</div>' +
+                '</div>';
+
+            try {
+                const response = await fetchWithTimeout('/api/release-all-funds', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({}) // Send empty object to prevent potential body parsing issues
+                }, 60000, 2); // 60 second timeout, with 2 retries
+
+                // Check for HTTP errors first
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    if (errorData && errorData.error) {
+                        throw new Error(errorData.error + (errorData.details ? '\n\nDetails: ' + errorData.details : ''));
+                    }
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Add info about which address was used if available
+                    let addressInfo = '';
+                    if (data.senderAddress) {
+                        addressInfo = `<p class="mb-1">Sent from: ${data.senderAddress}</p>`;
+                    }
+                    
+                    releaseStatus.innerHTML = `
+                        <div class="alert alert-success">
+                            <h5><i class="fas fa-check-circle"></i> Full Balance Transfer Initiated!</h5>
+                            <p class="mb-1">Amount: ${data.amount} ETH</p>
+                            ${addressInfo}
+                            <p class="mb-0">Transaction Hash: 
+                                <a href="https://sepolia.etherscan.io/tx/${data.txHash}" target="_blank">
+                                    ${data.txHash.substring(0, 10)}...
+                                </a>
+                            </p>
+                            <div class="mt-2" id="tx-status-${data.txHash.substring(0, 10)}">
+                                <span class="badge bg-warning">Confirming...</span>
+                                <div class="spinner-border spinner-border-sm text-warning ms-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show success toast
+                    showToast(`Full balance transfer of ${data.amount} ETH initiated successfully!`, 'success');
+                    
+                    // Start polling for this transaction
+                    pollTransactionStatus(data.txHash, releaseStatus);
+                    
+                    // Refresh balances after a successful transfer
+                    setTimeout(() => refreshBalance(true), 2000);
+                } else {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+            } catch (error) {
+                console.error('Error releasing all funds:', error);
+                let errorMessage = error.message || 'Connection error. Please try again.';
+                let errorDetails = '';
+                
+                // Extract details if they exist in the error message
+                if (errorMessage.includes('Details:')) {
+                    const parts = errorMessage.split('\n\nDetails:');
+                    errorMessage = parts[0];
+                    errorDetails = parts[1].trim();
+                }
+                
+                // Provide more friendly error messages for common issues
+                if (errorMessage.includes('insufficient funds') || errorMessage.includes('Insufficient balance')) {
+                    // Already handled with details
+                } else if (errorMessage.includes('Amount too small')) {
+                    // Already handled with details
+                } else if (errorMessage.includes('nonce')) {
+                    errorMessage = 'Transaction sequence issue. The system will resolve this automatically. Please try again in a few minutes.';
+                } else if (errorMessage.includes('timeout')) {
+                    errorMessage = 'The request timed out. This may mean the network is congested. Please try again in a few minutes.';
+                } else if (errorMessage.includes('404')) {
+                    errorMessage = 'The server endpoint for releasing all funds is not available. Please check your network connection or contact support.';
+                } else if (errorMessage.includes('400') && !errorDetails) {
+                    // Generic 400 error without details
+                    errorMessage = 'There was an issue with the request. There might not be enough funds to cover the transaction fees.';
+                }
+                
+                releaseStatus.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Full Balance Transfer Failed</h5>
+                        <p class="mb-0">${errorMessage}</p>
+                        ${errorDetails ? `<p class="mt-2 small text-muted">${errorDetails}</p>` : ''}
+                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="refreshBalance(true)">
+                            Refresh Wallet Status
+                        </button>
+                    </div>
+                `;
+                
+                // Show error toast
+                showToast('Fund release failed. See the detailed message below.', 'error');
+            } finally {
+                // Re-enable input and buttons
+                document.getElementById('releaseAmount').disabled = false;
+                document.getElementById('releaseButton').disabled = false;
+                releaseAllButton.disabled = false;
+                releaseAllSpinner.classList.add('d-none');
+            }
         }
 
-        // Initial balance check
-        refreshBalance();
+        // Initial balance check - start immediately when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshBalance(false);
+        });
+
+        // Poll for pending transaction status updates
+        function startTransactionPolling() {
+            // Find pending transactions that have txHash
+            const txLogs = document.querySelectorAll('[data-tx-hash]');
+            if (txLogs.length === 0) return;
+            
+            console.log(`Found ${txLogs.length} transactions to poll`);
+            
+            // Poll each transaction with a txHash
+            txLogs.forEach(txElement => {
+                const txHash = txElement.getAttribute('data-tx-hash');
+                const txStatus = txElement.getAttribute('data-status');
+                
+                // Only poll pending transactions
+                if (txStatus !== 'pending') return;
+                
+                console.log(`Polling status for transaction: ${txHash}`);
+                
+                // Fetch the current status with robust error handling
+                fetchWithTimeout(`/api/release-status/${txHash}`, {}, 10000, 2)
+                    .then(res => {
+                        // Check if response is OK first
+                        if (!res.ok && res.status !== 404) {
+                            throw new Error(`Server returned ${res.status}: ${res.statusText}`);
+                        }
+                        return res.json();
+                    })
+                    .then(data => {
+                        // Process API response
+                        const statusElement = txElement.querySelector('.tx-status');
+                        if (!statusElement) return;
+                        
+                        // Handle 404 or not found cases properly
+                        if (!data.success && (!data.found || data.error)) {
+                            console.warn(`Transaction ${txHash} status check returned error:`, data);
+                            return; // Continue polling but don't update UI yet
+                        }
+                        
+                        // Check if transaction was found and is confirmed
+                        if (data.status === true) {
+                            // Transaction is confirmed
+                            const confirmations = data.confirmations || 0;
+                            statusElement.innerHTML = `<span class="success" id="tx-status-${txHash.substring(0, 10)}">Confirmed${confirmations > 0 ? ` (${confirmations} confirmations)` : ''}</span>`;
+                            txElement.setAttribute('data-status', 'confirmed');
+                            
+                            // Update all status elements for this transaction
+                            updateAllTxStatusElements(txHash, true, confirmations);
+                            
+                            // Show success toast
+                            showToast(`Transaction confirmed${confirmations > 0 ? ` with ${confirmations} confirmations` : ''}!`, 'success');
+                            
+                            // Refresh balances
+                            setTimeout(() => refreshBalance(false), 1000);
+                        }
+                        else if (data.status === false) {
+                            // Transaction failed
+                            statusElement.innerHTML = `<span class="error" id="tx-status-${txHash.substring(0, 10)}">Failed</span>`;
+                            txElement.setAttribute('data-status', 'failed');
+                            
+                            // Update all status elements for this transaction
+                            updateAllTxStatusElements(txHash, false);
+                            
+                            // Show error toast
+                            showToast('Transaction failed. Please check the blockchain explorer for details.', 'error');
+                        }
+                    })
+                    .catch(err => {
+                        console.error(`Error polling transaction ${txHash}:`, err);
+                        // Don't show UI errors for network issues as we'll retry
+                    });
+            });
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            // Create toast container if it doesn't exist
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'primary'} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            
+            // Add toast content
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            // Add to container
+            toastContainer.appendChild(toast);
+            
+            // Initialize Bootstrap toast
+            const bsToast = new bootstrap.Toast(toast, {
+                delay: 5000
+            });
+            
+            // Show toast
+            bsToast.show();
+            
+            // Remove when hidden
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+
+        // Function to update all transaction status elements for a specific transaction
+        function updateAllTxStatusElements(txHash, status, confirmations = 0) {
+            // Get all elements with this transaction's ID
+            const statusElements = document.querySelectorAll(`[id^="tx-status-${txHash.substring(0, 10)}"]`);
+            
+            if (statusElements.length === 0) {
+                console.log(`No status elements found for transaction ${txHash.substring(0, 10)}`);
+                return;
+            }
+            
+            console.log(`Updating ${statusElements.length} status elements for transaction ${txHash.substring(0, 10)}`);
+            
+            // Update each element based on the status
+            statusElements.forEach(element => {
+                if (status === true) {
+                    // Confirmed transaction
+                    if (element.classList.contains('badge')) {
+                        element.className = 'badge bg-success';
+                        element.textContent = `Confirmed with ${confirmations} confirmation${confirmations !== 1 ? 's' : ''}`;
+                    } else {
+                        element.className = 'success';
+                        element.textContent = `Confirmed (${confirmations} confirmations)`;
+                    }
+                    
+                    // Remove any spinner siblings
+                    const spinnerSibling = element.nextElementSibling;
+                    if (spinnerSibling && spinnerSibling.classList.contains('spinner-border')) {
+                        spinnerSibling.remove();
+                    }
+                } 
+                else if (status === false) {
+                    // Failed transaction
+                    if (element.classList.contains('badge')) {
+                        element.className = 'badge bg-danger';
+                        element.textContent = 'Failed';
+                    } else {
+                        element.className = 'error';
+                        element.textContent = 'Failed';
+                    }
+                    
+                    // Remove any spinner siblings
+                    const spinnerSibling = element.nextElementSibling;
+                    if (spinnerSibling && spinnerSibling.classList.contains('spinner-border')) {
+                        spinnerSibling.remove();
+                    }
+                }
+                else {
+                    // Pending transaction
+                    if (element.classList.contains('badge')) {
+                        element.className = 'badge bg-warning';
+                        element.textContent = 'Confirming...';
+                    } else {
+                        element.className = 'pending';
+                        element.textContent = 'Pending';
+                    }
+                }
+            });
+        }
+
+        // Function to copy text to clipboard
+        function copyToClipboard(text, element) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show success indicator
+                const originalHTML = element.innerHTML;
+                element.innerHTML = '<i class="fas fa-check text-success"></i>';
+                
+                // Reset after 1.5 seconds
+                setTimeout(() => {
+                    element.innerHTML = originalHTML;
+                }, 1500);
+                
+                // Show toast
+                showToast('Address copied to clipboard!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                showToast('Failed to copy address', 'error');
+            });
+        }
     </script>
 </body>
 </html>

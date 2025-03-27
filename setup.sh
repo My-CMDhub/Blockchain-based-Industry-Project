@@ -55,102 +55,71 @@ if [ -f .env ]; then
     echo -e "${GREEN}Backup created ✅${NC}"
 fi
 
+# Prompt for or use default values for critical environment variables
+read -p "Enter INFURA_URL (leave blank for default): " INFURA_URL
+INFURA_URL=${INFURA_URL:-"https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9"}
+
+read -p "Enter MORALIS_API_KEY (leave blank for default): " MORALIS_API_KEY
+MORALIS_API_KEY=${MORALIS_API_KEY:-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjU3MzE4Njc0LWNiNGYtNGIxMi04YWE5LTc5ZTZkZDcwZmEwMSIsIm9yZ0lkIjoiNDA3OTg3IiwidXNlcklkIjoiNDE5MjI2IiwidHlwZUlkIjoiY2M1NjdmNDktMjA0Ny00ZTVjLTliOGMtYzU2OWQ3Yjk3YjliIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MjYwMjg2MzYsImV4cCI6NDg4MTc4ODYzNn0.TMa0sAyzX-dB7xVJmaLr0Kpko3CNe8ehLkafEeSHjso"}
+
+echo -e "${YELLOW}For the MERCHANT_ADDRESS, please enter your personal MetaMask wallet address.${NC}"
+read -p "Enter MERCHANT_ADDRESS: " MERCHANT_ADDRESS
+MERCHANT_ADDRESS=${MERCHANT_ADDRESS:-"0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b"}
+
+read -p "Enter HD_WALLET_ADDRESS (leave blank for default): " HD_WALLET_ADDRESS
+HD_WALLET_ADDRESS=${HD_WALLET_ADDRESS:-"0x0eB8b81487A2998f4B4D1C0C04BaA0FbF89039c3"}
+
+read -p "Enter WEBHOOK_URL (leave blank for default): " WEBHOOK_URL
+WEBHOOK_URL=${WEBHOOK_URL:-"https://webhook.site/a5c5667c-fc2f-42e8-9a18-05a10343433a"}
+
+read -p "Enter PORT (leave blank for default 3000): " PORT
+PORT=${PORT:-"3000"}
+
 # Generate encryption key if not provided
+read -p "Enter ENCRYPTION_KEY (leave blank to generate new): " ENCRYPTION_KEY
 if [ -z "$ENCRYPTION_KEY" ]; then
     ENCRYPTION_KEY=$(openssl rand -hex 32)
     echo -e "${YELLOW}Generated new encryption key.${NC}"
 fi
 
-# Prompt for or use default values for critical environment variables
-read -p "Enter RPC URL for Sepolia (leave blank for default Infura URL): " INFURA_URL
-INFURA_URL=${INFURA_URL:-"https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9"}
+echo -e "${YELLOW}For the MERCHANT_PRIVATE_KEY, please enter your personal MetaMask wallet private key.${NC}"
+echo -e "${RED}WARNING: Keep your private key secure and never share it with anyone!${NC}"
+read -p "Enter MERCHANT_PRIVATE_KEY: " MERCHANT_PRIVATE_KEY
+MERCHANT_PRIVATE_KEY=${MERCHANT_PRIVATE_KEY:-"617a90a6821209ae00edee11ed0d025d32d0cf07f1a9c5accda31bc775a1aa58"}
 
-read -p "Enter Alchemy API URL (leave blank for default): " ALCHEMY_URL
-ALCHEMY_URL=${ALCHEMY_URL:-"https://eth-sepolia.g.alchemy.com/v2/demo"}
+read -p "Enter CHAIN_ID (leave blank for default Sepolia 11155111): " CHAIN_ID
+CHAIN_ID=${CHAIN_ID:-"11155111"}
 
-read -p "Enter Merchant Address (leave blank for default test address): " MERCHANT_ADDRESS
-MERCHANT_ADDRESS=${MERCHANT_ADDRESS:-"0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b"}
+read -p "Enter ETHERSCAN_API_KEY (leave blank for default): " ETHERSCAN_API_KEY
+ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-"29f19992ba7f4f08b1c391ae0bab9b44"}
 
-read -p "Enter Port Number (leave blank for default 3000): " PORT
-PORT=${PORT:-"3000"}
-
-# Generate a unique salt value
-ENCRYPTION_SALT="hd_wallet_salt_$(openssl rand -hex 8)"
-
-# Set up .env file with comprehensive configuration
+# Create .env file with required keys
 cat > .env << EOF
-# ===============================================================
-# HD Wallet Payment Gateway Environment Configuration
-# ===============================================================
-# This file contains all environment variables for the application
-# Generated on: $(date)
-# ===============================================================
-
-# ------------------- Server Configuration ----------------------
-# Port for the Express server to listen on
-PORT=$PORT
-
-# Development/Production mode
-NODE_ENV=development
-
-# CORS configuration (for production deployments)
-ALLOW_ORIGINS=http://localhost:$PORT,http://127.0.0.1:$PORT
-
-# ------------------- Blockchain Configuration ------------------
-# Primary RPC endpoint (Infura)
+# Blockchain Network Configuration
 INFURA_URL=$INFURA_URL
 
-# Secondary RPC endpoint (Alchemy)
-ALCHEMY_URL=$ALCHEMY_URL
+# Moralis Configuration
+MORALIS_API_KEY=$MORALIS_API_KEY
 
-# Fallback RPC endpoints
-BACKUP_RPC=https://rpc.sepolia.org
-SECONDARY_BACKUP_RPC=https://ethereum-sepolia.publicnode.com
-
-# Target blockchain network
-BLOCKCHAIN_NETWORK=sepolia
-
-# Merchant wallet address to receive funds
+# Merchant Configuration
 MERCHANT_ADDRESS=$MERCHANT_ADDRESS
+HD_WALLET_ADDRESS=$HD_WALLET_ADDRESS
 
-# Gas price configuration (values in gwei)
-MIN_GAS_PRICE=1.0
-GAS_PRICE_BUFFER=20
+# Webhook Configuration
+WEBHOOK_URL=$WEBHOOK_URL
 
-# Transaction confirmation settings
-MIN_CONFIRMATIONS=1
-CONFIRMATION_TIMEOUT=120000
+# Server Configuration
+PORT=$PORT
 
-# ------------------- Security Configuration --------------------
-# Encryption key for sensitive data
+# Security
 ENCRYPTION_KEY=$ENCRYPTION_KEY
+MERCHANT_PRIVATE_KEY=$MERCHANT_PRIVATE_KEY
 
-# Salt for encryption
-ENCRYPTION_SALT=$ENCRYPTION_SALT
+# Network
+CHAIN_ID=$CHAIN_ID  # Sepolia testnet
 
-# API rate limiting
-RATE_LIMIT_WINDOW=15
-RATE_LIMIT_MAX=100
-
-# ------------------- Webhook Configuration (optional) ----------
-# Webhook URL for transaction notifications
-WEBHOOK_URL=
-
-# Webhook authentication secret
-WEBHOOK_SECRET=
-
-# ------------------- Logging Configuration ---------------------
-# Log level (debug, info, warn, error)
-LOG_LEVEL=info
-
-# Enable file logging (true/false)
-ENABLE_FILE_LOGGING=true
-
-# ===============================================================
-# For a production environment, replace the above values with your 
-# own API keys and addresses. Ensure you're using secure and 
-# private RPC endpoints with your own API keys.
-# ===============================================================
+# Etherscan
+ETHERSCAN_API_KEY=$ETHERSCAN_API_KEY
 EOF
 
 echo -e "${GREEN}.env file created successfully ✅${NC}"
@@ -180,62 +149,6 @@ else
     fi
 fi
 
-# Create a default configuration file if it doesn't exist
-if [ ! -f "./Json/config.json" ]; then
-    echo -e "\n${YELLOW}Creating default configuration file...${NC}"
-    cat > ./Json/config.json << EOF
-{
-    "merchantName": "Test Merchant",
-    "merchantAddress": "$MERCHANT_ADDRESS",
-    "paymentTimeoutMinutes": 60,
-    "minConfirmations": 1,
-    "networkName": "Sepolia Testnet",
-    "autoRelease": false,
-    "notifyEmail": "",
-    "notifyWebhook": "",
-    "lastBackup": null
-}
-EOF
-    echo -e "${GREEN}Default configuration created ✅${NC}"
-fi
-
-# Final setup steps
-echo -e "\n${YELLOW}Performing final setup steps...${NC}"
-
-# Create a simple README if it doesn't exist
-if [ ! -f "README.md" ]; then
-    echo -e "${YELLOW}Creating README file...${NC}"
-    cat > README.md << EOF
-# HD Wallet Payment Gateway
-
-A complete payment gateway system using hierarchical deterministic (HD) wallets on Ethereum.
-
-## Quick Start
-
-1. Run \`npm install\` to install dependencies
-2. Run \`node server.js\` to start the server
-3. Access the merchant dashboard at http://localhost:$PORT/merchant
-4. Access the e-commerce store at http://localhost:$PORT
-
-## Features
-
-- HD wallet generation and management
-- Payment address generation for each customer
-- Real-time transaction monitoring
-- Merchant dashboard with fund management
-- Testnet (Sepolia) support
-
-## Configuration
-
-Edit the \`.env\` file to customize your configuration.
-
-## License
-
-MIT
-EOF
-    echo -e "${GREEN}README created ✅${NC}"
-fi
-
 echo -e "${GREEN}HD Wallet Payment Gateway is now set up! ✅${NC}"
 echo -e "\n${BLUE}=================================================${NC}"
 echo -e "${GREEN}   Setup Complete${NC}"
@@ -246,10 +159,6 @@ echo -e "\n${YELLOW}Access the merchant dashboard at:${NC}"
 echo -e "  ${GREEN}http://localhost:$PORT/merchant${NC}"
 echo -e "\n${YELLOW}Access the e-commerce store at:${NC}"
 echo -e "  ${GREEN}http://localhost:$PORT${NC}"
-echo -e "\n${YELLOW}For troubleshooting:${NC}"
-echo -e "  ${GREEN}1. Check logs in ./payment_gateway.log and ./blockchain_tx.log${NC}"
-echo -e "  ${GREEN}2. Verify your RPC endpoints are working${NC}"
-echo -e "  ${GREEN}3. Ensure you have funds in your Sepolia testnet wallet${NC}"
 echo -e "${BLUE}=================================================${NC}"
 
 # Make the script executable

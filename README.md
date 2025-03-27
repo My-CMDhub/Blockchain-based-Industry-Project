@@ -37,6 +37,8 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
    bash setup.sh
    ```
 
+   or copy and paste the keys from Keys folder into your .env file
+
 3. **Start the server**
 
    ```bash

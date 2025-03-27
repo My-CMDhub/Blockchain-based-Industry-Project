@@ -15,7 +15,7 @@
       "used": false,
       "generatedAt": "2025-03-25T13:18:53.498Z",
       "currentBalance": "0",
-      "lastChecked": "2025-03-26T07:18:47.770Z"
+      "lastChecked": "2025-03-27T02:26:48.790Z"
     },
     "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078": {
       "amount": "0.007723",
@@ -23,8 +23,16 @@
       "timestamp": "2025-03-26T00:31:01.022Z",
       "status": "confirmed",
       "currentBalance": "0",
-      "lastChecked": "2025-03-26T07:18:47.810Z",
+      "lastChecked": "2025-03-27T02:26:48.712Z",
       "index": 8
+    },
+    "0xAC66CEb5cB90c68Bdadf8b01037a355e24CA2886": {
+      "index": 9,
+      "expectedAmount": 24.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-03-27T02:38:05.365Z",
+      "expiresAt": "2025-03-27T03:08:05.365Z",
+      "status": "pending"
     }
   }
 }

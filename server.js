@@ -44,7 +44,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('Public'));
 
-// Log all requests
+// Log all requests FIRST
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
     const message = `[${timestamp}] ${req.method} ${req.url}`;
@@ -60,6 +60,564 @@ app.use((req, res, next) => {
     
     next();
 });
+
+// #############################################################################
+// ## Define /api/release-all-funds EARLY to avoid potential middleware issues ##
+// #############################################################################
+app.post('/api/release-all-funds', async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] POST /api/release-all-funds`);
+    
+    try {
+        // Get merchant address
+        const merchantAddress = process.env.MERCHANT_ADDRESS || DEFAULT_MERCHANT_ADDRESS;
+        
+        // Normalize and validate merchant address
+        const normalizedMerchantAddress = normalizeAddress(merchantAddress);
+        if (!normalizedMerchantAddress) {
+            console.error(`Invalid merchant address format: ${merchantAddress}`);
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid merchant address format. Please check your .env configuration.'
+            });
+        }
+        
+        console.log('====================', 'FULL BALANCE RELEASE REQUEST', '====================');
+        console.log(`Merchant address verified: ${normalizedMerchantAddress}`);
+        
+        logBlockchain('FULL_FUNDS_RELEASE_REQUESTED', { merchantAddress: normalizedMerchantAddress });
+        
+        // Initialize web3 provider for transaction
+        console.log('Initializing fresh Web3 provider...');
+        const freshWeb3 = await getFreshProvider();
+        console.log('Web3 provider initialized successfully');
+        
+        // Get wallet keys from storage
+        console.log('Retrieving wallet keys...');
+        const keys = getStoredKeys();
+        console.log('Keys retrieved successfully');
+        
+        // Decrypt the mnemonic
+        console.log('Decrypting mnemonic...');
+        const mnemonic = decrypt(keys.mnemonic);
+        console.log('Mnemonic decrypted successfully');
+        
+        // Recover the root wallet from mnemonic
+        console.log('Recovering root wallet...');
+        const rootAddress = await recoverWallet(mnemonic, 0);
+        const rootAddr = rootAddress.address;
+        console.log(`Root address: ${rootAddr}`);
+        
+        // Get active HD wallet addresses
+        const activeAddresses = keys.activeAddresses || {};
+        console.log(`Found ${Object.keys(activeAddresses).length} active addresses`);
+        
+        // Calculate total balance across all addresses
+        console.log('Calculating total available balance...');
+        
+        // Check root address balance
+        console.log('Checking root address balance...');
+        const rootBalance = await getBalanceWithRetry(freshWeb3, rootAddr);
+        console.log(`Root address balance: ${rootBalance} ETH`);
+        
+        // Check all active address balances to find one with sufficient funds
+        console.log(`Checking balances of ${Object.keys(activeAddresses).length} active addresses...`);
+        const addressBalances = [];
+        
+        for (const addr in activeAddresses) {
+            const addrInfo = activeAddresses[addr];
+            console.log(`Checking balance for ${addr}...`);
+            const balance = await getBalanceWithRetry(freshWeb3, addr);
+            console.log(`Address ${addr} balance: ${balance} ETH`);
+            
+            addressBalances.push({
+                address: addr,
+                balance: parseFloat(balance),
+                ethBalance: balance,
+                index: addrInfo.index
+            });
+        }
+        
+        // Scan for additional addresses that may not be in activeAddresses
+        // This helps when the system has generated addresses but not properly saved them
+        console.log('Scanning for additional addresses...');
+        const addressIndexMap = await scanForAddressIndices(mnemonic, 50); // Scan first 50 indices
+        console.log(`Found ${Object.keys(addressIndexMap).length} addresses in scan`);
+        
+        // Add any addresses found with positive balances to our list
+        for (const [addr, index] of Object.entries(addressIndexMap)) {
+            // Skip addresses we already checked
+            if (addr.toLowerCase() === rootAddr.toLowerCase() || 
+                addressBalances.some(item => item.address.toLowerCase() === addr.toLowerCase())) {
+                continue;
+            }
+            
+            // Check balance for this address
+            console.log(`Checking balance for additional address ${addr}...`);
+            try {
+                const balance = await getBalanceWithRetry(freshWeb3, addr);
+                console.log(`Additional address ${addr} balance: ${balance} ETH`);
+                
+                // Add to address balances if it has funds
+                if (parseFloat(balance) > 0) {
+                    addressBalances.push({
+                        address: addr,
+                        balance: parseFloat(balance),
+                        ethBalance: balance,
+                        index: index
+                    });
+                    
+                    // Also add to activeAddresses for future use
+                    if (!activeAddresses[addr]) {
+                        activeAddresses[addr] = { index };
+                        console.log(`Added address ${addr} with index ${index} to active addresses`);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error checking balance for ${addr}:`, error.message);
+            }
+        }
+        
+        // Calculate total balance
+        const totalBalanceEth = addressBalances.reduce((sum, addr) => sum + addr.balance, 0) + parseFloat(rootBalance);
+        console.log(`Total available balance across all addresses: ${totalBalanceEth} ETH`);
+        
+        if (totalBalanceEth <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'No funds available to transfer'
+            });
+        }
+        
+        // First try to use root address if it has sufficient balance
+        if (parseFloat(rootBalance) > 0) {
+            // Root address has funds, proceed with transaction
+            console.log(`Root address has balance (${rootBalance} ETH). Using it for the transfer.`);
+            
+            // Check for existing pending transactions from root address to merchant
+            const pendingTx = await checkPendingTransactions(rootAddr, normalizedMerchantAddress);
+            
+            // If we found a pending transaction, check if it's truly still pending
+            if (pendingTx && pendingTx.txHash) {
+                console.log(`Found existing pending transaction ${pendingTx.txHash}, checking status...`);
+                
+                // Check if transaction is actually still pending by checking for a receipt
+                const receipt = await checkTransactionReceipt(freshWeb3, pendingTx.txHash);
+                if (receipt) {
+                    console.log(`Found receipt for pending transaction: ${JSON.stringify(receipt)}`);
+                    
+                    // Update transaction status in our log based on receipt info
+                    updateTransactionLog(pendingTx.txHash, {
+                        status: receipt.status,
+                        blockNumber: receipt.blockNumber,
+                        confirmations: 1, // At least 1 confirmation since it's mined
+                    });
+                    
+                    if (receipt.status === true) {
+                        // Transaction was successful, so no need to send a new one
+                        console.log(`Found receipt for pending transaction, not sending a new one`);
+                        return res.json({
+                            success: true,
+                            message: `Found existing transaction in progress: ${pendingTx.txHash}`,
+                            txHash: pendingTx.txHash,
+                            amount: pendingTx.amount,
+                            timestamp: pendingTx.timestamp,
+                            existingTransaction: true
+                        });
+                    }
+                } else {
+                    // No receipt found, transaction is still pending
+                    console.log(`No receipt found, existing transaction is still pending`);
+                    return res.json({
+                        success: true,
+                        message: `Found existing transaction in progress: ${pendingTx.txHash}`,
+                        txHash: pendingTx.txHash,
+                        amount: pendingTx.amount,
+                        timestamp: pendingTx.timestamp,
+                        existingTransaction: true
+                    });
+                }
+            }
+            
+            // Proceed with sending a new transaction from root address
+            console.log('Preparing transaction from root address...');
+            
+            try {
+                // Get reliable nonce for root address
+                const nonce = await getReliableNonce(freshWeb3, rootAddr);
+                console.log(`Using nonce: ${nonce} for root address`);
+                
+                // Get reliable gas price
+                const gasPrice = await getReliableGasPrice(freshWeb3);
+                console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
+                
+                // Standard gas limit for ETH transfer
+                const gasLimit = 21000;
+                console.log(`Using gas limit: ${gasLimit}`);
+                
+                // Calculate gas cost
+                const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
+                const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
+                console.log(`Estimated gas cost: ${gasCostEth} ETH`);
+                
+                // Get balance in Wei
+                const balanceWei = freshWeb3.utils.toWei(rootBalance, 'ether');
+                
+                // Calculate maximum amount to send (balance - gas cost)
+                const maxAmountWei = BigInt(balanceWei) - gasCostWei;
+                
+                // Ensure we have enough to cover gas
+                if (maxAmountWei <= BigInt(0)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Insufficient balance to cover gas fees. Available: ${rootBalance} ETH, Gas cost: ${gasCostEth} ETH`
+                    });
+                }
+                
+                // Prepare transaction data
+                const txData = {
+                    from: rootAddr,
+                    to: normalizedMerchantAddress,
+                    value: maxAmountWei.toString(),
+                    gas: gasLimit,
+                    gasPrice: gasPrice,
+                    nonce: nonce
+                };
+                
+                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
+                
+                // Sign transaction
+                console.log('Signing transaction...');
+                const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
+                console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                
+                // Send transaction with retry mechanism
+                console.log('Sending transaction with retry...');
+                const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                console.log('Transaction successfully sent and confirmed!');
+                console.log(`Transaction hash: ${receipt.transactionHash}`);
+                console.log(`Block number: ${receipt.blockNumber}`);
+                console.log(`Gas used: ${receipt.gasUsed}`);
+                
+                // Format amount to ETH for display
+                const amountEth = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                
+                // Record the transaction
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const txLogEntry = {
+                    txId: txId,
+                    txHash: signedTx.transactionHash,
+                    from: rootAddr,
+                    to: normalizedMerchantAddress,
+                    amount: amountEth,
+                    amountWei: maxAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: receipt.status,
+                    blockNumber: receipt.blockNumber,
+                    gasUsed: receipt.gasUsed,
+                    type: 'release',
+                    fullBalance: true
+                };
+                
+                // Save transaction to log
+                saveTxLog(txLogEntry);
+                
+                // Return success response
+                return res.json({
+                    success: true,
+                    txHash: signedTx.transactionHash,
+                    amount: amountEth,
+                    senderAddress: rootAddr,
+                    timestamp: new Date().toISOString(),
+                    blockNumber: receipt.blockNumber
+                });
+                
+            } catch (txError) {
+                console.error('Error sending transaction from root address:', txError);
+                console.error('Stack trace:', txError.stack);
+                
+                // Log the detailed error for debugging
+                logBlockchain('TX_ERROR', {
+                    address: rootAddr,
+                    error: txError.message,
+                    stack: txError.stack
+                });
+                
+                return res.status(500).json({
+                    success: false,
+                    error: `Failed to send transaction: ${txError.message}`
+                });
+            }
+        } else {
+            console.log(`Root address has no balance. Looking for addresses with funds...`);
+            
+            // Find addresses with positive balances
+            const fundedAddresses = addressBalances.filter(addr => addr.balance > 0);
+            console.log(`Found ${fundedAddresses.length} addresses with positive balances`);
+            
+            if (fundedAddresses.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No wallet addresses have any funds to transfer'
+                });
+            }
+            
+            // Find address with highest balance
+            const highestBalanceAddr = fundedAddresses.reduce((max, addr) => 
+                addr.balance > max.balance ? addr : max, fundedAddresses[0]);
+                
+            console.log(`Highest balance address: ${highestBalanceAddr.address} with ${highestBalanceAddr.ethBalance} ETH`);
+            
+            // Check for existing pending transactions
+            const pendingTx = await checkPendingTransactions(highestBalanceAddr.address, normalizedMerchantAddress);
+            
+            // If we found a pending transaction, check if it's truly still pending
+            if (pendingTx && pendingTx.txHash) {
+                console.log(`Found existing pending transaction ${pendingTx.txHash}, checking status...`);
+                
+                // Check if transaction is actually still pending by checking for a receipt
+                const receipt = await checkTransactionReceipt(freshWeb3, pendingTx.txHash);
+                if (receipt) {
+                    console.log(`Found receipt for pending transaction: ${JSON.stringify(receipt)}`);
+                    
+                    // Update transaction status in our log based on receipt info
+                    updateTransactionLog(pendingTx.txHash, {
+                        status: receipt.status,
+                        blockNumber: receipt.blockNumber,
+                        confirmations: 1,
+                    });
+                    
+                    if (receipt.status === true) {
+                        // Transaction was successful, no need to send a new one
+                        return res.json({
+                            success: true,
+                            message: `Found existing transaction in progress: ${pendingTx.txHash}`,
+                            txHash: pendingTx.txHash,
+                            amount: pendingTx.amount,
+                            timestamp: pendingTx.timestamp,
+                            existingTransaction: true
+                        });
+                    }
+                } else {
+                    // Transaction is still pending
+                    return res.json({
+                        success: true,
+                        message: `Found existing transaction in progress: ${pendingTx.txHash}`,
+                        txHash: pendingTx.txHash,
+                        amount: pendingTx.amount,
+                        timestamp: pendingTx.timestamp,
+                        existingTransaction: true
+                    });
+                }
+            }
+            
+            // Proceed with sending transaction from highest balance address
+            try {
+                // Ensure we have a valid index before recovering the wallet
+                let senderIndex = highestBalanceAddr.index;
+                if (senderIndex === undefined || senderIndex === null) {
+                    console.warn(`Index for address ${highestBalanceAddr.address} was undefined. Attempting to retrieve from keys.activeAddresses...`);
+                    const addrInfo = keys.activeAddresses[highestBalanceAddr.address];
+                    if (addrInfo && addrInfo.index !== undefined) {
+                        senderIndex = addrInfo.index;
+                        console.log(`Successfully retrieved index: ${senderIndex}`);
+                    } else {
+                        console.warn(`Could not find index in activeAddresses. Checking address index map...`);
+                        // Try to find the index in our scanned map
+                        const normalizedAddr = highestBalanceAddr.address.toLowerCase();
+                        if (addressIndexMap[normalizedAddr]) {
+                            senderIndex = addressIndexMap[normalizedAddr];
+                            console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in scanned map`);
+                        } else {
+                            // If we still can't find it, do a deeper scan with more addresses
+                            console.log(`Performing deep scan for address ${highestBalanceAddr.address}...`);
+                            const deepScanMap = await scanForAddressIndices(mnemonic, 200); // Scan 200 indices
+                            if (deepScanMap[normalizedAddr]) {
+                                senderIndex = deepScanMap[normalizedAddr];
+                                console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in deep scan`);
+                            } else {
+                                throw new Error(`Could not determine derivation index for address ${highestBalanceAddr.address}`);
+                            }
+                        }
+                    }
+                }
+
+                // Recover the private key for this address using the validated index
+                console.log(`Recovering wallet for index ${senderIndex}...`);
+                const senderWallet = await recoverWallet(mnemonic, senderIndex);
+                
+                // Verify address matches (case-insensitive compare)
+                if (senderWallet.address.toLowerCase() !== highestBalanceAddr.address.toLowerCase()) {
+                    console.error(`Address mismatch! Expected: ${highestBalanceAddr.address}, Got: ${senderWallet.address}`);
+                    
+                    // Try a different approach - search through more indices to find the matching wallet
+                    console.log(`Searching for wallet matching address ${highestBalanceAddr.address}...`);
+                    const foundWallet = await findWalletForAddress(mnemonic, highestBalanceAddr.address);
+                    
+                    if (!foundWallet) {
+                        throw new Error('Address derivation mismatch - could not find matching wallet');
+                    }
+                    
+                    console.log(`Found wallet with matching address at index ${foundWallet.index}`);
+                    senderWallet = foundWallet.wallet;
+                    senderIndex = foundWallet.index;
+                    
+                    // Update our records for future use
+                    if (!activeAddresses[highestBalanceAddr.address]) {
+                        activeAddresses[highestBalanceAddr.address] = { index: senderIndex };
+                        
+                        // Try to save the updated address list
+                        try {
+                            updateAddressIndex(highestBalanceAddr.address, senderIndex);
+                            console.log(`Updated address index map with ${highestBalanceAddr.address} -> ${senderIndex}`);
+                        } catch (updateError) {
+                            console.error(`Failed to update address index map:`, updateError);
+                        }
+                    }
+                }
+                
+                // Get reliable nonce for sender address
+                const nonce = await getReliableNonce(freshWeb3, highestBalanceAddr.address);
+                console.log(`Using nonce: ${nonce} for address ${highestBalanceAddr.address}`);
+                
+                // Get reliable gas price
+                const gasPrice = await getReliableGasPrice(freshWeb3);
+                console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
+                
+                // Standard gas limit for ETH transfer
+                const gasLimit = 21000;
+                console.log(`Using gas limit: ${gasLimit}`);
+                
+                // Calculate gas cost
+                const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
+                const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
+                console.log(`Estimated gas cost: ${gasCostEth} ETH`);
+                
+                // Get balance in Wei
+                const balanceWei = freshWeb3.utils.toWei(highestBalanceAddr.ethBalance, 'ether');
+                
+                // Calculate maximum amount to send (balance - gas cost)
+                const maxAmountWei = BigInt(balanceWei) - gasCostWei;
+                
+                // Ensure we have enough to cover gas
+                if (maxAmountWei <= BigInt(0)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Insufficient balance to cover gas fees. Available: ${highestBalanceAddr.ethBalance} ETH, Gas cost: ${gasCostEth} ETH`
+                    });
+                }
+                
+                // Format amount to ETH for display
+                const amountEth = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                console.log(`Sending maximum amount: ${amountEth} ETH`);
+                
+                // Prepare transaction data
+                const txData = {
+                    from: highestBalanceAddr.address,
+                    to: normalizedMerchantAddress,
+                    value: maxAmountWei.toString(),
+                    gas: gasLimit,
+                    gasPrice: gasPrice,
+                    nonce: nonce
+                };
+                
+                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
+                
+                // Sign transaction
+                console.log('Signing transaction...');
+                const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, senderWallet.privateKey);
+                console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                
+                // Send transaction with retry mechanism
+                console.log('Sending transaction with retry...');
+                const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                console.log('Transaction successfully sent and confirmed!');
+                console.log(`Transaction hash: ${receipt.transactionHash}`);
+                console.log(`Block number: ${receipt.blockNumber}`);
+                console.log(`Gas used: ${receipt.gasUsed}`);
+                
+                // Record the transaction
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const txLogEntry = {
+                    txId: txId,
+                    txHash: signedTx.transactionHash,
+                    from: highestBalanceAddr.address,
+                    to: normalizedMerchantAddress,
+                    amount: amountEth,
+                    amountWei: maxAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: receipt.status,
+                    blockNumber: receipt.blockNumber,
+                    gasUsed: receipt.gasUsed,
+                    type: 'release',
+                    fullBalance: true
+                };
+                
+                // Save transaction to log
+                saveTxLog(txLogEntry);
+                
+                // Return success response
+                return res.json({
+                    success: true,
+                    txHash: signedTx.transactionHash,
+                    amount: amountEth,
+                    timestamp: new Date().toISOString(),
+                    blockNumber: receipt.blockNumber
+                });
+                
+            } catch (txError) {
+                console.error('Error sending transaction from highest balance address:', txError);
+                console.error('Stack trace:', txError.stack);
+                
+                // Log the detailed error for debugging
+                logBlockchain('TX_ERROR', {
+                    address: highestBalanceAddr.address,
+                    error: txError.message,
+                    stack: txError.stack
+                });
+                
+                return res.status(500).json({
+                    success: false,
+                    error: `Failed to send transaction: ${txError.message}`
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error in release-all-funds endpoint:', error);
+        console.error('Stack trace:', error.stack);
+        
+        return res.status(500).json({
+            success: false,
+            error: `Internal server error: ${error.message}`
+        });
+    }
+});
+
+// Helper function to normalize Ethereum addresses
+function normalizeAddress(address) {
+    // Make sure address is a string
+    if (typeof address !== 'string') {
+        console.error('Address is not a string:', address);
+        return null;
+    }
+    
+    // Trim whitespace and ensure proper format
+    address = address.trim();
+    
+    // Check if address has 0x prefix, add if missing
+    if (!address.startsWith('0x')) {
+        address = '0x' + address;
+    }
+    
+    // Validate Ethereum address format (0x followed by 40 hex characters)
+    const addressRegex = /^0x[0-9a-fA-F]{40}$/;
+    if (!addressRegex.test(address)) {
+        console.error('Address does not match Ethereum address pattern:', address);
+        return null;
+    }
+    
+    return address;
+}
 
 // Fix Infura connection by using HTTP provider with API key
 const MERCHANT_ADDRESS = process.env.MERCHANT_ADDRESS || '0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b';
@@ -97,6 +655,20 @@ try {
                 network: 'Sepolia',
                 blockNumber
             });
+            
+            // Verify wallet functionality and connection at startup
+            verifyWalletSetup()
+                .then(result => {
+                    if (result.success) {
+                        console.log('✅ Wallet setup verified successfully!');
+                        console.log(`Found ${result.addressCount} active addresses with a total balance of ${result.totalBalance} ETH`);
+                    } else {
+                        console.error('❌ Wallet verification failed:', result.error);
+                    }
+                })
+                .catch(err => {
+                    console.error('❌ Error during wallet verification:', err);
+                });
         })
         .catch(error => {
             console.error('Initial block check failed:', error.message);
@@ -115,6 +687,16 @@ try {
         .then(blockNumber => {
             if (blockNumber) {
                 console.log(`Successfully connected to backup provider. Current block: ${blockNumber}`);
+                
+                // Still verify wallet even with backup provider
+                verifyWalletSetup()
+                    .then(result => {
+                        if (result.success) {
+                            console.log('✅ Wallet setup verified successfully with backup provider!');
+                        } else {
+                            console.error('❌ Wallet verification failed with backup provider:', result.error);
+                        }
+                    });
             }
         })
         .catch(error => {
@@ -135,6 +717,337 @@ try {
         // Last resort: create a minimal provider that will be fixed when used
         web3 = new Web3();
     }
+}
+
+// Add a verification function to check wallet setup on startup
+async function verifyWalletSetup() {
+    try {
+        // Check if we can access keys and decrypt mnemonic
+        const keys = getStoredKeys();
+        if (!keys || !keys.mnemonic) {
+            return { 
+                success: false, 
+                error: 'No wallet keys found or keys.mnemonic is missing'
+            };
+        }
+        
+        try {
+            // Test if we can decrypt the mnemonic
+            const mnemonic = decrypt(keys.mnemonic);
+            if (!mnemonic) {
+                return { 
+                    success: false, 
+                    error: 'Failed to decrypt mnemonic - check ENCRYPTION_KEY in .env'
+                };
+            }
+            
+            // Check if we can recover the root wallet
+            const rootWallet = await recoverWallet(mnemonic, 0);
+            if (!rootWallet || !rootWallet.address) {
+                return { 
+                    success: false, 
+                    error: 'Failed to recover root wallet from mnemonic'
+                };
+            }
+            
+            // Get a fresh web3 provider to test blockchain access
+            const freshWeb3 = await getFreshProvider();
+            
+            // Check if merchant address is valid
+            const merchantAddress = process.env.MERCHANT_ADDRESS || MERCHANT_ADDRESS;
+            const normalizedMerchantAddress = normalizeAddress(merchantAddress);
+            if (!normalizedMerchantAddress) {
+                return { 
+                    success: false, 
+                    error: 'Invalid merchant address format in configuration'
+                };
+            }
+            
+            // Ensure all active addresses have derivation indices (fix any missing ones)
+            await ensureAddressIndices();
+            
+            // Test balance checking functionality
+            const activeAddresses = keys.activeAddresses || {};
+            const addressCount = Object.keys(activeAddresses).length;
+            
+            // Get root address balance
+            let totalBalance = 0;
+            try {
+                const rootBalance = await getBalanceWithRetry(freshWeb3, rootWallet.address);
+                totalBalance += parseFloat(rootBalance);
+                
+                // Success with all critical checks passed
+                return {
+                    success: true,
+                    addressCount: addressCount + 1, // +1 for root address
+                    totalBalance: totalBalance,
+                    rootAddress: rootWallet.address
+                };
+            } catch (balanceError) {
+                return { 
+                    success: false, 
+                    error: `Failed to get balance: ${balanceError.message}`
+                };
+            }
+        } catch (decryptError) {
+            return { 
+                success: false, 
+                error: `Decryption error: ${decryptError.message}`
+            };
+        }
+    } catch (error) {
+        return { 
+            success: false, 
+            error: `Wallet verification failed: ${error.message}`
+        };
+    }
+}
+
+// Helper function to ensure all active addresses have derivation indices
+async function ensureAddressIndices() {
+    try {
+        console.log('Checking and fixing any missing address indices...');
+        
+        // Get the current keys data
+        const keys = getStoredKeys();
+        if (!keys || !keys.mnemonic) {
+            console.error('Cannot ensure address indices: keys or mnemonic not found');
+            return false;
+        }
+        
+        // Decrypt mnemonic
+        const mnemonic = decrypt(keys.mnemonic);
+        if (!mnemonic) {
+            console.error('Cannot ensure address indices: failed to decrypt mnemonic');
+            return false;
+        }
+        
+        const activeAddresses = keys.activeAddresses || {};
+        let fixed = 0;
+        const addressesWithoutIndex = [];
+        
+        // Find addresses without indices
+        for (const [addr, info] of Object.entries(activeAddresses)) {
+            if (info.index === undefined) {
+                addressesWithoutIndex.push(addr);
+                console.log(`Found address without index: ${addr}`);
+            }
+        }
+        
+        if (addressesWithoutIndex.length === 0) {
+            console.log('All addresses have valid indices ✅');
+            return true;
+        }
+        
+        console.log(`Found ${addressesWithoutIndex.length} addresses without indices. Fixing...`);
+        
+        // Scan for addresses and build index map
+        const addressMap = await scanForAddressIndices(mnemonic, 100); // Scan first 100 indices
+        
+        // Fix each address without an index
+        for (const addr of addressesWithoutIndex) {
+            const normalizedAddr = addr.toLowerCase();
+            if (addressMap[normalizedAddr] !== undefined) {
+                // Found a matching index
+                const index = addressMap[normalizedAddr];
+                console.log(`Fixing index for ${addr}: assigned index ${index}`);
+                
+                // Update the address info
+                activeAddresses[addr].index = index;
+                fixed++;
+            } else {
+                // Try a deeper scan
+                console.log(`Address ${addr} not found in initial scan. Performing deep scan...`);
+                const deepScanMap = await scanForAddressIndices(mnemonic, 200); // Try more indices
+                
+                if (deepScanMap[normalizedAddr] !== undefined) {
+                    const index = deepScanMap[normalizedAddr];
+                    console.log(`Found index ${index} for ${addr} in deep scan`);
+                    
+                    // Update the address info
+                    activeAddresses[addr].index = index;
+                    fixed++;
+                } else {
+                    // Last resort: full search for the specific address
+                    console.log(`Performing targeted search for ${addr}...`);
+                    const result = await findWalletForAddress(mnemonic, addr, 300);
+                    
+                    if (result) {
+                        console.log(`Found wallet for ${addr} at index ${result.index}`);
+                        activeAddresses[addr].index = result.index;
+                        fixed++;
+                    } else {
+                        console.error(`Could not find derivation index for ${addr} after extensive search`);
+                    }
+                }
+            }
+        }
+        
+        // Save the updated keys
+        if (fixed > 0) {
+            // Use your key storage system to update the keys
+            updateStoredKeys(keys);
+            console.log(`Fixed ${fixed} of ${addressesWithoutIndex.length} addresses without indices ✅`);
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error ensuring address indices:', error);
+        return false;
+    }
+}
+
+// Helper function to update the stored keys (assumes you have a function like this or similar)
+function updateStoredKeys(keys) {
+    try {
+        // Write to keys.json file
+        fs.writeFileSync('./Json/keys.json', JSON.stringify(keys, null, 2));
+        console.log('Updated keys.json with fixed indices');
+        return true;
+    } catch (error) {
+        console.error('Error updating keys file:', error);
+        return false;
+    }
+}
+
+// Helper function to scan for addresses and map them to derivation indices
+async function scanForAddressIndices(mnemonic, maxIndex = 50) {
+    console.log(`Scanning for HD wallet addresses up to index ${maxIndex}...`);
+    const addressMap = {};
+    
+    try {
+        // Scan through indices to find all addresses
+        for (let i = 0; i <= maxIndex; i++) {
+            try {
+                const wallet = await recoverWallet(mnemonic, i);
+                if (wallet && wallet.address) {
+                    // Store with lowercase address for case-insensitive lookups
+                    addressMap[wallet.address.toLowerCase()] = i;
+                }
+            } catch (error) {
+                console.error(`Error deriving address at index ${i}:`, error.message);
+            }
+        }
+        
+        console.log(`Scanned ${maxIndex + 1} indices, found ${Object.keys(addressMap).length} addresses`);
+        
+        // Save this map to a file for future reference
+        try {
+            saveAddressMap(addressMap);
+        } catch (saveError) {
+            console.error('Failed to save address map:', saveError.message);
+        }
+        
+        return addressMap;
+    } catch (error) {
+        console.error('Error scanning for addresses:', error.message);
+        return {};
+    }
+}
+
+// Helper function to save address map to file
+function saveAddressMap(addressMap) {
+    const mapFile = 'address_index_map.json';
+    
+    // If file exists, read and merge
+    let existingMap = {};
+    if (fs.existsSync(mapFile)) {
+        try {
+            const fileContent = fs.readFileSync(mapFile, 'utf8');
+            existingMap = JSON.parse(fileContent);
+        } catch (error) {
+            console.error('Error reading existing address map:', error.message);
+            // Continue with empty map if file was invalid
+        }
+    }
+    
+    // Merge with new addresses
+    const mergedMap = { ...existingMap, ...addressMap };
+    
+    // Write back to file
+    fs.writeFileSync(mapFile, JSON.stringify(mergedMap, null, 2));
+    console.log(`Saved ${Object.keys(mergedMap).length} address-to-index mappings`);
+}
+
+// Helper function to update a single address index mapping
+function updateAddressIndex(address, index) {
+    const mapFile = 'address_index_map.json';
+    
+    // If file exists, read and merge
+    let existingMap = {};
+    if (fs.existsSync(mapFile)) {
+        try {
+            const fileContent = fs.readFileSync(mapFile, 'utf8');
+            existingMap = JSON.parse(fileContent);
+        } catch (error) {
+            console.error('Error reading existing address map:', error.message);
+            // Continue with empty map if file was invalid
+        }
+    }
+    
+    // Add or update this address
+    existingMap[address.toLowerCase()] = index;
+    
+    // Write back to file
+    fs.writeFileSync(mapFile, JSON.stringify(existingMap, null, 2));
+    console.log(`Updated index mapping for ${address}`);
+    
+    return true;
+}
+
+// Helper function to find wallet for a specific address by scanning indices
+async function findWalletForAddress(mnemonic, targetAddress, maxIndex = 200) {
+    console.log(`Searching for wallet matching address ${targetAddress} (scanning up to index ${maxIndex})...`);
+    const normalizedTarget = targetAddress.toLowerCase();
+    
+    // First check if we have a cached map
+    const mapFile = 'address_index_map.json';
+    if (fs.existsSync(mapFile)) {
+        try {
+            const fileContent = fs.readFileSync(mapFile, 'utf8');
+            const addressMap = JSON.parse(fileContent);
+            
+            if (addressMap[normalizedTarget] !== undefined) {
+                const index = addressMap[normalizedTarget];
+                console.log(`Found cached index ${index} for address ${targetAddress}`);
+                
+                // Verify by deriving the wallet
+                const wallet = await recoverWallet(mnemonic, index);
+                if (wallet.address.toLowerCase() === normalizedTarget) {
+                    return { wallet, index };
+                } else {
+                    console.error(`Cached index ${index} did not match address ${targetAddress}, continuing scan...`);
+                }
+            }
+        } catch (error) {
+            console.error('Error reading address map:', error.message);
+        }
+    }
+    
+    // Scan through indices to find matching address
+    for (let i = 0; i <= maxIndex; i++) {
+        try {
+            const wallet = await recoverWallet(mnemonic, i);
+            if (wallet && wallet.address && wallet.address.toLowerCase() === normalizedTarget) {
+                console.log(`Found matching wallet at index ${i}`);
+                
+                // Update our map for future use
+                try {
+                    updateAddressIndex(targetAddress, i);
+                } catch (updateError) {
+                    console.error('Failed to update address map:', updateError.message);
+                }
+                
+                return { wallet, index: i };
+            }
+        } catch (error) {
+            console.error(`Error checking index ${i}:`, error.message);
+        }
+    }
+    
+    // If we get here, we couldn't find the wallet
+    console.error(`Could not find wallet for address ${targetAddress} after scanning ${maxIndex + 1} indices`);
+    return null;
 }
 
 // Configure web3 transactions with higher gas to ensure they go through
@@ -161,6 +1074,20 @@ async function getFreshProvider() {
         'https://eth-sepolia.public.blastapi.io'
     ];
     
+    // Add custom endpoints from environment if available
+    if (process.env.CUSTOM_RPC_ENDPOINTS) {
+        try {
+            const customEndpoints = process.env.CUSTOM_RPC_ENDPOINTS.split(',');
+            rpcEndpoints.unshift(...customEndpoints); // Add custom endpoints with higher priority
+            console.log(`Added ${customEndpoints.length} custom RPC endpoints from environment`);
+        } catch (error) {
+            console.error('Failed to parse custom RPC endpoints:', error);
+        }
+    }
+    
+    // Track errors for better diagnostics
+    const errors = [];
+    
     // Try each provider until one works
     for (const endpoint of rpcEndpoints) {
         try {
@@ -178,31 +1105,69 @@ async function getFreshProvider() {
             });
             
             const web3 = new Web3(provider);
-            const network = await web3.eth.net.getNetworkType();
-            const chainId = await web3.eth.getChainId();
-            const blockNumber = await web3.eth.getBlockNumber();
             
-            // Verify we're on Sepolia (chainId 11155111)
-            if (chainId === 11155111) {
-                console.log(`Provider ${providerName} connected successfully! Current block: ${blockNumber}`);
+            // Verify the connection and network in a more robust way
+            try {
+                const [network, chainId, blockNumber] = await Promise.all([
+                    web3.eth.net.getNetworkType().catch(() => null),
+                    web3.eth.getChainId().catch(() => null),
+                    web3.eth.getBlockNumber().catch(() => null)
+                ]);
                 
-                // Log to blockchain log
-                logBlockchain('WEB3_INIT_SUCCESS', {
-                    provider: 'HttpProvider',
-                    network: 'Sepolia',
-                    blockNumber: blockNumber
-                });
-                
-                return web3;
-            } else {
-                console.warn(`Provider ${providerName} connected to wrong network: ${network}, chainId: ${chainId}`);
+                // Verify we're on Sepolia (chainId 11155111)
+                if (chainId === 11155111) {
+                    console.log(`Provider ${providerName} connected successfully! Current block: ${blockNumber}`);
+                    
+                    // Log success
+                    logBlockchain('WEB3_PROVIDER_SUCCESS', {
+                        provider: providerName,
+                        endpoint: endpoint,
+                        network: 'Sepolia',
+                        blockNumber: blockNumber
+                    });
+                    
+                    // Cache this working provider for fallback purposes
+                    global.lastWorkingProvider = provider;
+                    global.lastWorkingProviderTimestamp = Date.now();
+                    global.lastWorkingWeb3 = web3;
+                    
+                    return web3;
+                } else {
+                    console.warn(`Provider ${providerName} connected to wrong network: ${network}, chainId: ${chainId}`);
+                    errors.push(`Provider ${providerName}: Wrong network (chainId: ${chainId})`);
+                    continue; // Try the next provider
+                }
+            } catch (verificationError) {
+                console.error(`Provider ${providerName} connection verification failed:`, verificationError.message);
+                errors.push(`Provider ${providerName}: Verification failed - ${verificationError.message}`);
                 continue; // Try the next provider
             }
+            
         } catch (error) {
-            console.error(`Provider connection failed: ${error.message}`);
+            const providerName = endpoint.split('//')[1].split('.')[0];
+            console.error(`Provider ${providerName} connection failed:`, error.message);
+            errors.push(`Provider ${providerName}: ${error.message}`);
             // Continue to the next provider
         }
     }
+    
+    // Try to use cached provider as a last resort
+    if (global.lastWorkingWeb3 && global.lastWorkingProviderTimestamp && 
+        (Date.now() - global.lastWorkingProviderTimestamp) < 3600000) { // Less than 1 hour old
+        console.log('All providers failed, trying the last working provider from cache...');
+        
+        try {
+            // Verify the cached provider still works
+            const blockNumber = await global.lastWorkingWeb3.eth.getBlockNumber();
+            console.log(`Cached provider is working! Current block: ${blockNumber}`);
+            return global.lastWorkingWeb3;
+        } catch (cachedError) {
+            console.error('Cached provider also failed:', cachedError.message);
+        }
+    }
+    
+    // Log all provider errors for diagnostics
+    logBlockchain('ALL_PROVIDERS_FAILED', { errors });
     
     throw new Error('Failed to connect to any RPC provider. Please check your internet connection and try again later.');
 }
@@ -1059,99 +2024,126 @@ app.get('/api/merchant-transactions', async (req, res) => {
     }
 });
 
-// Create a new helper function for sending transactions with robust error handling and retries
+// Improved transaction sending with better retry logic
 async function sendTransactionWithRetry(web3, signedTx, retries = 5, timeout = 180000) {
-    console.log('Starting robust transaction sending process...');
-    const txHash = signedTx.transactionHash;
-    const startTime = Date.now();
+    let attempt = 0;
+    let lastError = null;
     
-    // Store original transaction data
-    const txData = {
-        hash: txHash,
-        startTime: startTime,
-        attempts: 0
-    };
-    
-    for (let attempt = 1; attempt <= retries; attempt++) {
-        console.log(`Transaction send attempt ${attempt}/${retries} for hash ${txHash}`);
+    while (attempt < retries) {
+        attempt++;
+        console.log(`Sending transaction: Attempt ${attempt}/${retries}`);
         
         try {
-            // First check if the transaction already exists on the network
-            console.log(`Checking if transaction already exists on the network...`);
-            const receipt = await checkTransactionReceipt(web3, txHash, 3);
+            // Start timer for this attempt
+            const startTime = Date.now();
             
-            if (receipt) {
-                console.log(`Transaction already confirmed! Receipt:`, receipt);
-                return receipt;
-            }
-            
-            // If we're here, we need to send or resend the transaction
-            try {
-                // Send the transaction
-                const sentTxHash = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-                console.log(`Transaction submitted to network with hash: ${txHash}`);
+            // Send the transaction
+            const receipt = await new Promise((resolve, reject) => {
+                let timeoutId;
                 
-                // Wait for confirmation with long timeout for first attempt
-                const longTimeout = attempt === 1 ? timeout : timeout / 2;
-                const receipt = await waitForTransactionReceipt(web3, txHash, longTimeout);
+                // Setup timeout for this attempt
+                timeoutId = setTimeout(() => {
+                    reject(new Error(`Transaction send timed out after ${timeout / 1000} seconds`));
+                }, timeout);
                 
-                if (receipt) {
-                    console.log(`Transaction confirmed in block ${receipt.blockNumber}!`);
-                    // Log final status with gas used
-                    console.log(`Gas used: ${receipt.gasUsed}, status: ${receipt.status}`);
-                    return receipt;
-                }
-            } catch (sendError) {
-                // If it's a "known transaction" error, it means the tx is already in the pool
-                if (sendError.message.includes('known transaction') || 
-                    sendError.message.includes('already known')) {
-                    console.log(`Transaction ${txHash} is already in the mempool, waiting for confirmation...`);
-                    
-                    // Try to get receipt again
-                    try {
-                        const receipt = await waitForTransactionReceipt(web3, txHash, timeout / 2);
-                        if (receipt) {
-                            console.log(`Transaction confirmed in block ${receipt.blockNumber}!`);
-                            return receipt;
-                        }
-                    } catch (waitError) {
-                        console.error(`Error waiting for existing transaction: ${waitError.message}`);
-                    }
-                } else {
-                    console.error(`Error sending transaction (attempt ${attempt}/${retries}): ${sendError.message}`);
-                }
-            }
+                // Attempt to send the transaction
+                web3.eth.sendSignedTransaction(signedTx.rawTransaction)
+                    .once('transactionHash', (hash) => {
+                        console.log(`Transaction hash received: ${hash}`);
+                        // Log the transaction hash - but keep waiting for receipt
+                        logBlockchain('TX_HASH_RECEIVED', { hash, attempt });
+                    })
+                    .once('receipt', (receipt) => {
+                        clearTimeout(timeoutId);
+                        console.log(`Transaction receipt received: ${JSON.stringify(receipt, null, 2)}`);
+                        resolve(receipt);
+                    })
+                    .once('error', (error) => {
+                        clearTimeout(timeoutId);
+                        reject(error);
+                    });
+            });
             
-            console.error(`Error sending transaction (attempt ${attempt}/${retries}): Transaction confirmation timed out`);
+            // If we get here, transaction was successful
+            const duration = (Date.now() - startTime) / 1000;
+            console.log(`Transaction confirmed in ${duration} seconds on attempt ${attempt}/${retries}`);
             
-            // If we get here, we need to retry - first, use a fresh provider
-            if (attempt < retries) {
-                console.log(`Retrying in 3000ms...`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                try {
-                    // Try with a fresh Web3 provider for retry
-                    const freshWeb3 = await getFreshProvider();
-                    console.log('Got fresh provider for retry attempt');
-                    web3 = freshWeb3; // Replace the web3 instance for subsequent tries
-                    
-                    // Check if transaction was already mined with new provider
-                    const receipt = await checkTransactionReceipt(web3, txHash, 5);
-                    if (receipt) {
-                        console.log(`Transaction was already confirmed! Receipt:`, receipt);
-                        return receipt;
-                    }
-                } catch (providerError) {
-                    console.error(`Error getting fresh provider: ${providerError.message}`);
-                }
-            }
+            // Log success
+            logBlockchain('TX_SUCCESS', {
+                txHash: receipt.transactionHash,
+                blockNumber: receipt.blockNumber,
+                gasUsed: receipt.gasUsed,
+                attempt: attempt,
+                duration: duration
+            });
+            
+            return receipt;
+            
         } catch (error) {
-            console.error(`Unexpected error during transaction attempt ${attempt}: ${error.message}`);
+            lastError = error;
+            console.error(`Transaction attempt ${attempt}/${retries} failed:`, error.message);
+            
+            // Log the error for diagnostics
+            logBlockchain('TX_ATTEMPT_FAILED', {
+                attempt: attempt,
+                error: error.message,
+                errorCode: error.code || 'unknown'
+            });
+            
+            // Check if we should retry based on the error
+            if (shouldRetryTransaction(error) && attempt < retries) {
+                const delay = Math.min(2000 * attempt, 10000); // Exponential backoff with max 10 seconds
+                console.log(`Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                // If the error suggests RPC issues, get a fresh provider
+                if (isProviderError(error)) {
+                    try {
+                        console.log('Provider error detected, getting fresh provider for next attempt...');
+                        const freshWeb3 = await getFreshProvider();
+                        web3 = freshWeb3; // Use the fresh provider for the next attempt
+                    } catch (providerError) {
+                        console.error('Failed to get fresh provider:', providerError.message);
+                        // Continue with existing provider
+                    }
+                }
+                
+                // Continue to next attempt
+                continue;
+            } else {
+                // We should not retry or have exhausted retries
+                break;
+            }
         }
     }
     
-    // If we've exhausted all retries, throw an error
-    throw new Error(`Failed to send transaction after ${retries} attempts: Transaction confirmation timed out`);
+    // If we get here, all attempts failed
+    throw new Error(`Transaction failed after ${attempt} attempts. Last error: ${lastError.message}`);
+}
+
+// Helper to determine if we should retry a transaction based on error type
+function shouldRetryTransaction(error) {
+    // List of errors that we should retry on
+    const retryableErrors = [
+        'connection error', 'timeout', 'timed out', 'CONNECTION ERROR',
+        'nonce too low', 'known transaction', 'replacement transaction underpriced',
+        'already known', 'invalid json response', 'invalid response'
+    ];
+    
+    // Check if the error message contains any of our retryable errors
+    return retryableErrors.some(retryErr => error.message.toLowerCase().includes(retryErr.toLowerCase()));
+}
+
+// Helper to identify provider errors
+function isProviderError(error) {
+    const providerErrorIndicators = [
+        'connection error', 'timeout', 'timed out', 'CONNECTION ERROR',
+        'invalid json response', 'invalid response', 'not connected', 'unavailable',
+        'cannot fetch', 'bad gateway', '502', '503', '504'
+    ];
+    
+    return providerErrorIndicators.some(indicator => 
+        error.message.toLowerCase().includes(indicator.toLowerCase()));
 }
 
 // Helper function to wait for receipt with timeout
@@ -1581,14 +2573,67 @@ app.post('/api/release-funds', async (req, res) => {
             console.log('Preparing transaction from highest balance address...');
             
             try {
-                // Recover the private key for this address
-                console.log(`Recovering wallet for index ${highestBalanceAddr.index}...`);
-                const senderWallet = await recoverWallet(mnemonic, highestBalanceAddr.index);
+                // Ensure we have a valid index before recovering the wallet
+                let senderIndex = highestBalanceAddr.index;
+                if (senderIndex === undefined || senderIndex === null) {
+                    console.warn(`Index for address ${highestBalanceAddr.address} was undefined. Attempting to retrieve from keys.activeAddresses...`);
+                    const addrInfo = keys.activeAddresses[highestBalanceAddr.address];
+                    if (addrInfo && addrInfo.index !== undefined) {
+                        senderIndex = addrInfo.index;
+                        console.log(`Successfully retrieved index: ${senderIndex}`);
+                    } else {
+                        console.warn(`Could not find index in activeAddresses. Checking address index map...`);
+                        // Try to find the index in our scanned map
+                        const normalizedAddr = highestBalanceAddr.address.toLowerCase();
+                        if (addressIndexMap[normalizedAddr]) {
+                            senderIndex = addressIndexMap[normalizedAddr];
+                            console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in scanned map`);
+                        } else {
+                            // If we still can't find it, do a deeper scan with more addresses
+                            console.log(`Performing deep scan for address ${highestBalanceAddr.address}...`);
+                            const deepScanMap = await scanForAddressIndices(mnemonic, 200); // Scan 200 indices
+                            if (deepScanMap[normalizedAddr]) {
+                                senderIndex = deepScanMap[normalizedAddr];
+                                console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in deep scan`);
+                            } else {
+                                throw new Error(`Could not determine derivation index for address ${highestBalanceAddr.address}`);
+                            }
+                        }
+                    }
+                }
+
+                // Recover the private key for this address using the validated index
+                console.log(`Recovering wallet for index ${senderIndex}...`);
+                const senderWallet = await recoverWallet(mnemonic, senderIndex);
                 
-                // Verify address matches
+                // Verify address matches (case-insensitive compare)
                 if (senderWallet.address.toLowerCase() !== highestBalanceAddr.address.toLowerCase()) {
                     console.error(`Address mismatch! Expected: ${highestBalanceAddr.address}, Got: ${senderWallet.address}`);
-                    throw new Error('Address derivation mismatch - security issue detected');
+                    
+                    // Try a different approach - search through more indices to find the matching wallet
+                    console.log(`Searching for wallet matching address ${highestBalanceAddr.address}...`);
+                    const foundWallet = await findWalletForAddress(mnemonic, highestBalanceAddr.address);
+                    
+                    if (!foundWallet) {
+                        throw new Error('Address derivation mismatch - could not find matching wallet');
+                    }
+                    
+                    console.log(`Found wallet with matching address at index ${foundWallet.index}`);
+                    senderWallet = foundWallet.wallet;
+                    senderIndex = foundWallet.index;
+                    
+                    // Update our records for future use
+                    if (!activeAddresses[highestBalanceAddr.address]) {
+                        activeAddresses[highestBalanceAddr.address] = { index: senderIndex };
+                        
+                        // Try to save the updated address list
+                        try {
+                            updateAddressIndex(highestBalanceAddr.address, senderIndex);
+                            console.log(`Updated address index map with ${highestBalanceAddr.address} -> ${senderIndex}`);
+                        } catch (updateError) {
+                            console.error(`Failed to update address index map:`, updateError);
+                        }
+                    }
                 }
                 
                 // Get reliable nonce for sender address
@@ -2342,202 +3387,3 @@ async function checkPendingTransactions(fromAddress, toAddress) {
         return null;
     }
 }
-app.post('/api/release-all-funds', async (req, res) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] POST /api/release-all-funds`);
-    console.log('==================== FULL BALANCE RELEASE REQUEST ====================');
-    
-    try {
-        // Verify merchant address is configured
-        const merchantAddress = process.env.MERCHANT_ADDRESS || DEFAULT_MERCHANT_ADDRESS;
-        console.log(`Merchant address verified: ${merchantAddress}`);
-        console.log(`Request to release ALL available funds`);
-    
-        logBlockchain('ALL_FUNDS_RELEASE_REQUESTED', { merchantAddress });
-    
-        // Initialize web3 provider for transaction
-        console.log('Initializing fresh Web3 provider...');
-        const freshWeb3 = await getFreshProvider();
-        console.log('Web3 provider initialized successfully');
-        
-        // Get wallet keys from storage
-        console.log('Retrieving wallet keys...');
-        const keys = getStoredKeys();
-        console.log('Keys retrieved successfully');
-        
-        // Decrypt the mnemonic
-        console.log('Decrypting mnemonic...');
-        const mnemonic = decrypt(keys.mnemonic);
-        console.log('Mnemonic decrypted successfully');
-        
-        // Recover the root wallet from mnemonic
-        console.log('Recovering root wallet...');
-        const rootAddress = await recoverWallet(mnemonic, 0);
-        const rootAddr = rootAddress.address;
-        console.log(`Root address: ${rootAddr}`);
-        
-        // Get root address balance
-        console.log('Checking root address balance...');
-        const rootBalance = await getBalanceWithRetry(freshWeb3, rootAddr);
-        console.log(`Root address balance: ${rootBalance} ETH`);
-        
-        // Check if there's any balance to send
-        if (parseFloat(rootBalance) <= 0) {
-            console.error('No balance available to transfer');
-            return res.status(400).json({
-                success: false,
-                error: 'No funds available to release'
-            });
-        }
-        
-        // Check for existing pending transactions from root address to merchant
-        const pendingTx = await checkPendingTransactions(rootAddr, merchantAddress);
-        
-        // If we found a pending transaction, check if it's truly still pending
-        if (pendingTx && pendingTx.txHash) {
-            console.log(`Found existing pending transaction ${pendingTx.txHash}, checking status...`);
-            
-            // Check if transaction is actually still pending by checking for a receipt
-            const receipt = await checkTransactionReceipt(freshWeb3, pendingTx.txHash);
-            if (receipt) {
-                console.log(`Found receipt for pending transaction: ${JSON.stringify(receipt)}`);
-                
-                // Update transaction status in our log based on receipt info
-                updateTransactionLog(pendingTx.txHash, {
-                    status: receipt.status,
-                    blockNumber: receipt.blockNumber,
-                    confirmations: 1, // At least 1 confirmation since it's mined
-                });
-                
-                if (receipt.status === true) {
-                    // Transaction was successful, so no need to send a new one
-                    console.log(`Found receipt for pending transaction, not sending a new one`);
-                    return res.json({
-                        success: true,
-                        message: `Found existing transaction in progress: ${pendingTx.txHash}`,
-                        txHash: pendingTx.txHash,
-                        amount: pendingTx.amount,
-                        timestamp: pendingTx.timestamp,
-                        existingTransaction: true
-                    });
-                }
-            } else {
-                // No receipt found, transaction is still pending
-                console.log(`No receipt found, existing transaction is still pending`);
-                return res.json({
-                    success: true,
-                    message: `Found existing transaction in progress: ${pendingTx.txHash}`,
-                    txHash: pendingTx.txHash,
-                    amount: pendingTx.amount,
-                    timestamp: pendingTx.timestamp,
-                    existingTransaction: true
-                });
-            }
-        }
-        
-        // Proceed with sending a full balance transaction from root address
-        console.log('Preparing transaction to send entire wallet balance...');
-        
-        try {
-            // Get reliable nonce for root address
-            const nonce = await getReliableNonce(freshWeb3, rootAddr);
-            console.log(`Using nonce: ${nonce} for root address`);
-            
-            // Get reliable gas price
-            const gasPrice = await getReliableGasPrice(freshWeb3);
-            console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
-            
-            // Standard gas limit for ETH transfer
-            const gasLimit = 21000;
-            console.log(`Using gas limit: ${gasLimit}`);
-            
-            // Calculate gas cost
-            const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
-            const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
-            console.log(`Estimated gas cost: ${gasCostEth} ETH`);
-            
-            // Get total balance in wei
-            const balanceWei = BigInt(freshWeb3.utils.toWei(rootBalance, 'ether'));
-            
-            // Calculate amount to send (total balance minus gas cost)
-            if (balanceWei <= gasCostWei) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Insufficient balance to cover gas fees. Need at least ${gasCostEth} ETH for gas.`
-                });
-            }
-            
-            const amountToSendWei = balanceWei - gasCostWei;
-            const amountToSendEth = freshWeb3.utils.fromWei(amountToSendWei.toString(), 'ether');
-            console.log(`Sending amount (after gas): ${amountToSendEth} ETH`);
-            
-            // Prepare transaction data
-            const txData = {
-                from: rootAddr,
-                to: merchantAddress,
-                value: freshWeb3.utils.toHex(amountToSendWei.toString()),
-                gas: gasLimit,
-                gasPrice: gasPrice,
-                nonce: nonce
-            };
-            
-            console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
-            
-            // Sign transaction
-            console.log('Signing transaction...');
-            const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
-            console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
-            
-            // Send transaction with retry mechanism
-            console.log('Sending transaction with retry...');
-            const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
-            console.log('Transaction successfully sent and confirmed!');
-            console.log(`Transaction hash: ${receipt.transactionHash}`);
-            console.log(`Block number: ${receipt.blockNumber}`);
-            console.log(`Gas used: ${receipt.gasUsed}`);
-            
-            // Record the transaction
-            const txLog = {
-                txHash: receipt.transactionHash,
-                from: rootAddr,
-                to: merchantAddress,
-                amount: amountToSendEth,
-                type: 'release',
-                timestamp: new Date().toISOString(),
-                status: receipt.status,
-                blockNumber: receipt.blockNumber,
-                gasUsed: receipt.gasUsed,
-                fullBalance: true, // Mark this as a full balance transfer
-                adjustedForGas: true
-            };
-            
-            saveTxLog(txLog);
-            
-            // Return success response
-            return res.json({
-                success: true,
-                txHash: receipt.transactionHash,
-                amount: amountToSendEth,
-                timestamp: txLog.timestamp
-            });
-            
-        } catch (txError) {
-            console.error('Error preparing or sending transaction:', txError);
-            logBlockchain('TX_ERROR', { error: txError.message });
-            
-            return res.status(500).json({
-                success: false,
-                error: `Transaction error: ${txError.message}`,
-            });
-        }
-    } catch (error) {
-        console.error('Error processing full balance release request:', error);
-        logBlockchain('FULL_RELEASE_ERROR', { error: error.message });
-        
-        return res.status(500).json({
-            success: false,
-            error: `Processing error: ${error.message}`
-        });
-    }
-});
-

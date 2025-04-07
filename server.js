@@ -2,10 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const Web3 = require('web3');
 const fs = require('fs');
+const path = require('path');
 const { recoverWallet, getStoredKeys } = require('./recover.js');
 const { decrypt } = require('./encryptionUtils');
 const winston = require('winston');
 const ethers = require('ethers');
+const crypto = require('crypto');
 
 // Configure winston logger
 const logger = winston.createLogger({
@@ -44,6 +46,76 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('Public'));
 
+// Secure file operation functions to prevent path traversal attacks
+function secureWriteFile(filePath, data) {
+    // Normalize the path to prevent directory traversal
+    const normalizedPath = path.normalize(filePath);
+    const absolutePath = path.resolve(normalizedPath);
+    
+    // Check if the path is within the allowed directories
+    const baseDir = path.resolve('.');
+    if (!absolutePath.startsWith(baseDir)) {
+        throw new Error(`Security error: Attempted to write to file outside of application directory: ${filePath}`);
+    }
+    
+    // Write the file
+    fs.writeFileSync(absolutePath, data);
+    return true;
+}
+
+function secureReadFile(filePath) {
+    // Normalize the path to prevent directory traversal
+    const normalizedPath = path.normalize(filePath);
+    const absolutePath = path.resolve(normalizedPath);
+    
+    // Check if the path is within the allowed directories
+    const baseDir = path.resolve('.');
+    if (!absolutePath.startsWith(baseDir)) {
+        throw new Error(`Security error: Attempted to read file outside of application directory: ${filePath}`);
+    }
+    
+    // Read the file
+    return fs.readFileSync(absolutePath, 'utf8');
+}
+
+// Simple API key validation for sensitive endpoints only
+function validateApiKey(req, res, next) {
+    // Only protect fund release endpoints and recording payments
+    const protectedEndpoints = [
+        '/api/release-funds',
+        '/api/release-all-funds',
+        '/api/record-payment'
+    ];
+    
+    if (!protectedEndpoints.includes(req.path)) {
+        return next();
+    }
+    
+    // Get API key from environment or generate from encryption key
+    const apiKey = process.env.API_KEY || createApiKeyFromEncryptionKey();
+    
+    // Check header for API key
+    const providedKey = req.headers['x-api-key'];
+    
+    if (!providedKey || providedKey !== apiKey) {
+        logger.warn(`Unauthorized access attempt to ${req.path}`);
+        return res.status(401).json({
+            success: false,
+            error: 'Unauthorized: API key required'
+        });
+    }
+    
+    next();
+}
+
+// Create API key from encryption key if not set in environment
+function createApiKeyFromEncryptionKey() {
+    const key = process.env.ENCRYPTION_KEY || 'default-key';
+    const hash = crypto.createHash('sha256');
+    hash.update(key);
+    return hash.digest('hex');
+}
+
 // Log all requests FIRST
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
@@ -51,11 +123,49 @@ app.use((req, res, next) => {
     console.log(message);
     logToFile(message);
     
-    // For POST or PUT requests, log the body
+    // For POST or PUT requests, log the body with sensitive data redacted
     if ((req.method === 'POST' || req.method === 'PUT') && req.body) {
-        const bodyMsg = `[${timestamp}] Request Body: ${JSON.stringify(req.body, null, 2)}`;
+        // Create a copy of the body to redact sensitive fields
+        const sanitizedBody = { ...req.body };
+        
+        // Redact potentially sensitive fields
+        if (sanitizedBody.privateKey) sanitizedBody.privateKey = '[REDACTED]';
+        if (sanitizedBody.mnemonic) sanitizedBody.mnemonic = '[REDACTED]';
+        if (sanitizedBody.key) sanitizedBody.key = '[REDACTED]';
+        
+        const bodyMsg = `[${timestamp}] Request Body: ${JSON.stringify(sanitizedBody, null, 2)}`;
         console.log(bodyMsg);
         logToFile(bodyMsg);
+    }
+    
+    next();
+});
+
+// Apply API key validation
+app.use(validateApiKey);
+
+// Basic input validation for release funds endpoint
+app.use((req, res, next) => {
+    // Only validate specific endpoints
+    if (req.path === '/api/release-funds' && req.method === 'POST') {
+        // Validate amount field
+        const { amount } = req.body;
+        
+        if (!amount) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Amount is required' 
+            });
+        }
+        
+        // Validate amount format and range
+        const amountNum = parseFloat(amount);
+        if (isNaN(amountNum) || amountNum <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Amount must be a positive number'
+            });
+        }
     }
     
     next();
@@ -901,7 +1011,7 @@ async function ensureAddressIndices() {
 function updateStoredKeys(keys) {
     try {
         // Write to keys.json file
-        fs.writeFileSync('./Json/keys.json', JSON.stringify(keys, null, 2));
+        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
         console.log('Updated keys.json with fixed indices');
         return true;
     } catch (error) {
@@ -953,7 +1063,7 @@ function saveAddressMap(addressMap) {
     let existingMap = {};
     if (fs.existsSync(mapFile)) {
         try {
-            const fileContent = fs.readFileSync(mapFile, 'utf8');
+            const fileContent = secureReadFile(mapFile);
             existingMap = JSON.parse(fileContent);
         } catch (error) {
             console.error('Error reading existing address map:', error.message);
@@ -965,31 +1075,31 @@ function saveAddressMap(addressMap) {
     const mergedMap = { ...existingMap, ...addressMap };
     
     // Write back to file
-    fs.writeFileSync(mapFile, JSON.stringify(mergedMap, null, 2));
+    secureWriteFile(mapFile, JSON.stringify(mergedMap, null, 2));
     console.log(`Saved ${Object.keys(mergedMap).length} address-to-index mappings`);
 }
 
-// Helper function to update a single address index mapping
+// Update an address's index in the mapping file
 function updateAddressIndex(address, index) {
     const mapFile = 'address_index_map.json';
     
-    // If file exists, read and merge
+    // If file exists, read existing map
     let existingMap = {};
     if (fs.existsSync(mapFile)) {
         try {
-            const fileContent = fs.readFileSync(mapFile, 'utf8');
+            const fileContent = secureReadFile(mapFile);
             existingMap = JSON.parse(fileContent);
         } catch (error) {
             console.error('Error reading existing address map:', error.message);
-            // Continue with empty map if file was invalid
+            return false;
         }
     }
     
-    // Add or update this address
-    existingMap[address.toLowerCase()] = index;
+    // Update the specific address
+    existingMap[address] = index;
     
     // Write back to file
-    fs.writeFileSync(mapFile, JSON.stringify(existingMap, null, 2));
+    secureWriteFile(mapFile, JSON.stringify(existingMap, null, 2));
     console.log(`Updated index mapping for ${address}`);
     
     return true;
@@ -1004,7 +1114,7 @@ async function findWalletForAddress(mnemonic, targetAddress, maxIndex = 200) {
     const mapFile = 'address_index_map.json';
     if (fs.existsSync(mapFile)) {
         try {
-            const fileContent = fs.readFileSync(mapFile, 'utf8');
+            const fileContent = secureReadFile(mapFile);
             const addressMap = JSON.parse(fileContent);
             
             if (addressMap[normalizedTarget] !== undefined) {
@@ -1366,7 +1476,7 @@ app.get('/api/wallet-balance', async (req, res) => {
         
         // Save updated address data
         try {
-            fs.writeFileSync('./Json/keys.json', JSON.stringify(keys, null, 2));
+            secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
         } catch (saveError) {
             console.error('Error saving updated address data:', saveError);
             // Continue execution - this is non-critical
@@ -1507,7 +1617,7 @@ app.post('/api/generate-payment-address', async (req, res) => {
         };
         
         // Save updated keys
-        fs.writeFileSync('./Json/keys.json', JSON.stringify(keys, null, 2));
+        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
 
         // Prepare response
         const response = {
@@ -1550,7 +1660,7 @@ app.post('/api/generate-payment-address', async (req, res) => {
             };
             
             // Save updated keys
-            fs.writeFileSync('./Json/keys.json', JSON.stringify(keys, null, 2));
+            secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
             
             res.json({
                 success: true,
@@ -1904,7 +2014,7 @@ app.get('/api/merchant-transactions', async (req, res) => {
         
         if (fs.existsSync(txFile)) {
             try {
-            const fileContent = fs.readFileSync(txFile, 'utf8');
+            const fileContent = secureReadFile(txFile);
                 if (fileContent && fileContent.trim()) {
                     transactions = JSON.parse(fileContent);
             
@@ -1919,12 +2029,12 @@ app.get('/api/merchant-transactions', async (req, res) => {
                         console.warn(`Created backup of corrupted file: ${backupFile}`);
                         
                         // Reset the file with an empty array
-                        fs.writeFileSync(txFile, JSON.stringify([]));
+                        secureWriteFile(txFile, JSON.stringify([]));
                     }
                 } else {
                     console.log('Transaction file is empty, initializing with empty array');
                     transactions = [];
-                    fs.writeFileSync(txFile, JSON.stringify([]));
+                    secureWriteFile(txFile, JSON.stringify([]));
                 }
             } catch (parseError) {
                 console.error('Error parsing transaction log:', parseError);
@@ -1940,12 +2050,12 @@ app.get('/api/merchant-transactions', async (req, res) => {
                 
                 // Reset with empty array
                 transactions = [];
-                fs.writeFileSync(txFile, JSON.stringify([]));
+                secureWriteFile(txFile, JSON.stringify([]));
             }
         } else {
             console.log('Transaction file does not exist, creating empty file');
             transactions = [];
-            fs.writeFileSync(txFile, JSON.stringify([]));
+            secureWriteFile(txFile, JSON.stringify([]));
         }
         
         // Try to enhance transaction data with wallet information
@@ -2784,7 +2894,7 @@ app.post('/api/record-payment', async (req, res) => {
         };
         
         // Save updated keys
-        fs.writeFileSync('./Json/keys.json', JSON.stringify(keys, null, 2));
+        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
         
         // Log the transaction
         logBlockchain('PAYMENT_RECORDED', {
@@ -2810,7 +2920,7 @@ app.post('/api/record-payment', async (req, res) => {
             
             // Read existing logs if file exists
             if (fs.existsSync(txFile)) {
-                const fileContent = fs.readFileSync(txFile, 'utf8');
+                const fileContent = secureReadFile(txFile);
                 try {
                 txLogs = JSON.parse(fileContent || '[]');
                 
@@ -2829,12 +2939,12 @@ app.post('/api/record-payment', async (req, res) => {
             txLogs.push(txLog);
             
             // Write back to file
-            fs.writeFileSync(txFile, JSON.stringify(txLogs, null, 2));
+            secureWriteFile(txFile, JSON.stringify(txLogs, null, 2));
         } catch (fileError) {
             console.error('Error saving transaction log:', fileError);
             // Try to recover by creating fresh file with just this transaction
             try {
-                fs.writeFileSync(txFile, JSON.stringify([txLog], null, 2));
+                secureWriteFile(txFile, JSON.stringify([txLog], null, 2));
             } catch (recoveryError) {
                 console.error('Failed to recover transaction log:', recoveryError);
             }
@@ -2938,7 +3048,7 @@ app.get('/api/release-status/:txHash', async (req, res) => {
         
         try {
             if (fs.existsSync(txLogPath)) {
-                const fileContent = fs.readFileSync(txLogPath, 'utf8');
+                const fileContent = secureReadFile(txLogPath);
                 try {
                     txLog = JSON.parse(fileContent || '[]');
                     
@@ -3095,7 +3205,7 @@ function updateTransactionLog(txHash, updates) {
         let fileContent;
         
         try {
-            fileContent = fs.readFileSync(txFile, 'utf8');
+            fileContent = secureReadFile(txFile);
         } catch (readError) {
             console.error('Error reading transaction log file:', readError);
             return false;
@@ -3113,7 +3223,7 @@ function updateTransactionLog(txHash, updates) {
                 fs.copyFileSync(txFile, backupFile);
                 
                 // Create a new empty log
-                fs.writeFileSync(txFile, JSON.stringify([]));
+                secureWriteFile(txFile, JSON.stringify([]));
                 
                 console.warn('Reset transaction log to empty array');
                 return false;
@@ -3126,7 +3236,7 @@ function updateTransactionLog(txHash, updates) {
             fs.copyFileSync(txFile, backupFile);
             
             // Create a new empty log
-            fs.writeFileSync(txFile, JSON.stringify([]));
+            secureWriteFile(txFile, JSON.stringify([]));
             
             return false;
         }
@@ -3148,7 +3258,7 @@ function updateTransactionLog(txHash, updates) {
         if (updated) {
             // Write back to file using the same safe approach as saveTxLog
             const tempFile = `${txFile}.tmp`;
-            fs.writeFileSync(tempFile, JSON.stringify(updatedLogs, null, 2));
+            secureWriteFile(tempFile, JSON.stringify(updatedLogs, null, 2));
             fs.renameSync(tempFile, txFile);
             console.log(`Updated transaction log for ${txHash}`);
             return true;
@@ -3173,7 +3283,7 @@ function saveTxLog(txLogEntry) {
         // Read existing logs if file exists
         if (fs.existsSync(txFile)) {
             try {
-                const fileContent = fs.readFileSync(txFile, 'utf8');
+                const fileContent = secureReadFile(txFile);
                 txLogs = JSON.parse(fileContent || '[]');
                 
                 // Ensure we have an array
@@ -3207,7 +3317,7 @@ function saveTxLog(txLogEntry) {
         
         // Use a safe write approach with a temp file
         const tempFile = `${txFile}.tmp`;
-        fs.writeFileSync(tempFile, JSON.stringify(txLogs, null, 2));
+        secureWriteFile(tempFile, JSON.stringify(txLogs, null, 2));
         fs.renameSync(tempFile, txFile);
         
         console.log(`Transaction log saved successfully with ${txLogs.length} entries`);
@@ -3218,7 +3328,7 @@ function saveTxLog(txLogEntry) {
         // Try to save just this transaction as a fallback
         try {
             const fallbackFile = `tx_${Date.now()}.json`;
-            fs.writeFileSync(fallbackFile, JSON.stringify([txLogEntry], null, 2));
+            secureWriteFile(fallbackFile, JSON.stringify([txLogEntry], null, 2));
             console.log(`Saved transaction to fallback file: ${fallbackFile}`);
         } catch (fallbackError) {
             console.error('Failed to save transaction to fallback file:', fallbackError);
@@ -3348,7 +3458,7 @@ async function checkPendingTransactions(fromAddress, toAddress) {
         }
         
         // Read transaction log
-        const fileContent = fs.readFileSync(txFile, 'utf8');
+        const fileContent = secureReadFile(txFile);
         if (!fileContent || !fileContent.trim()) {
             console.log('Transaction file is empty');
             return null;

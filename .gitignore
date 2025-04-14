@@ -35,3 +35,28 @@ coverage/
 
 # Aider
 .aider*
+
+# Added by Claude Task Master
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+# Task files
+tasks.json
+tasks/ 
+
+#rule
+.cursor
+.cursor/rules
+
+
+server.js.bck

@@ -1,0 +1,160 @@
+{
+  "mnemonic": {
+    "iv": "b24ffa4418820e42d6b5eced1d8d9ed7",
+    "encryptedData": "faf65449fb55e57529853336eb2560fa020bb5c0ccb61cecf615f0cf1ba9f5d4079086460894a03cde4e21d5884e7f26ef9286a970d2856d147c7830a73da452"
+  },
+  "masterKey": {
+    "iv": "cbe0b018bf3724cd29adc840058677e1",
+    "encryptedData": "c75cbec9ebc6d8205e2a8329560de767963a0ad04705864c1161dbfb44033037373840c69bcde01247d08a734f5285d0d0999b5623df47e4673d9bf8527ba29ef932f5572880d092ab294051ad8cfce4b489613ac401636b36d99c73ed0a9141a6f9b38bc799a1baee6441f5ed36dd57"
+  },
+  "currentIndex": 7,
+  "activeAddresses": {
+    "0xEb9B4FAA4b073a8075f3f147e2151A86248E72E6": {
+      "index": 7,
+      "expiresAt": 1742910533498,
+      "used": false,
+      "generatedAt": "2025-03-25T13:18:53.498Z",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.392Z"
+    },
+    "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078": {
+      "amount": "0.007723",
+      "cryptoType": "ETH",
+      "timestamp": "2025-03-26T00:31:01.022Z",
+      "status": "confirmed",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.372Z",
+      "index": 8
+    },
+    "0xAC66CEb5cB90c68Bdadf8b01037a355e24CA2886": {
+      "index": 9,
+      "expectedAmount": 24.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-03-27T02:38:05.365Z",
+      "expiresAt": "2025-03-27T03:08:05.365Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.448Z"
+    },
+    "0xa9222DDD3d76AD740804776a68a8b35ba010CA66": {
+      "amount": "0.007996",
+      "cryptoType": "ETH",
+      "timestamp": "2025-03-28T04:01:15.897Z",
+      "status": "confirmed",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.436Z",
+      "index": 10
+    },
+    "0xf45Db8831BbBA0CFC6BBeC5Dc186d9150e8Cc5db": {
+      "amount": "0.003109",
+      "cryptoType": "ETH",
+      "timestamp": "2025-03-28T05:20:27.407Z",
+      "status": "confirmed",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:30.298Z",
+      "index": 11
+    },
+    "0x4c41514075ae8B29E0066510bb59a9A786fB2e34": {
+      "index": 12,
+      "expectedAmount": 7.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-03-28T05:34:38.918Z",
+      "expiresAt": "2025-03-28T06:04:38.918Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.773Z"
+    },
+    "0xFdF350302c99DcdcB598A8f865BEc7Ed7a3b7B55": {
+      "amount": "0.004160",
+      "cryptoType": "ETH",
+      "timestamp": "2025-03-28T05:37:04.987Z",
+      "status": "confirmed",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.773Z",
+      "index": 13
+    },
+    "0xa8ef3B8D57011fB86fC7275Fd952Db4dDf9FA0C8": {
+      "amount": "0.004419",
+      "cryptoType": "ETH",
+      "timestamp": "2025-03-31T03:42:39.196Z",
+      "status": "confirmed",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:29.781Z",
+      "index": 14
+    },
+    "0x683b9bF3E66B9D4E23Dce3EFa865c7528676DaCb": {
+      "index": 15,
+      "expectedAmount": 7.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T03:38:56.851Z",
+      "expiresAt": "2025-04-14T04:08:56.851Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:30.298Z"
+    },
+    "0x5A179cf3d80E6526872875358B2BFAF9E52535fB": {
+      "index": 16,
+      "expectedAmount": "0.00363182",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T03:56:08.312Z",
+      "expiresAt": "2025-04-14T04:26:08.312Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:30.650Z"
+    },
+    "0x0B9A52c9D4A26a3A76F7670B6c4cE29d73e681e2": {
+      "index": 17,
+      "expectedAmount": "0.005",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T03:59:33.136Z",
+      "expiresAt": "2025-04-14T04:29:33.136Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:30.646Z"
+    },
+    "0xbDed512a8E4109feAd95E5A5b1B900cD27b827f2": {
+      "index": 18,
+      "expectedAmount": "0.00363182",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T04:03:29.928Z",
+      "expiresAt": "2025-04-14T04:33:29.928Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:31.209Z"
+    },
+    "0xCccAf82E331d22b92A52cA278A491a4b1c8a30a0": {
+      "index": 19,
+      "expectedAmount": 7.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T04:45:57.479Z",
+      "expiresAt": "2025-04-14T05:15:57.479Z",
+      "status": "pending",
+      "currentBalance": "0",
+      "lastChecked": "2025-04-14T09:25:30.650Z"
+    },
+    "0xa0Aa1F8020c8166e0De26a98216FC8cb6Ff80aaa": {
+      "index": 20,
+      "expectedAmount": 7.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T09:42:28.593Z",
+      "expiresAt": "2025-04-14T10:12:28.593Z",
+      "status": "pending"
+    },
+    "0x54fDbfeF11d04E0537CFD0Cb4e4eDCC356DA6790": {
+      "index": 21,
+      "expectedAmount": 7.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T11:07:30.929Z",
+      "expiresAt": "2025-04-14T11:37:30.929Z",
+      "status": "pending"
+    },
+    "0xA244BA17B9273F0a35ab2Ad3De7427250BeE23db": {
+      "index": 22,
+      "expectedAmount": 5.99,
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-14T11:15:36.710Z",
+      "expiresAt": "2025-04-14T11:45:36.710Z",
+      "status": "pending"
+    }
+  }
+}

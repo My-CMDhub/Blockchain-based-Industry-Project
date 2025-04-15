@@ -41,7 +41,7 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
    
    - Skip all keys just by pressing enter or enter the keys if you got any.
      
-   or copy and paste the keys from Keys folder into your .env file and then replace the keys with your keys.
+   or copy and paste the keys from Keys folder into your .env file and then replace the keys with your keys or use same keys.
 
    **Keys 🔑**:
    - To get your own ENCRYPTION_KEY then run this command in terminal : ``` openssl rand -hex 32 ```

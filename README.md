@@ -32,7 +32,8 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
 2. **Run the setup script**
 
    This will install dependencies, create necessary files, and generate the HD wallet keys.
-   Note - : For windows users , open bash terminal in your IDE (VS code, Pycharm, etc..) then run the script.
+
+   **Note - :** For windows users , open bash terminal in your IDE (VS code, Pycharm, etc..) then run the script.
    
    ```bash
    bash setup.sh
@@ -42,7 +43,7 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
      
    or copy and paste the keys from Keys folder into your .env file and then replace the keys with your keys.
 
-   Keys 🔑:
+   **Keys 🔑**:
    - To get your own ENCRYPTION_KEY then run this command in terminal : ``` openssl rand -hex 32 ```
    - To get your own MERCHANT_ADDRESS and MERCHANT_PRIVATE_KEY , you require to set up metamask wallet by downloading the metamask app.
    - Keep HD_WALLET_ADDRESS same.

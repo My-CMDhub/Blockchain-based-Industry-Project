@@ -632,7 +632,9 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        amount: total,
+                        amount: cryptoAmount,
+                        fiatAmount: total,
+                        fiatCurrency: 'USD',
                         cryptoType: selectedCrypto
                     })
                 });
@@ -896,7 +898,7 @@
                         
                         // Notify backend about the payment to update HD wallet records
                         try {
-                            await fetch('/api/record-payment', {
+                            const response = await fetch('/api/record-payment', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'
@@ -907,7 +909,50 @@
                                     cryptoType
                                 })
                             });
-                            console.log('Payment recorded with backend');
+                            
+                            const responseData = await response.json();
+                            console.log('Payment recorded with backend:', responseData);
+                            
+                            // Check if this was flagged as a wrong payment
+                            if (responseData.isWrongPayment) {
+                                const transactionStatus = document.getElementById('transaction-status');
+                                if (transactionStatus) {
+                                    transactionStatus.innerHTML = `
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0">
+                                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                                            </div>
+                                            <div class="ml-4">
+                                                <h3 class="text-sm font-medium text-red-800">Wrong Payment Detected!</h3>
+                                                <p class="mt-1 text-sm text-red-700">
+                                                    ${balanceInEth} ETH received, but this doesn't match the expected amount.
+                                                    ${responseData.reason || 'The payment amount is incorrect.'}
+                                                </p>
+                                                <p class="mt-1 text-sm text-red-700">
+                                                    Your order will not be processed due to the wrong payment amount. Please try again.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    `;
+                                }
+                                
+                                showToast('Wrong payment amount detected!', 'error');
+                                
+                                // Redirect to payment-status page with wrong payment details
+                                setTimeout(() => {
+                                    const statusParams = new URLSearchParams({
+                                        id: orderId,
+                                        status: 'wrong',
+                                        amount: balanceInEth,
+                                        expectedAmount: responseData.expectedAmount || 'unknown',
+                                        address: address
+                                    });
+                                    window.location.href = `/payment-status.html?${statusParams.toString()}`;
+                                }, 2000);
+                                
+                                return; // Don't proceed with normal payment flow
+                            }
+                            
                         } catch (recordError) {
                             console.error('Failed to record payment with backend:', recordError);
                             // Continue anyway since we detected the payment
@@ -925,6 +970,9 @@
                                         <p class="mt-1 text-sm text-green-700">
                                             ${balanceInEth} ETH received. Transaction has been confirmed on the blockchain.
                                         </p>
+                                        <p class="mt-1 text-sm text-green-700">
+                                            Redirecting to payment status page...
+                                        </p>
                                     </div>
                                 </div>
                             `;
@@ -934,6 +982,17 @@
                         cart = [];
                         localStorage.setItem('cart', JSON.stringify(cart));
                         showToast('Payment received successfully!', 'success');
+                        
+                        // Redirect to payment-status page with success details
+                        setTimeout(() => {
+                            const statusParams = new URLSearchParams({
+                                id: orderId,
+                                status: 'confirmed',
+                                amount: balanceInEth,
+                                address: address
+                            });
+                            window.location.href = `/payment-status.html?${statusParams.toString()}`;
+                        }, 2000);
                     } else if (checkCount >= 60) { // Check for 5 minutes max (60 * 5 seconds)
                         clearInterval(interval);
                         const transactionStatus = document.getElementById('transaction-status');

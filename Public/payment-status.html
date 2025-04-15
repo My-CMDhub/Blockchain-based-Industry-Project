@@ -147,47 +147,36 @@
                 </div>
             </div>
             
-            <div id="wrongPayment" style="display: none;">
-                <div class="text-center mb-4">
-                    <i class="bx bx-error-circle status-icon status-wrong"></i>
-                    <h2>Payment Error</h2>
-                    <p class="text-muted">Your payment was sent to an incorrect address or had validation issues.</p>
+            <div id="wrongPayment" class="payment-status-section bg-light p-4 rounded shadow-sm text-center mb-4" style="display: none;">
+                <div class="d-flex justify-content-center mb-3">
+                    <div class="status-icon bg-danger text-white">
+                        <i class="bx bx-x"></i>
+                    </div>
                 </div>
-
-                <div class="alert alert-danger" role="alert">
-                    <i class="bx bx-error me-2"></i>
-                    <strong>Warning:</strong> The payment of <span id="wrongAmount"></span> ETH was sent to an unrecognized address or did not match the expected amount. This transaction cannot be automatically processed.
+                <h3 class="mb-3 text-danger">Wrong Payment Detected</h3>
+                <p class="mb-4">Your payment of <span id="wrongAmount" class="fw-bold">0.00</span> ETH was received, but the amount does not match the expected value.</p>
+                <div class="alert alert-danger mb-4">
+                    <div class="d-flex align-items-start">
+                        <i class="bx bx-info-circle me-2 mt-1"></i>
+                        <div>
+                            <strong>Important information:</strong>
+                            <div class="mt-1" id="wrongPaymentDetails">Payment amount mismatch</div>
+                            <div class="mt-1">Expected amount: <span id="wrongExpectedAmount" class="fw-bold">0.00</span> ETH</div>
+                            <div class="mt-1">Actual amount: <span id="wrongActualAmount" class="fw-bold">0.00</span> ETH</div>
+                        </div>
+                    </div>
                 </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted">Transaction Hash:</span>
-                    <a id="wrongTxHashLink" href="#" target="_blank" class="text-decoration-none">
-                        <span id="wrongTxHash"></span>
-                        <i class="bx bx-link-external ms-1"></i>
-                    </a>
+                <div class="mb-3">
+                    <p>Transaction Hash: <span id="wrongTxHash" class="text-break fw-bold">unknown</span></p>
+                    <p><a id="wrongTxHashLink" href="#" target="_blank" class="btn btn-sm btn-outline-secondary">View on Etherscan <i class="bx bx-link-external"></i></a></p>
                 </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted">Order ID:</span>
-                    <span class="fw-bold" id="wrongOrderId"></span>
-                </div>
-
-                <div class="alert alert-warning mt-3" role="alert">
-                    <h5>What happened?</h5>
-                    <p>Your payment was sent to an address that is not recognized as part of our payment system or did not match the expected amount. This could happen if:</p>
-                    <ul>
-                        <li>You sent funds to a different address than the one provided</li>
-                        <li>You sent a different amount than what was requested</li>
-                        <li>The payment address expired before the transaction was sent</li>
-                    </ul>
-                    
-                    <h5 class="mt-3">What should I do?</h5>
-                    <p>Please contact support with your order ID and transaction hash for assistance.</p>
-                </div>
-
-                <div class="d-flex justify-content-center mt-4">
-                    <button class="btn btn-outline-secondary me-2" onclick="window.location.reload()">Try Again</button>
-                    <button class="btn btn-primary" onclick="contactSupport()">Contact Support</button>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-danger mb-2" onclick="contactSupport()">
+                        <i class="bx bx-support me-2"></i> Contact Support
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="window.location.href='/'">
+                        <i class="bx bx-home me-2"></i> Return to Home
+                    </button>
                 </div>
             </div>
 
@@ -216,19 +205,45 @@
         // Get payment ID from URL
         const urlParams = new URLSearchParams(window.location.search);
         const paymentId = urlParams.get('id');
-        
+
         // Elements
         const pendingElem = document.getElementById('pendingPayment');
         const successElem = document.getElementById('successPayment');
         const wrongElem = document.getElementById('wrongPayment');
         const expiredElem = document.getElementById('expiredPayment');
-        
+
         // Timer variables
         let countdownInterval;
         let expiryTime;
-        
+
         // Load payment data
         window.addEventListener('DOMContentLoaded', function() {
+            // First check for direct URL parameters
+            const urlParamsStatus = urlParams.get('status');
+            const amount = urlParams.get('amount');
+            const address = urlParams.get('address');
+            const expectedAmount = urlParams.get('expectedAmount');
+            
+            // If we have enough info in URL parameters, display status immediately
+            if (paymentId && urlParamsStatus && amount) {
+                const data = {
+                    id: paymentId,
+                    status: urlParamsStatus,
+                    amount: amount,
+                    address: address,
+                    expectedAmount: expectedAmount
+                };
+                
+                console.log('Using URL parameters for payment status:', data);
+                updatePaymentUI(data);
+                
+                // If status is 'wrong', no need to poll the API
+                if (urlParamsStatus === 'wrong') {
+                    return;
+                }
+            }
+            
+            // Continue with API polling if needed
             if (!paymentId) {
                 showError('No payment ID provided');
                 return;
@@ -355,6 +370,25 @@
             // Set wrong payment details
             document.getElementById('wrongAmount').textContent = data.amount;
             document.getElementById('wrongOrderId').textContent = data.orderId || data.id;
+            
+            // Set expected vs actual amount details
+            if (data.expectedAmount) {
+                document.getElementById('wrongExpectedAmount').textContent = data.expectedAmount;
+                document.getElementById('wrongActualAmount').textContent = data.amount;
+                
+                // Calculate the difference
+                const expected = parseFloat(data.expectedAmount);
+                const actual = parseFloat(data.amount);
+                
+                if (!isNaN(expected) && !isNaN(actual)) {
+                    const difference = Math.abs(expected - actual);
+                    const percentDiff = (difference / expected) * 100;
+                    
+                    // Show detailed explanation
+                    document.getElementById('wrongPaymentDetails').textContent = 
+                        `Please submit exactly ${data.expectedAmount} ETH. Your current payment of ${data.amount} ETH differs by ${difference.toFixed(6)} ETH (${percentDiff.toFixed(2)}%).`;
+                }
+            }
             
             // Set transaction hash and link
             if (data.txHash) {

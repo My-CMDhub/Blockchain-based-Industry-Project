@@ -86,7 +86,6 @@ function validateApiKey(req, res, next) {
         '/api/wallet-status', 
         '/api/release-funds',
         '/api/release-all-funds',
-        '/api/record-payment',
         '/api/create-transaction-file'
     ];
     
@@ -456,6 +455,25 @@ app.post('/api/release-all-funds', async (req, res) => {
                     stack: txError.stack
                 });
                 
+                // Record the failed transaction attempt in our logs
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const failedTxEntry = {
+                    txId: txId,
+                    from: rootAddr,
+                    to: normalizedMerchantAddress,
+                    amount: amountEth,
+                    amountWei: maxAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: 'failed',
+                    error: txError.message,
+                    type: 'release',
+                    attemptedRelease: true,
+                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
+                };
+                
+                // Save failed transaction to log for tracking and debugging
+                saveTxLog(failedTxEntry);
+                
                 return res.status(500).json({
                     success: false,
                     error: `Failed to send transaction: ${txError.message}`
@@ -621,8 +639,30 @@ app.post('/api/release-all-funds', async (req, res) => {
                 }
                 
                 // Format amount to ETH for display
-                const amountEth = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
-                console.log(`Sending maximum amount: ${amountEth} ETH`);
+                const amountToSend = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                console.log(`Sending maximum amount: ${amountToSend} ETH`);
+                
+                // Check if this is a wrong payment address that should be skipped
+                const isWrongPaymentAddress = addrInfo => {
+                    return addrInfo && 
+                           (addrInfo.isWrongPayment === true || 
+                            addrInfo.wrongPayment === true || 
+                            addrInfo.status === 'wrong');
+                };
+                
+                // If this is a wrong payment address, warn the user but proceed
+                if (keys.activeAddresses[highestBalanceAddr.address] && 
+                    isWrongPaymentAddress(keys.activeAddresses[highestBalanceAddr.address])) {
+                    console.warn(`⚠️ WARNING: Releasing funds from address ${highestBalanceAddr.address} which was marked as a wrong payment`);
+                    console.warn(`This may be funds that were incorrectly sent. Proceeding with caution.`);
+                    
+                    // Add a log entry about this
+                    logBlockchain('WRONG_PAYMENT_RELEASE_WARNING', {
+                        address: highestBalanceAddr.address,
+                        amount: amountToSend,
+                        wrongReason: keys.activeAddresses[highestBalanceAddr.address].wrongReason || 'Unknown'
+                    });
+                }
                 
                 // Prepare transaction data
                 const txData = {
@@ -656,7 +696,7 @@ app.post('/api/release-all-funds', async (req, res) => {
                     txHash: signedTx.transactionHash,
                     from: highestBalanceAddr.address,
                     to: normalizedMerchantAddress,
-                    amount: amountEth,
+                    amount: amountToSend,
                     amountWei: maxAmountWei.toString(),
                     timestamp: new Date().toISOString(),
                     status: receipt.status,
@@ -672,7 +712,7 @@ app.post('/api/release-all-funds', async (req, res) => {
                 return res.json({
                     success: true,
                     txHash: signedTx.transactionHash,
-                    amount: amountEth,
+                    amount: amountToSend,
                     timestamp: new Date().toISOString(),
                     blockNumber: receipt.blockNumber
                 });
@@ -687,6 +727,25 @@ app.post('/api/release-all-funds', async (req, res) => {
                     error: txError.message,
                     stack: txError.stack
                 });
+                
+                // Record the failed transaction attempt in our logs
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const failedTxEntry = {
+                    txId: txId,
+                    from: highestBalanceAddr.address,
+                    to: normalizedMerchantAddress,
+                    amount: amountToSend,
+                    amountWei: maxAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: 'failed',
+                    error: txError.message,
+                    type: 'release',
+                    attemptedRelease: true,
+                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
+                };
+                
+                // Save failed transaction to log for tracking and debugging
+                saveTxLog(failedTxEntry);
                 
                 return res.status(500).json({
                     success: false,
@@ -1376,34 +1435,16 @@ app.get('/api/wallet-balance', async (req, res) => {
         console.log('Fetching fresh wallet balances');
         const startTime = Date.now();
         
-        // Get the root address and active payment addresses
+        // Get the active payment addresses (HD wallet addresses)
         const keys = getStoredKeys();
         const merchantAddress = process.env.MERCHANT_ADDRESS || MERCHANT_ADDRESS;
-        const rootAddress = merchantAddress; // Use the merchant address from env as the root address
         const activeAddresses = keys.activeAddresses || {};
         
-        if (!rootAddress) {
-            return res.status(400).json({
-                success: false,
-                error: 'Merchant address not configured'
-            });
-        }
-        
-        // First get the root address balance
+        // Initialize Web3 provider
         const freshWeb3 = await getFreshProvider();
-        let rootBalance = await getBalanceWithRetry(freshWeb3, rootAddress);
-        console.log(`Root address balance: ${rootBalance} ETH`);
-        
-        // Convert root balance to a number for calculations
-        const rootBalanceNum = parseFloat(rootBalance);
         
         // Create a map to store balances by address
         const balances = new Map();
-        balances.set(rootAddress, {
-            address: rootAddress,
-            balance: rootBalance,
-            type: 'root'
-        });
         
         // Get all active payment address balances - this might take time
         const checkAddressPromises = [];
@@ -1420,27 +1461,61 @@ app.get('/api/wallet-balance', async (req, res) => {
                 const balance = await Promise.race([balancePromise, timeoutPromise]);
                 return { address, balance, info };
             } catch (error) {
-                console.warn(`Balance check for ${addr} failed or timed out:`, error.message);
+                console.warn(`Balance check for ${address} failed or timed out:`, error.message);
                 return { address, balance: '0', info, error: error.message };
             }
         }
         
+        // Check balances for all HD wallet addresses (excluding wrong payments)
+        let hdWalletTotal = 0;
         for (const [address, info] of Object.entries(activeAddresses)) {
-            checkAddressPromises.push(getAddressBalanceWithTimeout(address, info, 3000)); // 3 second timeout
+            // Skip wrong payment addresses when counting HD wallet funds
+            if (info.isWrongPayment === true || info.wrongPayment === true) {
+                // Still get the balance but mark it as wrong payment
+                checkAddressPromises.push(getAddressBalanceWithTimeout(address, {...info, isWrongPayment: true}, 3000));
+            } else {
+                // Regular HD wallet address
+                checkAddressPromises.push(getAddressBalanceWithTimeout(address, info, 3000));
+            }
         }
         
         // Wait for all address checks to complete (or timeout)
         const addressResults = await Promise.allSettled(checkAddressPromises);
         
-        // Process the results - add successful balances to the map
+        // Process the results - add all balances to the map and calculate totals
+        const hdWalletAddresses = [];
+        let totalHdWalletBalance = 0;
+        let wrongPaymentsBalanceTotal = 0;
+        
         for (const result of addressResults) {
             if (result.status === 'fulfilled' && result.value) {
                 const { address, balance, info } = result.value;
-                balances.set(address, {
+                
+                // Store the address data
+                const addressData = {
                     address,
                     balance,
+                    rawBalance: balance,
                     ...info
-                });
+                };
+                
+                // Add to the addresses array
+                hdWalletAddresses.push(addressData);
+                
+                // Calculate balance values based on wrong payment status
+                try {
+                    const addrBalance = parseFloat(balance) || 0;
+                    
+                    // For regular HD addresses, add to the total HD wallet balance
+                    if (info.isWrongPayment !== true && info.wrongPayment !== true) {
+                        totalHdWalletBalance += addrBalance;
+                    } else {
+                        // For wrong payments, track separately
+                        wrongPaymentsBalanceTotal += addrBalance;
+                    }
+                } catch (error) {
+                    console.error(`Error processing balance for ${address}:`, error);
+                }
             }
         }
         
@@ -1483,7 +1558,7 @@ app.get('/api/wallet-balance', async (req, res) => {
                 // Handle different amount formats (decimal ETH vs Wei)
                 if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
                     // Amount is already in ETH format, convert to wei
-                    amountWei = web3.utils.toWei(tx.amount, 'ether');
+                    amountWei = freshWeb3.utils.toWei(tx.amount, 'ether');
                 } else {
                     // Amount is already in Wei
                     amountWei = tx.amount.toString();
@@ -1504,28 +1579,32 @@ app.get('/api/wallet-balance', async (req, res) => {
             }
         }
         
-        // Get unverified payments count and total
-        let unverifiedPaymentsCount = 0;
-        let unverifiedPaymentsAmount = "0";
+        // Count wrong payments
+        let wrongPaymentsCount = 0;
+        let wrongPaymentsAmount = "0";
         
         try {
             const wrongPayments = transactions.filter(tx => 
                 tx.type === 'payment' && 
-                tx.amountVerified === false && 
-                (tx.status === 'confirmed' || tx.status === 'verified')
+                (
+                    tx.amountVerified === false || 
+                    tx.isWrongPayment === true || 
+                    tx.wrongPayment === true || 
+                    tx.status === 'wrong'
+                )
             );
             
-            unverifiedPaymentsCount = wrongPayments.length;
+            wrongPaymentsCount = wrongPayments.length;
             
-            // Calculate total unverified amount
-            if (unverifiedPaymentsCount > 0) {
+            // Calculate total wrong payment amount
+            if (wrongPaymentsCount > 0) {
                 const totalWei = wrongPayments.reduce((totalBigInt, tx) => {
                     try {
                         let amountWei;
                         
                         if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
                             // Amount is already in ETH format, convert to wei
-                            amountWei = web3.utils.toWei(tx.amount, 'ether');
+                            amountWei = freshWeb3.utils.toWei(tx.amount, 'ether');
                         } else {
                             // Amount is already in Wei
                             amountWei = tx.amount.toString();
@@ -1533,77 +1612,31 @@ app.get('/api/wallet-balance', async (req, res) => {
                         
                         return totalBigInt + BigInt(amountWei);
                     } catch (e) {
-                        console.error('Error processing unverified payment amount:', e, tx);
+                        console.error('Error processing wrong payment amount:', e, tx);
                         return totalBigInt;
                     }
                 }, BigInt(0));
                 
-                unverifiedPaymentsAmount = web3.utils.fromWei(totalWei.toString(), 'ether');
+                wrongPaymentsAmount = freshWeb3.utils.fromWei(totalWei.toString(), 'ether');
             }
         } catch (countError) {
-            console.error('Error counting unverified payments:', countError);
+            console.error('Error counting wrong payments:', countError);
         }
         
         // Format the results
-        let totalBalance = rootBalanceNum;  // Start with root balance
-        let addressesArray = [];
-        
-        // Process all address balances and add to total
-        for (const [addr, info] of balances.entries()) {
-            // Skip the root address since we've already included it
-            if (addr.toLowerCase() === rootAddress.toLowerCase()) continue;
-            
-            try {
-                // Convert to a number for reliable addition
-                const addrBalance = parseFloat(info.balance) || 0;
-                
-                // Add to the total (except for root which is already included)
-                if (addr.toLowerCase() !== rootAddress.toLowerCase()) {
-                    totalBalance += addrBalance;
-                }
-                
-                // Add to addresses array
-                addressesArray.push({
-                    address: addr,
-                    balance: info.balance,
-                    ...info
-                });
-            } catch (error) {
-                console.error(`Error processing balance for ${addr}:`, error);
-                // Still include the address in the array
-                addressesArray.push({
-                    address: addr,
-                    balance: '0',
-                    error: error.message,
-                    ...info
-                });
-            }
-        }
-        
-        // Add root address to addresses array for consistency
-        // Make sure we always put the root address first in the array
-        addressesArray.unshift({
-            address: rootAddress,
-            balance: rootBalance,
-            type: 'root'
-        });
-        
-        // Get total for pending/verified based on transactions
         const pendingBalance = freshWeb3.utils.fromWei(pendingBalanceWei.toString(), 'ether');
         const verifiedBalance = freshWeb3.utils.fromWei(verifiedBalanceWei.toString(), 'ether');
         
-        // If we have no verified balance from transactions, consider the root balance as verified
-        const finalVerifiedBalance = parseFloat(verifiedBalance) > 0 ? verifiedBalance : rootBalance;
-        
-        // Create the response
+        // Create the response with only HD wallet balance
         const response = {
             success: true,
-            addresses: addressesArray,
-            totalBalance: totalBalance.toString(),
+            addresses: hdWalletAddresses,
+            totalBalance: totalHdWalletBalance.toString(),
             pendingBalance: pendingBalance,
-            verifiedBalance: finalVerifiedBalance,
-            unverifiedPayments: unverifiedPaymentsCount,
-            unverifiedAmount: unverifiedPaymentsAmount,
+            verifiedBalance: verifiedBalance,
+            wrongPayments: wrongPaymentsCount,
+            wrongPaymentsAmount: wrongPaymentsAmount,
+            wrongPaymentsBalance: wrongPaymentsBalanceTotal.toString(),
             timestamp: Date.now(),
             processingTime: Date.now() - startTime
         };
@@ -1649,12 +1682,39 @@ app.post('/api/generate-payment-address', async (req, res) => {
     try {
         logger.info('Generating payment address', { body: req.body });
         
-        const { amount, cryptoType } = req.body;
+        const { amount, cryptoType, fiatAmount, fiatCurrency } = req.body;
         if (!amount || !cryptoType) {
             logger.error('Missing required parameters', { amount, cryptoType });
             return res.status(400).json({ 
                 success: false, 
                 error: 'Missing required parameters' 
+            });
+        }
+
+        // Validate and properly format the ETH amount to ensure consistency
+        // This will convert values like "1" or "0.0036" to a consistent format
+        let formattedAmount;
+        try {
+            // Parse as float first to handle any string representation
+            const floatAmount = parseFloat(amount);
+            if (isNaN(floatAmount)) {
+                throw new Error('Invalid amount format');
+            }
+            
+            // Format to 8 decimal places to ensure consistency
+            formattedAmount = floatAmount.toFixed(8);
+            
+            // Log the conversion for debugging
+            logger.info('Formatted payment amount', { 
+                original: amount, 
+                formatted: formattedAmount,
+                fiatAmount: fiatAmount
+            });
+        } catch (parseError) {
+            logger.error('Failed to parse amount', { amount, error: parseError.message });
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid amount format'
             });
         }
 
@@ -1709,15 +1769,22 @@ app.post('/api/generate-payment-address', async (req, res) => {
         const { address, privateKey } = await recoverWallet(mnemonic, nextIndex);
         logger.info('Generated HD wallet address', { address, index: nextIndex });
         
-        // Store address in active addresses
+        // Store address in active addresses - CRITICALLY: store both ETH and fiat values separately
         keys.activeAddresses[address] = {
             index: nextIndex,
-            expectedAmount: amount,
+            ethAmount: formattedAmount,         // The ETH amount to be paid (what's shown to users)
+            expectedAmount: formattedAmount,    // Keep for backward compatibility
             cryptoType: cryptoType,
             createdAt: new Date().toISOString(),
             expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
             status: 'pending'
         };
+        
+        // If fiat amount is provided, store it separately
+        if (fiatAmount) {
+            keys.activeAddresses[address].fiatAmount = fiatAmount;
+            keys.activeAddresses[address].fiatCurrency = fiatCurrency || 'USD';
+        }
         
         // Save updated keys
         secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
@@ -1726,6 +1793,7 @@ app.post('/api/generate-payment-address', async (req, res) => {
         const response = {
             success: true,
             address: address,
+            amount: formattedAmount,
             networkId: networkInfo ? networkInfo.chainId : 11155111, // Sepolia
             networkType: networkInfo ? networkInfo.name : 'sepolia',
             expiresAt: new Date(Date.now() + 30 * 60000).toISOString()
@@ -1747,6 +1815,9 @@ app.post('/api/generate-payment-address', async (req, res) => {
             const emergencyIndex = 999;
             const { address } = await recoverWallet(mnemonic, emergencyIndex);
             
+            // Format amount correctly
+            const formattedAmount = parseFloat(req.body.amount || '0').toFixed(8);
+            
             // Still save this emergency address
             if (!keys.activeAddresses) {
                 keys.activeAddresses = {};
@@ -1754,13 +1825,20 @@ app.post('/api/generate-payment-address', async (req, res) => {
             
             keys.activeAddresses[address] = {
                 index: emergencyIndex,
-                expectedAmount: req.body.amount || '0',
+                ethAmount: formattedAmount,
+                expectedAmount: formattedAmount,
                 cryptoType: req.body.cryptoType || 'ETH',
                 createdAt: new Date().toISOString(),
                 expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
                 status: 'emergency',
                 error: error.message
             };
+            
+            // If fiat amount is provided, store it separately
+            if (req.body.fiatAmount) {
+                keys.activeAddresses[address].fiatAmount = req.body.fiatAmount;
+                keys.activeAddresses[address].fiatCurrency = req.body.fiatCurrency || 'USD';
+            }
             
             // Save updated keys
             secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
@@ -2194,10 +2272,13 @@ app.get('/api/merchant-transactions', async (req, res) => {
         // Check for wrong payments and mark them
         let transactionsUpdated = false;
         transactions = transactions.map(tx => {
-            // Skip non-payment transactions and already processed transactions
-            if (tx.type !== 'payment' || tx.amountVerified !== undefined) {
+            // Skip non-payment transactions and already processed transactions with verified status
+            if (tx.type !== 'payment' || (tx.amountVerified !== undefined && tx.wrongPaymentRecorded === true)) {
                 return tx;
             }
+            
+            // Log the transaction being checked
+            console.log(`Checking payment correctness for transaction: ${tx.txHash || tx.address || 'unknown'}`);
             
             // Verify the payment amount is correct
             const isCorrect = isPaymentAmountCorrect(tx);
@@ -2207,34 +2288,31 @@ app.get('/api/merchant-transactions', async (req, res) => {
             transactionsUpdated = true;
             
             // If the amount is wrong, record it for admin review and mark it clearly
-            if (!isCorrect && !tx.wrongPaymentRecorded) {
-                recordWrongPayment(tx);
-                tx.wrongPaymentRecorded = true;
+            if (!isCorrect) {
+                console.log(`Payment amount incorrect for ${tx.txHash || tx.address || 'unknown'}: expected=${tx.addrInfo?.expectedAmount || tx.expectedAmount}, actual=${tx.amount}`);
+                
+                // Set all relevant wrong payment flags
+                tx.isWrongPayment = true;
+                tx.wrongPayment = true;
                 tx.status = 'wrong'; // Explicitly mark status as wrong for UI display
-                tx.isWrongPayment = true; // Additional marker for wrong payment
-                console.log(`Marked transaction ${tx.txHash || tx.hash || 'unknown'} as wrong payment`);
+                
+                // Record the wrong payment if not already recorded
+                if (!tx.wrongPaymentRecorded) {
+                    recordWrongPayment(tx);
+                    tx.wrongPaymentRecorded = true;
+                    console.log(`Marked transaction ${tx.txHash || tx.address || 'unknown'} as wrong payment`);
+                }
+            } else {
+                // If payment is correct, ensure status is set properly
+                if (!tx.status || tx.status === 'pending') {
+                    tx.status = 'confirmed';
+                }
             }
             
             return tx;
         });
         
-        // Save the updated transactions back to file if any transactions were updated
-        if (transactionsUpdated) {
-            try {
-                secureWriteFile(txFile, JSON.stringify(transactions, null, 2));
-                console.log('Saved updated transaction data with payment verification');
-            } catch (saveError) {
-                console.error('Error saving updated transaction data:', saveError);
-            }
-        }
-        
-        // Sort by timestamp (newest first)
-        transactions.sort((a, b) => {
-            if (!a.timestamp) return 1;
-            if (!b.timestamp) return -1;
-            return new Date(b.timestamp) - new Date(a.timestamp);
-        });
-        
+        // Improved wrong payment detection in transaction list
         // Count wrong payments and calculate their total
         let wrongPaymentsCount = 0;
         let wrongPaymentsAmount = "0";
@@ -2256,24 +2334,33 @@ app.get('/api/merchant-transactions', async (req, res) => {
             
             // Calculate total wrong payment amount
             if (wrongPaymentsCount > 0) {
-                const totalWei = wrongPayments.reduce((totalBigInt, tx) => {
+                console.log(`Found ${wrongPaymentsCount} wrong payments, calculating total amount...`);
+                
+                // Use a safer approach to sum amounts to avoid BigInt conversion errors
+                let totalWei = BigInt(0);
+                
+                for (const tx of wrongPayments) {
                     try {
                         let amountWei;
                         
-                        if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
-                            // Amount is already in ETH format, convert to wei
+                        if (tx.amountWei) {
+                            // Use amountWei directly if available
+                            amountWei = tx.amountWei.toString();
+                        } else if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
+                            // Amount is in ETH format, convert to wei
                             amountWei = web3.utils.toWei(tx.amount, 'ether');
                         } else {
-                            // Amount is already in Wei
+                            // Amount is already in Wei or a number
                             amountWei = tx.amount.toString();
                         }
                         
-                        return totalBigInt + BigInt(amountWei);
+                        totalWei = totalWei + BigInt(amountWei);
+                        console.log(`Added wrong payment: ${tx.amount} ETH (${amountWei} wei), running total: ${totalWei} wei`);
                     } catch (e) {
                         console.error('Error processing wrong payment amount:', e, tx);
-                        return totalBigInt;
+                        // Continue with other transactions
                     }
-                }, BigInt(0));
+                }
                 
                 // Convert total wei to ETH
                 wrongPaymentsAmount = web3.utils.fromWei(totalWei.toString(), 'ether');
@@ -2281,7 +2368,27 @@ app.get('/api/merchant-transactions', async (req, res) => {
             }
         } catch (countError) {
             console.error('Error counting wrong payments:', countError);
+            // Use default values in case of error
+            wrongPaymentsCount = 0;
+            wrongPaymentsAmount = "0";
         }
+        
+        // Save the updated transactions back to file if any transactions were updated
+        if (transactionsUpdated) {
+            try {
+                secureWriteFile(txFile, JSON.stringify(transactions, null, 2));
+                console.log('Saved updated transaction data with payment verification');
+            } catch (saveError) {
+                console.error('Error saving updated transaction data:', saveError);
+            }
+        }
+        
+        // Sort by timestamp (newest first)
+        transactions.sort((a, b) => {
+            if (!a.timestamp) return 1;
+            if (!b.timestamp) return -1;
+            return new Date(b.timestamp) - new Date(a.timestamp);
+        });
         
         // Prepare response
         const responseData = {
@@ -2800,6 +2907,25 @@ app.post('/api/release-funds', async (req, res) => {
                     stack: txError.stack
                 });
                 
+                // Record the failed transaction attempt in our logs
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const failedTxEntry = {
+                    txId: txId,
+                    from: rootAddr,
+                    to: merchantAddress,
+                    amount: amount,
+                    amountWei: requestedAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: 'failed',
+                    error: txError.message,
+                    type: 'release',
+                    attemptedRelease: true,
+                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
+                };
+                
+                // Save failed transaction to log for tracking and debugging
+                saveTxLog(failedTxEntry);
+                
                 return res.status(500).json({
                     success: false,
                     error: `Failed to send transaction: ${txError.message}`
@@ -3009,6 +3135,25 @@ app.post('/api/release-funds', async (req, res) => {
                     stack: txError.stack
                 });
                 
+                // Record the failed transaction attempt in our logs
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const failedTxEntry = {
+                    txId: txId,
+                    from: highestBalanceAddr.address,
+                    to: merchantAddress,
+                    amount: amount,
+                    amountWei: requestedAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: 'failed',
+                    error: txError.message,
+                    type: 'release',
+                    attemptedRelease: true,
+                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
+                };
+                
+                // Save failed transaction to log for tracking and debugging
+                saveTxLog(failedTxEntry);
+                
                 return res.status(500).json({
                     success: false,
                     error: `Failed to send transaction: ${txError.message}`
@@ -3052,16 +3197,72 @@ app.post('/api/record-payment', async (req, res) => {
             keys.activeAddresses = {};
         }
         
+        // Get address info if it exists
+        const addrInfo = keys.activeAddresses[address] || {};
+        
+        // Check if this is a wrong payment (amount doesn't match expected amount)
+        let isWrong = false;
+        let ethAmount = addrInfo.ethAmount || addrInfo.expectedAmount;
+        let wrongReason = '';
+        
+        if (ethAmount) {
+            // Create a payment object for validation
+            const paymentObj = {
+                address,
+                amount: formattedAmount,
+                addrInfo: {
+                    ethAmount: ethAmount,
+                    expectedAmount: ethAmount
+                }
+            };
+            
+            // Check if the payment amount is correct
+            const isCorrect = isPaymentAmountCorrect(paymentObj);
+            
+            // If not correct, it's a wrong payment
+            isWrong = !isCorrect;
+            
+            // Set the reason for wrong payment
+            if (isWrong) {
+                wrongReason = `Please submit ${ethAmount} ETH. You sent ${formattedAmount} ETH which is incorrect.`;
+                console.log(`Wrong payment detected: ${wrongReason}`);
+            }
+        }
+        
+        // If this is a wrong payment, record it as such
+        if (isWrong) {
+            const wrongPayment = {
+                address,
+                amount: formattedAmount,
+                ethAmount: ethAmount,
+                expectedAmount: ethAmount,
+                timestamp: new Date().toISOString(),
+                cryptoType: cryptoType || 'ETH'
+            };
+            
+            await recordWrongPayment(wrongPayment);
+            
+            // Return a response but with wrong payment flag
+            return res.json({
+                success: true,
+                isWrongPayment: true,
+                message: 'Wrong payment recorded',
+                reason: wrongReason
+            });
+        }
+        
         // Add or update the address with a timestamp
         keys.activeAddresses[address] = {
+            ...addrInfo,
             amount: formattedAmount,
             cryptoType: cryptoType || 'ETH',
             timestamp: new Date().toISOString(),
-            status: 'confirmed'
+            status: 'confirmed',
+            amountVerified: true
         };
         
         // Save updated keys
-        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
+        updateStoredKeys(keys);
         
         // Log the transaction
         logBlockchain('PAYMENT_RECORDED', {
@@ -3073,12 +3274,14 @@ app.post('/api/record-payment', async (req, res) => {
         
         // Record in merchant transactions log
         const txLog = {
+            txId: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             address: address,
             amount: formattedAmount,
             timestamp: new Date().toISOString(),
-            status: true,
+            status: 'confirmed',
             type: 'payment',
-            cryptoType: cryptoType || 'ETH'
+            cryptoType: cryptoType || 'ETH',
+            amountVerified: true
         };
         
         const txFile = 'merchant_transactions.json';
@@ -3089,11 +3292,11 @@ app.post('/api/record-payment', async (req, res) => {
             if (fs.existsSync(txFile)) {
                 const fileContent = secureReadFile(txFile);
                 try {
-                txLogs = JSON.parse(fileContent || '[]');
-                
-                // Ensure we have an array
-                if (!Array.isArray(txLogs)) {
-                    console.warn('Transaction log was corrupted, resetting to empty array');
+                    txLogs = JSON.parse(fileContent || '[]');
+                    
+                    // Ensure we have an array
+                    if (!Array.isArray(txLogs)) {
+                        console.warn('Transaction log was corrupted, resetting to empty array');
                         txLogs = [];
                     }
                 } catch (parseError) {
@@ -3146,6 +3349,231 @@ app.use((err, req, res, next) => {
         success: false, 
         error: 'Internal server error' 
     });
+});
+
+// Test wrong payment page
+app.get('/test-wrong-payment', (req, res) => {
+    res.sendFile(__dirname + '/Public/test-wrong-payment.html');
+});
+
+// Get all wrong payments
+app.get('/api/wrong-payments', async (req, res) => {
+    try {
+        // Check rate limit for this endpoint
+        const rateLimitKey = `rateLimit:wrong-payments:${req.ip}`;
+        if (global[rateLimitKey] && global[rateLimitKey] > 10) {
+            return res.status(429).json({
+                success: false,
+                error: 'Too many requests. Please try again later.'
+            });
+        }
+        
+        // Increment rate limit counter
+        global[rateLimitKey] = (global[rateLimitKey] || 0) + 1;
+        setTimeout(() => {
+            global[rateLimitKey]--;
+        }, 60000); // Decrease counter after 1 minute
+        
+        // Use cache control headers for better client-side caching
+        res.set('Cache-Control', 'private, max-age=10'); // Cache for 10 seconds
+        
+        // Check if we have a cached result (server-side)
+        const cachedWrongPaymentsKey = 'wrong_payments_cache';
+        const cachedWrongPaymentsTimestampKey = 'wrong_payments_timestamp';
+        
+        // Only use cache if it's less than 10 seconds old (server-side cache)
+        const cachedTimestamp = global[cachedWrongPaymentsTimestampKey] || 0;
+        const forceRefresh = req.query.force === 'true';
+        
+        if (!forceRefresh && global[cachedWrongPaymentsKey] && (Date.now() - cachedTimestamp) < 10000) {
+            console.log('Returning cached wrong payments (< 10 seconds old)');
+            return res.json(global[cachedWrongPaymentsKey]);
+        }
+        
+        console.log('Fetching wrong payments');
+        
+        // Get transactions from file
+        const txFile = 'merchant_transactions.json';
+        let transactions = [];
+        
+        if (fs.existsSync(txFile)) {
+            try {
+                const fileContent = secureReadFile(txFile);
+                if (fileContent && fileContent.trim()) {
+                    transactions = JSON.parse(fileContent);
+                    
+                    // Ensure we have an array
+                    if (!Array.isArray(transactions)) {
+                        console.warn('Transaction log was corrupted, using empty array');
+                        transactions = [];
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing transaction file:', error);
+                transactions = [];
+            }
+        }
+        
+        // Filter for wrong payments
+        const wrongPayments = transactions.filter(tx => 
+            tx.type === 'payment' && 
+            (
+                tx.amountVerified === false || 
+                tx.status === 'wrong' || 
+                tx.isWrongPayment === true ||
+                tx.wrongPayment === true ||
+                tx.wrongPaymentRecorded === true
+            )
+        );
+        
+        // Sort by timestamp (newest first)
+        wrongPayments.sort((a, b) => {
+            if (!a.timestamp) return 1;
+            if (!b.timestamp) return -1;
+            return new Date(b.timestamp) - new Date(a.timestamp);
+        });
+        
+        // Calculate total wrong payment amount
+        let wrongPaymentsAmount = "0";
+        
+        try {
+            if (wrongPayments.length > 0) {
+                // Use a safer approach to sum amounts to avoid BigInt conversion errors
+                let totalWei = BigInt(0);
+                
+                for (const tx of wrongPayments) {
+                    try {
+                        let amountWei;
+                        
+                        if (tx.amountWei) {
+                            // Use amountWei directly if available
+                            amountWei = tx.amountWei.toString();
+                        } else if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
+                            // Amount is in ETH format, convert to wei
+                            amountWei = web3.utils.toWei(tx.amount, 'ether');
+                        } else {
+                            // Amount is already in Wei or a number
+                            amountWei = tx.amount.toString();
+                        }
+                        
+                        totalWei = totalWei + BigInt(amountWei);
+                    } catch (e) {
+                        console.error('Error processing wrong payment amount:', e, tx);
+                        // Continue with other transactions
+                    }
+                }
+                
+                // Convert total wei to ETH
+                wrongPaymentsAmount = web3.utils.fromWei(totalWei.toString(), 'ether');
+            }
+        } catch (countError) {
+            console.error('Error calculating wrong payments total:', countError);
+        }
+        
+        // Prepare response
+        const responseData = {
+            success: true,
+            wrongPayments: wrongPayments,
+            total: wrongPayments.length,
+            wrongPaymentsAmount: wrongPaymentsAmount,
+            timestamp: Date.now()
+        };
+        
+        // Cache the response
+        global[cachedWrongPaymentsKey] = responseData;
+        global[cachedWrongPaymentsTimestampKey] = Date.now();
+        
+        res.json(responseData);
+    } catch (error) {
+        console.error('Error fetching wrong payments:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch wrong payments: ' + error.message
+        });
+    }
+});
+
+// TESTING ENDPOINT: Generate a payment address with expected amount
+app.get('/api/generate-test-payment', async (req, res) => {
+    try {
+        // Get expected amount from query parameter
+        const expectedAmount = req.query.amount || '0.01';
+        
+        // Generate a unique payment ID
+        const paymentId = `payment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        
+        // Get wallet keys from storage
+        const keys = getStoredKeys();
+        
+        // Decrypt the mnemonic
+        const mnemonic = decrypt(keys.mnemonic);
+        
+        // Get next available index
+        const nextIndex = keys.lastIndex + 1 || 0;
+        
+        // Generate a new HD wallet address
+        const wallet = await recoverWallet(mnemonic, nextIndex);
+        const address = wallet.address;
+        
+        // Update the keys
+        keys.lastIndex = nextIndex;
+        if (!keys.activeAddresses) {
+            keys.activeAddresses = {};
+        }
+        
+        // Add the new address with expected amount
+        keys.activeAddresses[address] = {
+            index: nextIndex,
+            createdAt: new Date().toISOString(),
+            orderId: paymentId,
+            expectedAmount: expectedAmount,
+            cryptoType: 'ETH',
+            status: 'pending'
+        };
+        
+        // Save the updated keys
+        updateStoredKeys(keys);
+        
+        // Log the payment request
+        console.log(`Generated test payment address: ${address} with expected amount: ${expectedAmount} ETH`);
+        
+        // Add to payment sessions table
+        if (!keys.paymentSessions) {
+            keys.paymentSessions = {};
+        }
+        
+        // Create expiry time (20 minutes from now)
+        const expiryTime = new Date();
+        expiryTime.setMinutes(expiryTime.getMinutes() + 20);
+        
+        // Add payment session
+        keys.paymentSessions[paymentId] = {
+            id: paymentId,
+            address: address,
+            amount: expectedAmount,
+            expiresAt: expiryTime.toISOString(),
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        };
+        
+        // Save updated keys again
+        updateStoredKeys(keys);
+        
+        // Return the payment details
+        res.json({
+            success: true,
+            address: address,
+            id: paymentId,
+            expectedAmount: expectedAmount,
+            expiresAt: expiryTime.toISOString()
+        });
+    } catch (error) {
+        console.error('Error generating test payment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to generate test payment: ' + error.message
+        });
+    }
 });
 
 // Handle 404
@@ -3442,12 +3870,13 @@ function updateTransactionLog(txHash, updates) {
 // Helper function to save a new transaction log entry
 function saveTxLog(txLogEntry) {
     try {
-        console.log(`Saving transaction log entry:`, JSON.stringify(txLogEntry, null, 2));
+        console.log(`Saving transaction log entry for ${txLogEntry.txHash || txLogEntry.address || 'unknown'}`);
         
+        // Get the transaction file path
         const txFile = 'merchant_transactions.json';
-        let txLogs = [];
         
         // Read existing logs if file exists
+        let txLogs = [];
         if (fs.existsSync(txFile)) {
             try {
                 const fileContent = secureReadFile(txFile);
@@ -3455,52 +3884,98 @@ function saveTxLog(txLogEntry) {
                 
                 // Ensure we have an array
                 if (!Array.isArray(txLogs)) {
-                    console.warn('Transaction log was corrupted (not an array), creating backup');
-                    
-                    // Create a backup of the corrupted file
-                    const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-                    fs.copyFileSync(txFile, backupFile);
-                    
-                    // Reset to empty array
+                    console.warn('Transaction log was corrupted, resetting to empty array');
                     txLogs = [];
                 }
             } catch (parseError) {
                 console.error('Error parsing transaction log:', parseError);
-                
-                // Create a backup of the potentially corrupted file
-                if (fs.existsSync(txFile)) {
-                    const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-                    fs.copyFileSync(txFile, backupFile);
-                    console.log(`Created backup of corrupted transaction log: ${backupFile}`);
-                }
-                
-                // Reset to empty array
                 txLogs = [];
             }
         }
         
-        // Add new transaction to the beginning for easier access
-        txLogs.unshift(txLogEntry);
+        // Check if we already have this transaction recorded
+        let existingIndex = -1;
         
-        // Use a safe write approach with a temp file
-        const tempFile = `${txFile}.tmp`;
-        secureWriteFile(tempFile, JSON.stringify(txLogs, null, 2));
-        fs.renameSync(tempFile, txFile);
+        // Try to match by txHash first if available
+        if (txLogEntry.txHash) {
+            existingIndex = txLogs.findIndex(tx => 
+                tx.txHash === txLogEntry.txHash
+            );
+        } 
+        // If no txHash or not found by txHash, try to match by txId
+        else if (txLogEntry.txId && existingIndex === -1) {
+            existingIndex = txLogs.findIndex(tx => 
+                tx.txId === txLogEntry.txId
+            );
+        }
+        // If payment address is available, try to match by that and timestamp
+        else if (txLogEntry.address && txLogEntry.timestamp && existingIndex === -1) {
+            existingIndex = txLogs.findIndex(tx => 
+                tx.address === txLogEntry.address && 
+                tx.timestamp === txLogEntry.timestamp
+            );
+        }
         
-        console.log(`Transaction log saved successfully with ${txLogs.length} entries`);
+        // Add or update the transaction log entry
+        if (existingIndex >= 0) {
+            console.log(`Updating existing transaction log entry at index ${existingIndex}`);
+            
+            // Keep existing fields that aren't in the new entry
+            const existingTx = txLogs[existingIndex];
+            txLogs[existingIndex] = {
+                ...existingTx,
+                ...txLogEntry,
+                // Always record update history for better tracking
+                lastUpdated: new Date().toISOString(),
+                // If we're updating a status, keep track of status history
+                statusHistory: existingTx.statusHistory ? [
+                    ...existingTx.statusHistory,
+                    {
+                        status: txLogEntry.status,
+                        timestamp: new Date().toISOString()
+                    }
+                ] : [
+                    {
+                        status: existingTx.status, 
+                        timestamp: existingTx.timestamp || new Date().toISOString()
+                    },
+                    {
+                        status: txLogEntry.status,
+                        timestamp: new Date().toISOString()
+                    }
+                ]
+            };
+        } else {
+            console.log(`Adding new transaction log entry`);
+            
+            // Initialize history for new transactions
+            const newTxEntry = {
+                ...txLogEntry,
+                // Add creation timestamp if not present
+                timestamp: txLogEntry.timestamp || new Date().toISOString(),
+                // Initialize status history
+                statusHistory: [{
+                    status: txLogEntry.status,
+                    timestamp: txLogEntry.timestamp || new Date().toISOString()
+                }]
+            };
+            
+            // Ensure txId is present
+            if (!newTxEntry.txId) {
+                newTxEntry.txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            }
+            
+            // Add transaction to log
+            txLogs.push(newTxEntry);
+        }
+        
+        // Write back to file
+        secureWriteFile(txFile, JSON.stringify(txLogs, null, 2));
+        console.log(`Transaction log updated successfully`);
+        
         return true;
     } catch (error) {
         console.error('Error saving transaction log:', error);
-        
-        // Try to save just this transaction as a fallback
-        try {
-            const fallbackFile = `tx_${Date.now()}.json`;
-            secureWriteFile(fallbackFile, JSON.stringify([txLogEntry], null, 2));
-            console.log(`Saved transaction to fallback file: ${fallbackFile}`);
-        } catch (fallbackError) {
-            console.error('Failed to save transaction to fallback file:', fallbackError);
-        }
-        
         return false;
     }
 }
@@ -3708,9 +4183,20 @@ app.post('/api/create-transaction-file', async (req, res) => {
 function isPaymentAmountCorrect(payment) {
     try {
         // If payment has expected amount in addrInfo, check against actual amount
-        if (payment.addrInfo && payment.addrInfo.expectedAmount && payment.amount) {
+        if (payment.addrInfo && payment.amount) {
+            // First check if we have a ethAmount specifically for ETH comparison
+            const expectedAmountToUse = payment.addrInfo.ethAmount || 
+                                       payment.addrInfo.displayAmount || 
+                                       payment.addrInfo.expectedAmount;
+            
+            // Skip check if no expected amount is available
+            if (!expectedAmountToUse) {
+                console.warn(`No expected amount available for payment: ${payment.address}`);
+                return false;
+            }
+            
             // Normalize values to ensure proper comparison
-            let expectedAmount = payment.addrInfo.expectedAmount;
+            let expectedAmount = expectedAmountToUse;
             let actualAmount = payment.amount;
             
             // Convert both to floats for easy comparison if they're strings
@@ -3723,44 +4209,57 @@ function isPaymentAmountCorrect(payment) {
             
             // Handle potentially undefined/NaN values
             if (isNaN(expectedAmount) || isNaN(actualAmount)) {
-                console.warn(`Invalid amount values for comparison: expected=${payment.addrInfo.expectedAmount}, actual=${payment.amount}`);
-                return true; // Default to correct if we can't parse properly
+                console.warn(`Invalid amount values for comparison: expected=${expectedAmountToUse}, actual=${payment.amount}`);
+                return false; // Mark as incorrect if we can't parse properly
             }
             
-            // Convert both to Wei for comparison
-            const expectedWei = typeof payment.addrInfo.expectedAmount === 'string' && 
-                payment.addrInfo.expectedAmount.includes('.') ?
-                web3.utils.toWei(payment.addrInfo.expectedAmount, 'ether') :
-                payment.addrInfo.expectedAmount;
-                
-            const actualWei = typeof payment.amount === 'string' && 
-                payment.amount.includes('.') ?
-                web3.utils.toWei(payment.amount, 'ether') :
-                payment.amount;
-            
             // Allow for a small variance (0.5%)
-            const expectedNum = BigInt(expectedWei.toString());
-            const actualNum = BigInt(actualWei.toString());
-            
-            // Calculate allowed deviation (0.5%)
-            const allowedDeviation = expectedNum * BigInt(5) / BigInt(1000);
-            
-            // Check if actual amount is within the allowed range
-            const isWithinRange = actualNum >= (expectedNum - allowedDeviation) && 
-                                  actualNum <= (expectedNum + allowedDeviation);
+            const deviation = expectedAmount * 0.005;
+            const isWithinRange = actualAmount >= (expectedAmount - deviation) && 
+                               actualAmount <= (expectedAmount + deviation);
             
             // Log the comparison for debugging
-            console.log(`Payment amount check: Expected=${expectedWei}, Actual=${actualWei}, Within range: ${isWithinRange}`);
+            console.log(`Payment amount check: Expected=${expectedAmount}, Actual=${actualAmount}, Within range: ${isWithinRange}`);
+            
+            return isWithinRange;
+        } else if (payment.expectedAmount && payment.amount) {
+            // Direct comparison if addrInfo is not available but expectedAmount is
+            // First try to use ethAmount if it exists
+            let expectedAmount = payment.ethAmount || 
+                               payment.displayAmount || 
+                               payment.expectedAmount;
+            let actualAmount = payment.amount;
+            
+            // Normalize values
+            if (typeof expectedAmount === 'string') {
+                expectedAmount = parseFloat(expectedAmount);
+            }
+            if (typeof actualAmount === 'string') {
+                actualAmount = parseFloat(actualAmount);
+            }
+            
+            if (isNaN(expectedAmount) || isNaN(actualAmount)) {
+                console.warn(`Invalid direct amount values: expected=${payment.ethAmount || payment.displayAmount || payment.expectedAmount}, actual=${payment.amount}`);
+                return false;
+            }
+            
+            // Allow 0.5% deviation
+            const deviation = expectedAmount * 0.005;
+            const isWithinRange = actualAmount >= (expectedAmount - deviation) && 
+                               actualAmount <= (expectedAmount + deviation);
+            
+            console.log(`Direct payment amount check: Expected=${expectedAmount}, Actual=${actualAmount}, Within range: ${isWithinRange}`);
             
             return isWithinRange;
         }
         
-        // If we can't determine the expected amount, default to correct
-        return true;
+        // If we can't determine the expected amount, default to incorrect
+        console.warn('Cannot determine expected amount for payment:', payment.address);
+        return false;
     } catch (error) {
         console.error('Error checking payment amount:', error);
-        // If there's an error in checking, assume it's correct to avoid blocking funds
-        return true;
+        // If there's an error in checking, assume it's incorrect to be safe
+        return false;
     }
 }
 
@@ -3775,8 +4274,30 @@ async function recordWrongPayment(payment) {
             keys.activeAddresses = {};
         }
         
+        // Make sure we have an address to work with
+        if (!payment.address) {
+            console.error('Cannot record wrong payment without an address');
+            return false;
+        }
+        
         // Get the existing entry or create a new one
         let addrInfo = keys.activeAddresses[payment.address] || {};
+        
+        // Get the ETH amount that was shown to the user on the payment page
+        // This is the correct amount that should have been paid
+        const correctEthAmount = payment.ethAmount || 
+                              addrInfo.ethAmount || 
+                              addrInfo.displayAmount || 
+                              addrInfo.expectedAmount || 
+                              payment.expectedAmount;
+        
+        // Determine the reason for wrong payment
+        let wrongReason = '';
+        if (correctEthAmount && payment.amount) {
+            wrongReason = `Please submit ${correctEthAmount} ETH. You sent ${payment.amount} ETH which is incorrect.`;
+        } else {
+            wrongReason = 'Amount verification failed. Please check the expected payment amount and try again.';
+        }
         
         // Mark as wrong payment
         addrInfo = {
@@ -3785,10 +4306,12 @@ async function recordWrongPayment(payment) {
             wrongPayment: true,
             amountVerified: false,
             amount: payment.amount || addrInfo.amount,
-            expectedAmount: payment.expectedAmount || addrInfo.expectedAmount,
+            ethAmount: correctEthAmount || addrInfo.ethAmount,  // Store ethAmount
+            expectedAmount: correctEthAmount || addrInfo.expectedAmount,
             timestamp: payment.timestamp || addrInfo.timestamp || new Date().toISOString(),
             status: 'wrong',
-            cryptoType: payment.cryptoType || addrInfo.cryptoType || 'ETH'
+            cryptoType: payment.cryptoType || addrInfo.cryptoType || 'ETH',
+            wrongReason: wrongReason
         };
         
         // Add to active addresses
@@ -3801,23 +4324,39 @@ async function recordWrongPayment(payment) {
         logBlockchain('WRONG_PAYMENT', {
             address: payment.address,
             amount: payment.amount,
-            expectedAmount: payment.expectedAmount,
-            timestamp: new Date().toISOString()
+            expectedAmount: correctEthAmount,
+            timestamp: new Date().toISOString(),
+            reason: wrongReason
         });
         
-        // Record in transaction log
+        // Prepare transaction log entry
         const txLog = {
             address: payment.address,
             amount: payment.amount,
-            expectedAmount: payment.expectedAmount,
+            ethAmount: correctEthAmount,
+            expectedAmount: correctEthAmount,
             timestamp: payment.timestamp || new Date().toISOString(),
             status: 'wrong',
             type: 'payment',
             cryptoType: payment.cryptoType || 'ETH',
             isWrongPayment: true,
             wrongPayment: true,
-            amountVerified: false
+            wrongPaymentRecorded: true,
+            amountVerified: false,
+            wrongReason: wrongReason
         };
+        
+        // If we have a txHash, include it
+        if (payment.txHash) {
+            txLog.txHash = payment.txHash;
+        }
+        
+        // Add txId if not present
+        if (!txLog.txId) {
+            const timestamp = new Date().getTime();
+            const randomStr = Math.random().toString(36).substring(2, 9);
+            txLog.txId = `tx_${timestamp}_${randomStr}`;
+        }
         
         // Add to transaction log
         const txFile = 'merchant_transactions.json';
@@ -3843,15 +4382,23 @@ async function recordWrongPayment(payment) {
             
             // Check if we already have this transaction recorded
             const existingIndex = txLogs.findIndex(tx => 
-                tx.address === payment.address && tx.amount === payment.amount && 
-                tx.timestamp === payment.timestamp && tx.status === 'wrong'
+                (tx.txHash && payment.txHash && tx.txHash === payment.txHash) ||
+                (tx.address === payment.address && tx.amount === payment.amount && 
+                 tx.timestamp === payment.timestamp)
             );
             
             if (existingIndex >= 0) {
                 console.log(`Wrong payment already recorded, updating existing record`);
+                // Keep any existing fields and add/update our wrong payment flags
                 txLogs[existingIndex] = {
                     ...txLogs[existingIndex],
-                    ...txLog
+                    ...txLog,
+                    // Ensure these fields are always set correctly
+                    isWrongPayment: true,
+                    wrongPayment: true,
+                    wrongPaymentRecorded: true,
+                    amountVerified: false,
+                    status: 'wrong'
                 };
             } else {
                 // Add new transaction

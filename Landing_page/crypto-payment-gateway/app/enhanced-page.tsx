@@ -7,10 +7,12 @@ import { PaymentFlow } from "@/components/payment-flow"
 import { SecurityShield } from "@/components/security-shield"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EthereumCoinsBackground } from "@/components/ethereum-coins-background"
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-grid-pattern">
+      <EthereumCoinsBackground />
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">

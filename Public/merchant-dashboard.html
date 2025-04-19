@@ -100,6 +100,10 @@
             background-color: #198754;
             color: white;
         }
+        .status-expired {
+            background-color: #e2e3e5;
+            color: #41464b;
+        }
         .status-payment {
             background-color: #cfe2ff;
             color: #084298;
@@ -125,6 +129,12 @@
         .wrong-payment-row:hover {
             background-color: rgba(248, 215, 218, 0.5);
         }
+        .expired-address-row {
+            background-color: rgba(226, 227, 229, 0.3);
+        }
+        .expired-address-row:hover {
+            background-color: rgba(226, 227, 229, 0.5);
+        }
         .failed-release-row {
             background-color: rgba(255, 243, 205, 0.3);
         }
@@ -148,6 +158,15 @@
             padding: 1px 5px;
             border-radius: 8px;
             background-color: #dc3545;
+            color: white;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        .expired-tag {
+            font-size: 0.65rem;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background-color: #6c757d;
             color: white;
             margin-left: 5px;
             vertical-align: middle;
@@ -1202,6 +1221,9 @@
                             tx.amountVerified === false
                         );
                         
+                        // Check for expired addresses
+                        const isExpired = tx.isExpired === true;
+                        
                         // Check for different transaction types
                         const isPayment = txType === 'payment' && !isWrongPayment;
                         const isRelease = txType === 'release';
@@ -1211,12 +1233,16 @@
                         // Determine row styling based on transaction type and status
                         let rowClass = '';
                         if (isWrongPayment) rowClass = 'wrong-payment-row';
+                        else if (isExpired) rowClass = 'expired-address-row';
                         else if (isFailedRelease) rowClass = 'failed-release-row';
                         else if (isSuccessfulRelease) rowClass = 'success-release-row';
                         else if (isPayment && txStatus === 'confirmed') rowClass = 'confirmed-payment-row';
                         
                         // Get the wrong reason if available
                         const wrongReason = tx.wrongReason || 'Amount verification failed';
+                        
+                        // Get expired reason if available
+                        const expiredReason = tx.expiredReason || 'Address expired';
                         
                         // Get detailed status information if available
                         const statusDetails = tx.error || '';
@@ -1230,17 +1256,21 @@
                                     ${formattedType}
                                 </span>
                                 ${isWrongPayment ? '<span class="wrong-payment-tag">WRONG</span>' : ''}
+                                ${isExpired ? '<span class="expired-tag">EXPIRED</span>' : ''}
                             </td>
                             <td>${formattedAmount} ETH</td>
                             <td>
                                 <span class="status-badge ${isWrongPayment ? 'status-failed' : 
+                                                         (isExpired ? 'status-expired' :
                                                          (isFailedRelease ? 'status-failed' : 
-                                                         (isSuccessfulRelease ? 'status-success' : getStatusClass(txStatus)))}">
+                                                         (isSuccessfulRelease ? 'status-success' : getStatusClass(txStatus))))}">
                                     ${isWrongPayment ? 'Wrong Amount' : 
+                                      (isExpired ? 'Expired' :
                                       (isFailedRelease ? 'Failed' : 
-                                      (isSuccessfulRelease ? 'Success' : formattedStatus))}
+                                      (isSuccessfulRelease ? 'Success' : formattedStatus)))}
                                 </span>
                                 ${isWrongPayment ? `<div class="small text-danger mt-1">${wrongReason}</div>` : ''}
+                                ${isExpired ? `<div class="small text-warning mt-1">${expiredReason}</div>` : ''}
                                 ${statusDetails ? `<div class="small text-danger mt-1">Error: ${statusDetails}</div>` : ''}
                             </td>
                             <td>
@@ -1397,6 +1427,8 @@
                 case 'error':
                 case 'rejected':
                     return 'status-failed';
+                case 'expired':
+                    return 'status-expired';
                 case 'unverified':
                 case 'warning':
                     return 'status-warning';

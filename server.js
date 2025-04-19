@@ -2098,6 +2098,21 @@ app.post('/api/process-payment', async (req, res) => {
         // No hash provided, check for transactions to the address
         if (address) {
             try {
+                // Check if the address is expired in our records
+                const keys = getStoredKeys();
+                const addrInfo = keys.activeAddresses && keys.activeAddresses[address];
+                
+                if (addrInfo && addrInfo.isExpired === true) {
+                    console.log(`Rejecting payment processing for expired address ${address}`);
+                    return res.status(400).json({
+                        success: false,
+                        isExpired: true,
+                        message: 'This payment address has expired',
+                        reason: addrInfo.expiredReason || 'Address expired due to previous wrong payment',
+                        expiredAt: addrInfo.expiredAt || new Date().toISOString()
+                    });
+                }
+                
                 // Check the most recent blocks for transactions to this address
                 const latestBlockNumber = await web3.eth.getBlockNumber();
                 const blocksToCheck = 5; // Check the last 5 blocks
@@ -3199,6 +3214,18 @@ app.post('/api/record-payment', async (req, res) => {
         
         // Get address info if it exists
         const addrInfo = keys.activeAddresses[address] || {};
+        
+        // Check if address is expired due to a previous wrong payment
+        if (addrInfo.isExpired === true) {
+            console.log(`Rejecting payment to expired address ${address}`);
+            return res.status(400).json({
+                success: false,
+                isExpired: true,
+                message: 'This payment address has expired',
+                reason: addrInfo.expiredReason || 'Address expired due to previous wrong payment',
+                expiredAt: addrInfo.expiredAt || new Date().toISOString()
+            });
+        }
         
         // Check if this is a wrong payment (amount doesn't match expected amount)
         let isWrong = false;
@@ -4311,7 +4338,10 @@ async function recordWrongPayment(payment) {
             timestamp: payment.timestamp || addrInfo.timestamp || new Date().toISOString(),
             status: 'wrong',
             cryptoType: payment.cryptoType || addrInfo.cryptoType || 'ETH',
-            wrongReason: wrongReason
+            wrongReason: wrongReason,
+            isExpired: true,  // Mark the address as expired
+            expiredAt: new Date().toISOString(),
+            expiredReason: 'Address expired due to wrong payment detection'
         };
         
         // Add to active addresses
@@ -4343,7 +4373,10 @@ async function recordWrongPayment(payment) {
             wrongPayment: true,
             wrongPaymentRecorded: true,
             amountVerified: false,
-            wrongReason: wrongReason
+            wrongReason: wrongReason,
+            isExpired: true,
+            expiredAt: new Date().toISOString(),
+            expiredReason: 'Address expired due to wrong payment detection'
         };
         
         // If we have a txHash, include it
@@ -4398,7 +4431,10 @@ async function recordWrongPayment(payment) {
                     wrongPayment: true,
                     wrongPaymentRecorded: true,
                     amountVerified: false,
-                    status: 'wrong'
+                    status: 'wrong',
+                    isExpired: true,
+                    expiredAt: new Date().toISOString(),
+                    expiredReason: 'Address expired due to wrong payment detection'
                 };
             } else {
                 // Add new transaction

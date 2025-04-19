@@ -297,8 +297,8 @@
                 showSuccessUI(data);
             } else if (data.status === 'wrong' || data.isWrongPayment === true) {
                 showWrongPaymentUI(data);
-            } else if (data.status === 'expired') {
-                expiredElem.style.display = 'block';
+            } else if (data.status === 'expired' || data.isExpired === true) {
+                showExpiredUI(data);
             } else {
                 // Default to pending
                 showPendingUI(data);
@@ -402,6 +402,42 @@
                 
                 hashElem.textContent = displayHash;
                 linkElem.href = `https://sepolia.etherscan.io/tx/${data.txHash}`;
+            }
+        }
+        
+        // Show expired payment address UI
+        function showExpiredUI(data) {
+            expiredElem.style.display = 'block';
+            
+            // If we have expiry reason details, display them
+            if (data.reason || data.expiredReason) {
+                const reasonElement = document.createElement('div');
+                reasonElement.className = 'alert alert-warning mt-3';
+                reasonElement.innerHTML = `
+                    <i class="bx bx-info-circle me-2"></i>
+                    <span>${data.reason || data.expiredReason}</span>
+                `;
+                
+                // Add expiry time if available
+                if (data.expiredAt) {
+                    const expiredDate = new Date(data.expiredAt);
+                    const expiredTimeStr = expiredDate.toLocaleString();
+                    
+                    const timeElement = document.createElement('div');
+                    timeElement.className = 'small text-muted mt-1';
+                    timeElement.textContent = `Expired at: ${expiredTimeStr}`;
+                    reasonElement.appendChild(timeElement);
+                }
+                
+                // Find the right place to insert this element
+                const containerEl = expiredElem.querySelector('.card-body') || expiredElem;
+                const buttonEl = containerEl.querySelector('.btn');
+                
+                if (buttonEl) {
+                    containerEl.insertBefore(reasonElement, buttonEl);
+                } else {
+                    containerEl.appendChild(reasonElement);
+                }
             }
         }
         

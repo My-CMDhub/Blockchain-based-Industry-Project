@@ -1,18 +1,1 @@
-[
-  {
-    "address": "0x117D27869971401704EDf8B58b29BdBa3AE0D28C",
-    "amount": "0.002523",
-    "ethAmount": "0.00272273",
-    "expectedAmount": "0.00272273",
-    "timestamp": "2025-04-15T00:54:05.338Z",
-    "status": "wrong",
-    "type": "payment",
-    "cryptoType": "ETH",
-    "isWrongPayment": true,
-    "wrongPayment": true,
-    "wrongPaymentRecorded": true,
-    "amountVerified": false,
-    "wrongReason": "Please submit 0.00272273 ETH. You sent 0.002523 ETH which is incorrect.",
-    "txId": "tx_1744678445340_7xuk1so"
-  }
-]
+[]

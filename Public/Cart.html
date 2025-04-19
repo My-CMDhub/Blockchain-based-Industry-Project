@@ -776,6 +776,40 @@
                 clearInterval(window.countdownInterval);
             }
         }
+        
+        // Function to restart checkout process after wrong payment or expired address
+        function restartCheckout() {
+            // Clear any existing intervals
+            if (window.transactionMonitorInterval) {
+                clearInterval(window.transactionMonitorInterval);
+            }
+            if (window.countdownInterval) {
+                clearInterval(window.countdownInterval);
+            }
+            
+            // Show loading state
+            const transactionStatus = document.getElementById('transaction-status');
+            if (transactionStatus) {
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-spinner fa-spin text-blue-500 text-lg"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-sm font-medium text-blue-800">Restarting Checkout</h3>
+                            <p class="mt-1 text-sm text-blue-700">
+                                Please wait while we set up a new payment address...
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Simply reload the page to start fresh
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
 
         // Show toast notification
         function showToast(message, type = 'info') {
@@ -913,42 +947,121 @@
                             const responseData = await response.json();
                             console.log('Payment recorded with backend:', responseData);
                             
-                            // Check if this was flagged as a wrong payment
-                            if (responseData.isWrongPayment) {
+                            // Check if address is expired
+                            if (responseData.isExpired) {
+                                // Hide the QR code and payment address
+                                const qrContainer = document.getElementById('qr-code');
+                                if (qrContainer) {
+                                    qrContainer.innerHTML = `
+                                        <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
+                                            <i class="fas fa-ban text-red-500 text-3xl mb-2"></i>
+                                            <p class="text-red-700 font-medium">This payment address has expired</p>
+                                        </div>
+                                    `;
+                                }
+                                
+                                // Disable copy button and gray out the address
+                                const addressElement = document.getElementById('payment-address');
+                                if (addressElement) {
+                                    addressElement.innerHTML = `<span class="text-gray-400 line-through">${address}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
+                                }
+                                
+                                // Hide payment instructions
+                                const instructionsElement = document.getElementById('payment-instructions');
+                                if (instructionsElement) {
+                                    instructionsElement.style.display = 'none';
+                                }
+                                
+                                // Change countdown to "EXPIRED"
+                                const countdownElement = document.getElementById('countdown');
+                                if (countdownElement) {
+                                    countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+                                }
+                                
                                 const transactionStatus = document.getElementById('transaction-status');
                                 if (transactionStatus) {
                                     transactionStatus.innerHTML = `
-                                        <div class="flex items-center">
+                                        <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
                                             <div class="flex-shrink-0">
                                                 <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
                                             </div>
                                             <div class="ml-4">
-                                                <h3 class="text-sm font-medium text-red-800">Wrong Payment Detected!</h3>
+                                                <h3 class="text-md font-medium text-red-800">Payment Address Has Expired!</h3>
+                                                <p class="mt-1 text-sm text-red-700">
+                                                    ${responseData.reason || 'This payment address has expired due to a wrong payment.'}
+                                                </p>
+                                                <div class="mt-3">
+                                                    <button onclick="restartCheckout()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
+                                                        <i class="fas fa-redo mr-2"></i> Generate New Payment Address
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }
+                                
+                                showToast('Payment address has expired!', 'error');
+                                
+                                return; // Don't proceed with normal payment flow
+                            }
+                            // Check if this was flagged as a wrong payment
+                            else if (responseData.isWrongPayment) {
+                                // Hide the QR code and payment address
+                                const qrContainer = document.getElementById('qr-code');
+                                if (qrContainer) {
+                                    qrContainer.innerHTML = `
+                                        <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
+                                            <i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i>
+                                            <p class="text-red-700 font-medium">Wrong payment amount detected</p>
+                                        </div>
+                                    `;
+                                }
+                                
+                                // Disable copy button and gray out the address
+                                const addressElement = document.getElementById('payment-address');
+                                if (addressElement) {
+                                    addressElement.innerHTML = `<span class="text-gray-400 line-through">${address}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
+                                }
+                                
+                                // Hide payment instructions
+                                const instructionsElement = document.getElementById('payment-instructions');
+                                if (instructionsElement) {
+                                    instructionsElement.style.display = 'none';
+                                }
+                                
+                                // Change countdown to "EXPIRED"
+                                const countdownElement = document.getElementById('countdown');
+                                if (countdownElement) {
+                                    countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+                                }
+
+                                const transactionStatus = document.getElementById('transaction-status');
+                                if (transactionStatus) {
+                                    transactionStatus.innerHTML = `
+                                        <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
+                                            <div class="flex-shrink-0">
+                                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                                            </div>
+                                            <div class="ml-4">
+                                                <h3 class="text-md font-medium text-red-800">Wrong Payment Detected!</h3>
                                                 <p class="mt-1 text-sm text-red-700">
                                                     ${balanceInEth} ETH received, but this doesn't match the expected amount.
                                                     ${responseData.reason || 'The payment amount is incorrect.'}
                                                 </p>
                                                 <p class="mt-1 text-sm text-red-700">
-                                                    Your order will not be processed due to the wrong payment amount. Please try again.
+                                                    Your order will not be processed due to the wrong payment amount.
                                                 </p>
+                                                <div class="mt-3">
+                                                    <button onclick="restartCheckout()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
+                                                        <i class="fas fa-redo mr-2"></i> Generate New Payment Address
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     `;
                                 }
                                 
                                 showToast('Wrong payment amount detected!', 'error');
-                                
-                                // Redirect to payment-status page with wrong payment details
-                                setTimeout(() => {
-                                    const statusParams = new URLSearchParams({
-                                        id: orderId,
-                                        status: 'wrong',
-                                        amount: balanceInEth,
-                                        expectedAmount: responseData.expectedAmount || 'unknown',
-                                        address: address
-                                    });
-                                    window.location.href = `/payment-status.html?${statusParams.toString()}`;
-                                }, 2000);
                                 
                                 return; // Don't proceed with normal payment flow
                             }

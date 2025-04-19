@@ -25,27 +25,39 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/hd-wallet-payment-gateway.git
-   cd hd-wallet-payment-gateway
+   git clone https://....... (Opened github's project link from web browser)
+ 
    ```
 
 2. **Run the setup script**
 
    This will install dependencies, create necessary files, and generate the HD wallet keys.
 
+   **Note - :** For windows users , open bash terminal in your IDE (VS code, Pycharm, etc..) then run the script.
+   
    ```bash
    bash setup.sh
    ```
+   
+   - Skip all keys just by pressing enter or enter the keys if you got any.
+     
+   or copy and paste the keys from Keys folder into your .env file and then replace the keys with your keys or use same keys.
 
-   or copy and paste the keys from Keys folder into your .env file
+   **Keys 🔑**:
+   - To get your own **ENCRYPTION_KEY** then run this command in terminal : ``` openssl rand -hex 32 ```
+   - To get your own **MERCHANT_ADDRESS** and **MERCHANT_PRIVATE_KEY** , you require to set up metamask wallet by downloading the metamask app.
+   - Keep **HD_WALLET_ADDRESS** same.
+   - To get your own **INFURA_URL** and **MORALIS_API_KEY** , you require to sign up to this providers **'Infura'** and **'Moralis'**. 
+   - Webhook will be provided by Infura once the account is set up.
+   - Keep same rest of all.
 
-3. **Start the server**
+4. **Start the server**
 
    ```bash
-   node server.js
+   node server.js or npm start
    ```
 
-4. **Access the application**
+5. **Access the application**
 
    - E-commerce store: http://localhost:3000
    - Merchant dashboard: http://localhost:3000/merchant

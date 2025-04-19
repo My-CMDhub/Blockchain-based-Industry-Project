@@ -30,6 +30,7 @@ export function EthereumLogo({ className = "" }: { className?: string }) {
 
     // Draw Ethereum logo
     function drawEthereumLogo() {
+      if (!ctx) return;
       // Clear canvas
       ctx.clearRect(0, 0, size, size)
 

@@ -96,7 +96,7 @@ export function EthereumCoinsBackground({ className = "" }: { className?: string
 
     // Create coins
     const coins: Coin[] = []
-    const coinCount = Math.min(20, Math.floor(window.innerWidth / 60))
+    const coinCount = Math.min(30, Math.floor(window.innerWidth / 60))
     for (let i = 0; i < coinCount; i++) {
       coins.push({
         x: Math.random() * canvas.width,

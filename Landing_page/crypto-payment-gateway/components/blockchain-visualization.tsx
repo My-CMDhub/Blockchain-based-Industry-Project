@@ -36,6 +36,7 @@ export function BlockchainVisualization({ className = "" }: { className?: string
 
     // Draw blockchain
     function drawBlockchain() {
+      if (!ctx) return;
       // Clear canvas
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = bgColor

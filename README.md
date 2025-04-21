@@ -245,12 +245,7 @@ A new landing page (`/getting-started.html` or default route) will:
 
 ---
 
-## 16. License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 16. Support
 
----
-
-## 17. Support
-
-For additional help or questions, please refer to the TROUBLESHOOTING.md file or open an issue.
+For additional support or questions contact to group members.

@@ -4,13 +4,13 @@
 NODE_PORT=3001
 REACT_PORT=5001
 
-# Start Node.js backend on port 3000
+# Start Node.js backend on port 3001
 cd "$(dirname "$0")"
 echo "Starting Node.js backend (http://localhost:$NODE_PORT) ..."
 PORT=$NODE_PORT npm start &
 NODE_PID=$!
 
-# Start React landing page on port 3001
+# Start React landing page on port 5001
 cd Landing_page/crypto-payment-gateway
 
 echo "Starting React landing page (http://localhost:$REACT_PORT) ..."
@@ -40,6 +40,25 @@ HD Wallet Payment Gateway - Local Test Setup
 Press Ctrl+C in this terminal to stop both servers.
 
 EOM
+
+# Wait for React server to be ready before opening the browser
+URL="http://localhost:$REACT_PORT"
+echo "Waiting for React landing page to be available on port $REACT_PORT ..."
+until curl -s "$URL" > /dev/null; do
+  sleep 1
+done
+echo "React landing page is up!"
+
+# Open the React landing page in the default browser
+if which xdg-open > /dev/null; then
+  xdg-open "$URL"
+elif which open > /dev/null; then
+  open "$URL"
+elif which start > /dev/null; then
+  start "$URL"
+else
+  echo "Please open $URL in your browser."
+fi
 
 # Wait for both processes
 wait $NODE_PID $REACT_PID 

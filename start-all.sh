@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Set ports
+NODE_PORT=3001
+REACT_PORT=5001
+
+# Start Node.js backend on port 3000
+cd "$(dirname "$0")"
+echo "Starting Node.js backend (http://localhost:$NODE_PORT) ..."
+PORT=$NODE_PORT npm start &
+NODE_PID=$!
+
+# Start React landing page on port 3001
+cd Landing_page/crypto-payment-gateway
+
+echo "Starting React landing page (http://localhost:$REACT_PORT) ..."
+PORT=$REACT_PORT npm run dev &
+REACT_PID=$!
+
+cd ../../
+
+# Print clear instructions
+cat <<EOM
+
+============================================
+HD Wallet Payment Gateway - Local Test Setup
+============================================
+
+1. Visit the React Landing Page first:
+   👉 http://localhost:$REACT_PORT
+   (This is the main entry point for new users and clients)
+
+2. From there, use the "View Demo" or "Get Started" button to access the Node.js onboarding page:
+   👉 http://localhost:$NODE_PORT/onboarding.html
+
+3. You can also directly access:
+   - E-commerce Store:        http://localhost:$NODE_PORT/Product.html
+   - Merchant Dashboard:      http://localhost:$NODE_PORT/merchant-dashboard.html
+
+Press Ctrl+C in this terminal to stop both servers.
+
+EOM
+
+# Wait for both processes
+wait $NODE_PID $REACT_PID 

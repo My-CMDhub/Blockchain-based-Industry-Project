@@ -50,7 +50,7 @@ export default function Home() {
             <Link href="#contact" className="text-sm font-medium hover:text-teal-400 transition-colors hidden md:block">
               Contact
             </Link>
-            <a href="http://localhost:3001/merchant" target="_blank" ><Button className="bg-gradient-to-r from-teal-400 to-blue-500 hover:from-teal-500 hover:to-blue-600 border-none">
+            <a href="http://localhost:3001/onboarding.html" target="_blank" ><Button className="bg-gradient-to-r from-teal-400 to-blue-500 hover:from-teal-500 hover:to-blue-600 border-none">
               Get Started
             </Button> </a>
           </div>
@@ -85,7 +85,7 @@ export default function Home() {
                     Start Accepting ETH
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Button>
-                 <a href="http://localhost:3001" target="_blank" ><Button size="lg" variant="outline" className="border-white/10 hover:bg-white/5">
+                 <a href="http://localhost:3001/onboarding.html" target="_blank" ><Button size="lg" variant="outline" className="border-white/10 hover:bg-white/5">
                     View Demo
                   </Button> </a> 
                 </div>

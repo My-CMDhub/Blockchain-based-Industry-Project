@@ -1,68 +1,226 @@
 # HD Wallet Payment Gateway
 
-A secure and reliable HD wallet-based payment gateway that allows merchants to accept cryptocurrency payments with automated transaction monitoring and fund management.
+A secure and reliable payment gateway that allows merchants to accept cryptocurrency payments using Hierarchical Deterministic (HD) wallets. This guide will help anyone—from non-technical users to developers—set up, run, and test the application from scratch.
 
-## 📋 Features
+---
 
-- **Hierarchical Deterministic Wallet**: Generates unique payment addresses for each transaction
-- **Secure Key Management**: All keys are stored encrypted
-- **Real-time Transaction Monitoring**: Track payment status in real-time
-- **Merchant Dashboard**: View and manage transactions
-- **One-click Fund Release**: Transfer received funds to merchant wallet
-- **Multiple RPC Providers**: Fault-tolerant connections to Ethereum network
+## 🏁 What You'll Achieve
+- Set up your own crypto payment gateway on your computer
+- Generate or use pre-made wallet keys
+- Accept and monitor testnet crypto payments
+- Use a simple web UI to guide you through onboarding
 
-## 🚀 Quick Start
+---
 
-### Prerequisites
+## 1. Prerequisites
 
-- Node.js (v14 or higher)
-- npm or yarn
-- An Ethereum RPC provider (Infura, Alchemy, etc.)
-- Sepolia testnet ETH for testing (get from a faucet)
+**You'll need:**
+- **Node.js (v14 or higher):** [Download & Install](https://nodejs.org/)
+- **npm** (comes with Node.js)
+- **MetaMask browser extension:** [Install MetaMask](https://metamask.io/)
+- **A modern web browser**
+- **Internet connection**
 
-### Installation
+**Third-party services:**
+- **Infura:** For Ethereum blockchain access ([Sign up here](https://infura.io/))
+- **Moralis:** For blockchain data ([Sign up here](https://moralis.io/))
+- **Sepolia testnet ETH:** For testing ([Get free ETH here](https://cloud.google.com/application/web3/faucet))
 
-1. **Clone the repository**
+---
 
-   ```bash
-   git clone https://....... (Opened github's project link from web browser)
- 
-   ```
+## 2. Cloning the Repository
 
-2. **Run the setup script**
+Open your terminal and run:
+```bash
+git clone <your-repo-url>
+cd Blockchain-PG
+```
 
-   This will install dependencies, create necessary files, and generate the HD wallet keys.
+---
 
-   **Note - :** For windows users , open bash terminal in your IDE (VS code, Pycharm, etc..) then run the script.
-   
-   ```bash
-   bash setup.sh
-   ```
-   
-   - Skip all keys just by pressing enter or enter the keys if you got any.
-     
-   or copy and paste the keys from Keys folder into your .env file and then replace the keys with your keys or use same keys.
+## 3. Make Bash Scripts Executable (Mac/Linux)
 
-   **Keys 🔑**:
-   - To get your own **ENCRYPTION_KEY** then run this command in terminal : ``` openssl rand -hex 32 ```
-   - To get your own **MERCHANT_ADDRESS** and **MERCHANT_PRIVATE_KEY** , you require to set up metamask wallet by downloading the metamask app.
-   - Keep **HD_WALLET_ADDRESS** same.
-   - To get your own **INFURA_URL** and **MORALIS_API_KEY** , you require to sign up to this providers **'Infura'** and **'Moralis'**. 
-   - Webhook will be provided by Infura once the account is set up.
-   - Keep same rest of all.
+Before running any setup or start scripts, make sure they are executable:
+```bash
+chmod +x setup.sh start-all.sh
+```
+- **Windows users:** You can run these scripts in Git Bash, WSL, or use the commands manually in your terminal. If you have issues, right-click and open with your terminal or use `bash setup.sh` and `bash start-all.sh`.
 
-4. **Start the server**
+---
 
-   ```bash
-   node server.js or npm start
-   ```
+## 4. Installing Dependencies & Initial Setup
 
-5. **Access the application**
+Run the setup script to install all dependencies and prepare your environment:
+```bash
+bash setup.sh
+```
+- This will:
+  - Install all Node.js packages (npm install)
+  - Create necessary directories (Public, Json, secure)
+  - Guide you through .env setup (with prompts for all required keys)
+  - Generate your HD wallet and store encrypted keys in `Json/keys.json`
+  - **If you want to use pre-generated keys, see the next section.**
+- **Windows users:** Use a Bash terminal (e.g., Git Bash, VS Code terminal).
 
-   - E-commerce store: http://localhost:3000
-   - Merchant dashboard: http://localhost:3000/merchant
+---
 
-## 🔍 Project Structure
+## 5. Setting Up Keys & Environment
+
+### Option 1: Generate Your Own Keys (Recommended)
+1. **MetaMask Setup:**
+   - Install MetaMask and create a new wallet.
+   - Create one more account as a Merchant to receive the payment from your one default account as a user to another created account as a Merchant.
+   - Save your **mnemonic phrase** (12/24 words) and **private key** (This will be your new created Merchant's account key) securely.
+   - Copy your **wallet address** (this will be your MERCHANT_ADDRESS).
+2. **Get Sepolia Testnet ETH:**
+   - Go to [Google Cloud Web3 Faucet](https://cloud.google.com/application/web3/faucet).
+   - Paste your MetaMask address and select Sepolia to receive test ETH.
+3. **Sign Up for Infura & Moralis:**
+   - **Infura:** Create a new Ethereum project and copy the HTTPS endpoint (your INFURA_URL).
+   - **Moralis:** Get your API key from the dashboard.
+4. **Generate an ENCRYPTION_KEY:**
+   - In your terminal, run:
+     ```bash
+     openssl rand -hex 32
+     ```
+   - Copy the output for your .env file.
+5. **Run the setup script:**
+   - The script will prompt you to enter your keys and configuration values.
+   - Enter the values you collected above.
+   - The script will generate your HD wallet and store encrypted keys in `Json/keys.json`.
+   - **Backup your mnemonic phrase and encrypted keys!**
+
+### Option 2: Use Pre-Generated Keys (Quick Start)
+- If you have trouble generating your own keys, you can use the sample keys in `Keys/Keys.txt`.
+- **Copy the contents of `Keys/Keys.txt` into your `.env` file** when prompted by the setup script.
+- **You must still set up your own MetaMask wallet** and provide your own MERCHANT_ADDRESS and MERCHANT_PRIVATE_KEY for transactions.
+- **Warning:** Never use these sample keys for real funds—test only!
+
+---
+
+## 6. Environment Variables (.env)
+
+Your `.env` file should look like this (example):
+```
+ENCRYPTION_KEY=your_generated_encryption_key
+MERCHANT_ADDRESS=your_metamask_wallet_address
+MERCHANT_PRIVATE_KEY=your_metamask_private_key
+HD_WALLET_ADDRESS=auto_generated_or_from_keys
+INFURA_URL=your_infura_project_url
+MORALIS_API_KEY=your_moralis_api_key
+... (other keys as needed)
+```
+- The setup script will help you create this file.
+- **Never share your private key or mnemonic phrase!**
+
+---
+
+## 7. Starting the Application (Order Matters!)
+
+**Step 1: Run the setup script (if you haven't already):**
+```bash
+bash setup.sh
+```
+- This installs dependencies, sets up your .env, and generates wallet keys.
+
+**Step 2: Start both servers (Node.js backend and React landing page):**
+```bash
+bash start-all.sh
+```
+- This will:
+  - Start the Node.js backend on **http://localhost:3001**
+  - Start the React landing page on **http://localhost:5001**
+  - Print clear instructions in your terminal
+
+**If you get a permission error, make sure you ran:**
+```bash
+chmod +x setup.sh start-all.sh
+```
+
+---
+
+## 8. Accessing the Application
+
+- **Start at the React Landing Page:** [http://localhost:5001](http://localhost:5001)
+  - This is the main entry point for new users and clients.
+  - Use the "View Demo" or "Get Started" button to access the Node.js onboarding page.
+- **Onboarding/Demo Page:** [http://localhost:3001/onboarding.html](http://localhost:3001/onboarding.html)
+  - This page checks your setup, provides quick links, and helps you test the app.
+- **E-commerce Store:** [http://localhost:3001/Product.html](http://localhost:3001/Product.html)
+- **Merchant Dashboard:** [http://localhost:3001/merchant-dashboard.html](http://localhost:3001/merchant-dashboard.html)
+
+---
+
+## 9. How the System Works
+
+- **HD Wallet Keys:**
+  - Generated during setup and stored encrypted in `Json/keys.json`.
+  - Backup your mnemonic phrase and encrypted keys for recovery.
+- **Transaction History:**
+  - Stored in files such as `merchant_transactions.json` and logs in the project root.
+- **Configuration:**
+  - All sensitive settings are in `.env` (never commit this file!).
+
+---
+
+## 10. Using the Application
+
+### As a Customer
+- Visit the e-commerce store, add products to your cart, and proceed to checkout.
+- Choose a cryptocurrency (**Ethereum is only supporting at the moment**) and complete the payment using the generated address.
+- Submit the payment with exact displayed amount via your Metamask wallet.
+
+### As a Merchant
+- Go to the merchant dashboard [http://localhost:3001/merchant-dashboard.html](http://localhost:3001/merchant-dashboard.html) to view transactions and balances.
+- Release funds to your MetaMask wallet with one click.
+- Monitor all payment activity in real time.
+
+---
+
+## 11. Troubleshooting & Support
+
+- If you encounter issues, check `TROUBLESHOOTING.md` for solutions.
+- Common issues:
+  - **Fund Release Issues:** Run `node fix-derivation-indexes.js`.
+  - **Transaction Monitoring:** Check `blockchain_tx.log`.
+  - **Server Crashes:** Double-check your `.env` file.
+- **Windows users:** If you have trouble running bash scripts, use Git Bash or WSL, or run the commands manually in your terminal.
+
+---
+
+## 12. Security & Best Practices
+
+- **Never share your private key or mnemonic phrase.**
+- **Backup your keys and mnemonic in a safe place.**
+- **Do not use test keys for real funds.**
+- **Store your `.env` file securely and never commit it to version control.**
+
+---
+
+## 13. FAQ
+
+**Q: I'm not a developer. Can I still use this?**
+A: Yes! Just follow the step-by-step guide above and use the Getting Started web UI for help.
+
+**Q: What if I lose my keys or mnemonic?**
+A: You will lose access to your funds. Always back up your keys and mnemonic phrase.
+
+**Q: Where can I get help?**
+A: See `TROUBLESHOOTING.md` or open an issue on the project repository.
+
+---
+
+## 14. About the Getting Started Web UI
+
+A new landing page (`/getting-started.html` or default route) will:
+- Guide you through the setup process
+- Check for missing keys or configuration
+- Provide links to setup scripts and documentation
+- Help you get started even if you're not technical
+
+---
+
+## 15. Project Structure (Reference)
 
 ```
 ├── Public/                  # Frontend assets
@@ -71,6 +229,8 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
 │   └── Cart.html            # Shopping cart with payment
 ├── Json/                    # Stored data
 │   └── keys.json            # Encrypted wallet keys
+├── Keys/                    # Pre-generated sample keys
+│   └── Keys.txt             # Use for quick start
 ├── server.js                # Main server code
 ├── encryptionUtils.js       # Encryption/decryption utilities
 ├── recover.js               # Wallet recovery tools
@@ -78,83 +238,19 @@ A secure and reliable HD wallet-based payment gateway that allows merchants to a
 ├── fix-derivation-indexes.js  # Utility to fix wallet derivation paths
 ├── recover-and-release.js   # Fund release testing tool
 ├── TROUBLESHOOTING.md       # Detailed troubleshooting guide
+├── setup.sh                 # Setup script (run first)
+├── start-all.sh             # Start both servers (run after setup)
 └── .env                     # Environment configuration
 ```
 
-## 💼 Usage
+---
 
-### Setting Up a Merchant Account
-
-1. Run the setup script to generate your HD wallet
-2. Configure your merchant address in the `.env` file
-3. Start the server and access the merchant dashboard
-
-### Managing Payments
-
-1. **Viewing Transactions**: All transactions can be viewed on the merchant dashboard
-2. **Checking Balances**: View your HD wallet balance from the dashboard
-3. **Releasing Funds**: Click the "Release Funds" button on the dashboard to transfer funds to your merchant wallet
-
-### Testing the Payment Flow
-
-1. Browse to http://localhost:3000 to access the demo store
-2. Add products to your cart and proceed to checkout
-3. Choose a cryptocurrency and complete the payment
-4. Monitor the transaction in real-time on the dashboard
-5. Release funds when ready
-
-## 🛠 Maintenance and Troubleshooting
-
-### Common Issues
-
-If you encounter issues, please check the `TROUBLESHOOTING.md` file for detailed guidance.
-
-**Quick Fixes:**
-
-- **Fund Release Issues**: Run `node fix-derivation-indexes.js` to correct address derivation paths
-- **Transaction Monitoring Problems**: Check the blockchain_tx.log for details
-- **Server Crashes**: Ensure your environment variables are correctly set in .env
-
-## 🧪 Testing
-
-### Testing Fund Release
-
-The `recover-and-release.js` script provides a direct way to test fund releases:
-
-```bash
-node recover-and-release.js
-```
-
-This will check all addresses, verify derivation paths, and attempt to release all available funds.
-
-## 🔒 Security Considerations
-
-- Store your `.env` file securely and never commit it to version control
-- Use a strong ENCRYPTION_KEY (generated automatically by setup.sh)
-- For production, use dedicated and secure RPC providers
-- Regularly back up your keys.json file
-
-## 📝 Development and Extension
-
-### Adding New Features
-
-1. **Custom Notification System**: Edit webhook.js to integrate with your notification service
-2. **New Cryptocurrencies**: Extend the server.js payment processing logic
-3. **User Authentication**: Add authentication middleware to secure the merchant dashboard
-
-## 📚 API Documentation
-
-The payment gateway provides several API endpoints:
-
-- `GET /api/wallet-balance` - Get current wallet balance
-- `GET /api/merchant-transactions` - List all transactions
-- `POST /api/release-funds` - Release funds to merchant address
-- `POST /api/generate-payment-address` - Create new payment address
-
-## 📜 License
+## 16. License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## ❓ Support
+---
+
+## 17. Support
 
 For additional help or questions, please refer to the TROUBLESHOOTING.md file or open an issue.

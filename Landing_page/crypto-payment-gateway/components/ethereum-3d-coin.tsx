@@ -37,7 +37,6 @@ export function Ethereum3DCoin({ className = "" }: { className?: string }) {
     let floatDirection = 1
 
     function drawCoin() {
-      if (!ctx) return;
       // Clear canvas
       ctx.clearRect(0, 0, size, size)
 

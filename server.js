@@ -8,6 +8,8 @@ const { decrypt } = require('./encryptionUtils');
 const winston = require('winston');
 const ethers = require('ethers');
 const crypto = require('crypto');
+const dotenv = require('dotenv');
+dotenv.config();
 
 // Configure winston logger
 const logger = winston.createLogger({
@@ -45,6 +47,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('Public'));
+
+// /env-check endpoint for onboarding page status
+app.get('/env-check', (req, res) => {
+    res.json({
+        node: true,
+        env: fs.existsSync('.env'),
+        keys: fs.existsSync('Json/keys.json'),
+        infura: !!process.env.INFURA_URL,
+        moralis: !!process.env.MORALIS_API_KEY
+    });
+});
 
 // Secure file operation functions to prevent path traversal attacks
 function secureWriteFile(filePath, data) {

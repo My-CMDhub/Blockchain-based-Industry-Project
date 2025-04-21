@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HD Wallet Payment Gateway - Onboarding</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7fafc; margin: 0; color: #222; }
+    .container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 16px #0001; padding: 32px 24px; }
+    h1 { color: #0d9488; margin-bottom: 0.5em; }
+    .checklist { margin: 1.5em 0; }
+    .checklist li { margin: 0.5em 0; font-size: 1.1em; }
+    .check { color: #22c55e; margin-right: 8px; }
+    .cross { color: #ef4444; margin-right: 8px; }
+    .links { display: flex; gap: 1em; margin: 1.5em 0; flex-wrap: wrap; }
+    .links a { background: #0d9488; color: #fff; padding: 0.7em 1.2em; border-radius: 6px; text-decoration: none; font-weight: 500; transition: background 0.2s; }
+    .links a:hover { background: #0f766e; }
+    .section { margin: 2em 0; }
+    .api-list { background: #f1f5f9; border-radius: 8px; padding: 1em; }
+    .api-list code { background: #e0e7ef; padding: 2px 6px; border-radius: 4px; }
+    .troubleshoot { background: #fef9c3; border-left: 4px solid #facc15; padding: 1em; border-radius: 8px; margin: 1.5em 0; }
+    .security { background: #f1f5f9; border-left: 4px solid #0d9488; padding: 1em; border-radius: 8px; margin: 1.5em 0; }
+    .step-list { margin: 1em 0 0 1em; }
+    .step-list li { margin-bottom: 0.5em; }
+    .readme-link { color: #0d9488; text-decoration: underline; font-weight: 500; }
+    @media (max-width: 600px) { .container { padding: 16px 4px; } .links { flex-direction: column; gap: 0.5em; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>HD Wallet Payment Gateway - Onboarding</h1>
+    <p>Welcome! This page will help you set up and test the payment gateway locally. Follow the checklist and use the quick links below to get started.</p>
+
+    <div class="section">
+      <h2>Setup Status</h2>
+      <ul class="checklist" id="status-list">
+        <li id="node-status"><span class="cross"><i class="fa fa-times-circle"></i></span>Node.js detected</li>
+        <li id="env-status"><span class="cross"><i class="fa fa-times-circle"></i></span>.env file present</li>
+        <li id="keys-status"><span class="cross"><i class="fa fa-times-circle"></i></span>HD wallet keys (Json/keys.json) present</li>
+        <li id="infura-status"><span class="cross"><i class="fa fa-times-circle"></i></span>Infura key set</li>
+        <li id="moralis-status"><span class="cross"><i class="fa fa-times-circle"></i></span>Moralis key set</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Quick Links</h2>
+      <div class="links">
+        <a href="/Product.html" target="_blank">E-commerce Store</a>
+        <a href="/Cart.html" target="_blank">Shopping Cart</a>
+        <a href="/merchant-dashboard.html" target="_blank">Merchant Dashboard</a>
+        <a href="/README.md" target="_blank">README & Setup Guide</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>How to Test</h2>
+      <ol class="step-list">
+        <li>Add products to your cart in the E-commerce Store.</li>
+        <li>Checkout and pay using MetaMask (Ethereum only).</li>
+        <li>Monitor your transaction in the Merchant Dashboard.</li>
+        <li>Release funds to your merchant wallet.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>API Endpoints</h2>
+      <div class="api-list">
+        <div><b>GET</b> <code>/api/wallet-balance</code> <br><small>Get current wallet balance</small><br><code>curl http://localhost:3000/api/wallet-balance</code></div>
+        <div style="margin-top:0.7em;"><b>GET</b> <code>/api/merchant-transactions</code> <br><small>List all transactions</small><br><code>curl http://localhost:3000/api/merchant-transactions</code></div>
+        <div style="margin-top:0.7em;"><b>POST</b> <code>/api/release-funds</code> <br><small>Release funds to merchant address</small><br><code>curl -X POST http://localhost:3000/api/release-funds</code></div>
+        <div style="margin-top:0.7em;"><b>POST</b> <code>/api/generate-payment-address</code> <br><small>Create new payment address</small><br><code>curl -X POST http://localhost:3000/api/generate-payment-address</code></div>
+      </div>
+    </div>
+
+    <div class="section troubleshoot">
+      <b>Having issues?</b> <br>
+      - Double-check your <code>.env</code> file and keys. <br>
+      - See the <a class="readme-link" href="/README.md" target="_blank">README</a> for full setup and troubleshooting.<br>
+      - If you still have problems, check <code>TROUBLESHOOTING.md</code> or contact the project maintainer.
+    </div>
+
+    <div class="section security">
+      <b>Security Reminder:</b><br>
+      <ul>
+        <li>Never use real funds or real private keys for testing.</li>
+        <li>Backup your keys and mnemonic phrase securely.</li>
+        <li>Do not share your private key or mnemonic with anyone.</li>
+      </ul>
+    </div>
+  </div>
+  <script>
+    // Simple status check (client-side only, for demo)
+    fetch('/env-check').then(r => r.json()).then(data => {
+      if(data.node) document.getElementById('node-status').innerHTML = '<span class="check"><i class="fa fa-check-circle"></i></span>Node.js detected';
+      if(data.env) document.getElementById('env-status').innerHTML = '<span class="check"><i class="fa fa-check-circle"></i></span>.env file present';
+      if(data.keys) document.getElementById('keys-status').innerHTML = '<span class="check"><i class="fa fa-check-circle"></i></span>HD wallet keys (Json/keys.json) present';
+      if(data.infura) document.getElementById('infura-status').innerHTML = '<span class="check"><i class="fa fa-check-circle"></i></span>Infura key set';
+      if(data.moralis) document.getElementById('moralis-status').innerHTML = '<span class="check"><i class="fa fa-check-circle"></i></span>Moralis key set';
+    }).catch(()=>{});
+  </script>
+</body>
+</html> 

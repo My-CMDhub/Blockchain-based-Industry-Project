@@ -224,7 +224,7 @@ export default function Home() {
                 </div>
                 <h3 className="mb-2 text-xl font-bold relative z-10">Integration</h3>
                 <p className="text-muted-foreground relative z-10">
-                  Easily integrate our Ethereum payment gateway into your website or application with our API or plugins.
+                  Easily integrate our Ethereum payment gateway into your website or application.
                 </p>
               </div>
               <div className="relative flex flex-col items-center text-center p-6 bg-black/30 rounded-xl border border-white/10 shadow-md hover:shadow-lg transition-all hover:-translate-y-1 duration-300">

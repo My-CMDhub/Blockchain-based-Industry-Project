@@ -2,7 +2,7 @@
 
 # Set ports
 NODE_PORT=3001
-REACT_PORT=5001
+REACT_PORT=5000
 
 # Start Node.js backend on port 3001
 cd "$(dirname "$0")"

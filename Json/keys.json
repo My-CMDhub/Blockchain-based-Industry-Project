@@ -6,5 +6,148 @@
   "masterKey": {
     "iv": "cbe0b018bf3724cd29adc840058677e1",
     "encryptedData": "c75cbec9ebc6d8205e2a8329560de767963a0ad04705864c1161dbfb44033037373840c69bcde01247d08a734f5285d0d0999b5623df47e4673d9bf8527ba29ef932f5572880d092ab294051ad8cfce4b489613ac401636b36d99c73ed0a9141a6f9b38bc799a1baee6441f5ed36dd57"
+  },
+  "activeAddresses": {
+    "0x117D27869971401704EDf8B58b29BdBa3AE0D28C": {
+      "index": 1,
+      "ethAmount": "0.01977512",
+      "expectedAmount": "0.01977512",
+      "cryptoType": "BNB",
+      "createdAt": "2025-04-28T06:33:00.656Z",
+      "expiresAt": "2025-04-28T07:03:00.656Z",
+      "status": "pending",
+      "fiatAmount": 11.98,
+      "fiatCurrency": "USD"
+    },
+    "0xb8545f583371e2fAbf5EFD4Be113D6647C62a0cE": {
+      "index": 2,
+      "ethAmount": "116.89283222",
+      "expectedAmount": "116.89283222",
+      "cryptoType": "MATIC",
+      "createdAt": "2025-04-28T06:33:26.973Z",
+      "expiresAt": "2025-04-28T07:03:26.973Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0x4C368f5FD5B7D93ad8ea6341cadb35FACaf2AA1f": {
+      "index": 3,
+      "ethAmount": "0.00665281",
+      "expectedAmount": "0.00665281",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:34:41.163Z",
+      "expiresAt": "2025-04-28T07:04:41.163Z",
+      "status": "wrong",
+      "fiatAmount": 11.98,
+      "fiatCurrency": "USD",
+      "isWrongPayment": true,
+      "wrongPayment": true,
+      "amountVerified": false,
+      "amount": "0.004300",
+      "timestamp": "2025-04-28T06:34:48.071Z",
+      "wrongReason": "Please submit 0.00665281 ETH. You sent 0.004300 ETH which is incorrect.",
+      "isExpired": true,
+      "expiredAt": "2025-04-28T06:34:48.072Z",
+      "expiredReason": "Address expired due to wrong payment detection"
+    },
+    "0x5604799Bb3C73796D87A2FfaC0A29D0760bb1307": {
+      "index": 4,
+      "ethAmount": "0.01553247",
+      "expectedAmount": "0.01553247",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:35:08.353Z",
+      "expiresAt": "2025-04-28T07:05:08.353Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0xe8449f92c780970142415Ca92CF0C93875a305A0": {
+      "index": 5,
+      "ethAmount": "0.01550563",
+      "expectedAmount": "0.01550563",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:36:44.748Z",
+      "expiresAt": "2025-04-28T07:06:44.748Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0x40Bf9C28edee631788caE2e41a3cb43f353ebF61": {
+      "index": 6,
+      "ethAmount": "0.01550563",
+      "expectedAmount": "0.01550563",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:37:31.175Z",
+      "expiresAt": "2025-04-28T07:07:31.175Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0xEb9B4FAA4b073a8075f3f147e2151A86248E72E6": {
+      "index": 7,
+      "ethAmount": "0.01550563",
+      "expectedAmount": "0.01550563",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:37:50.124Z",
+      "expiresAt": "2025-04-28T07:07:50.124Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0x643d192ba7c305f1Cf93d1b04BB02D68dD88A078": {
+      "index": 8,
+      "ethAmount": "0.01550563",
+      "expectedAmount": "0.01550563",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:38:06.360Z",
+      "expiresAt": "2025-04-28T07:08:06.360Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0xAC66CEb5cB90c68Bdadf8b01037a355e24CA2886": {
+      "index": 9,
+      "ethAmount": "0.01550563",
+      "expectedAmount": "0.01550563",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:39:40.064Z",
+      "expiresAt": "2025-04-28T07:09:40.064Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0xa9222DDD3d76AD740804776a68a8b35ba010CA66": {
+      "index": 10,
+      "ethAmount": "0.01548407",
+      "expectedAmount": "0.01548407",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:41:59.374Z",
+      "expiresAt": "2025-04-28T07:11:59.374Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0xf45Db8831BbBA0CFC6BBeC5Dc186d9150e8Cc5db": {
+      "index": 11,
+      "ethAmount": "0.01549375",
+      "expectedAmount": "0.01549375",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:59:20.973Z",
+      "expiresAt": "2025-04-28T07:29:20.973Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    },
+    "0x4c41514075ae8B29E0066510bb59a9A786fB2e34": {
+      "index": 12,
+      "ethAmount": "0.01549375",
+      "expectedAmount": "0.01549375",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-28T06:59:28.947Z",
+      "expiresAt": "2025-04-28T07:29:28.947Z",
+      "status": "pending",
+      "fiatAmount": 27.97,
+      "fiatCurrency": "USD"
+    }
   }
 }

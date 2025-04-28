@@ -56,6 +56,7 @@ bash setup.sh
 ```
 - This will:
   - Install all Node.js packages (npm install)
+  - If npm install doesn't work and errors appear then run ```npm install --legacy-peer-deps``` then try to run ```npm install``` again.
   - Create necessary directories (Public, Json, secure)
   - Guide you through .env setup (with prompts for all required keys)
   - Generate your HD wallet and store encrypted keys in `Json/keys.json`

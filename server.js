@@ -3616,6 +3616,107 @@ app.get('/api/generate-test-payment', async (req, res) => {
     }
 });
 
+// Initialize crypto price cache
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+let cryptoPriceCache = {
+    data: null,
+    timestamp: 0
+};
+
+// Crypto prices API endpoint
+app.get('/api/crypto-prices', async (req, res) => {
+    console.log('[DEBUG] /api/crypto-prices endpoint HIT');
+
+    // Check cache first
+    const now = Date.now();
+    if (cryptoPriceCache.data && (now - cryptoPriceCache.timestamp < CACHE_DURATION_MS)) {
+        console.log('[DEBUG] Returning cached crypto prices');
+        return res.json(cryptoPriceCache.data);
+    }
+
+    console.log('[DEBUG] Cache stale or empty, fetching fresh prices (ETH, MATIC, BNB) by ID...');
+    try {
+        const apiKey = process.env.CMC_API_KEY;
+        if (!apiKey) {
+            console.log('[DEBUG] CMC_API_KEY missing in .env');
+            return res.status(500).json({ error: 'CoinMarketCap API key not set in .env (CMC_API_KEY)' });
+        }
+        // Fetch ETH, MATIC, BNB by ID from CoinMarketCap
+        const cmcUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?id=1027,3890,1839&convert=USD';
+        const cmcResponse = await fetch(cmcUrl, {
+            headers: {
+                'X-CMC_PRO_API_KEY': apiKey,
+                'Accept': 'application/json'
+            }
+        });
+        if (!cmcResponse.ok) {
+            console.log('[DEBUG] CoinMarketCap API response not ok:', cmcResponse.status);
+            if (cryptoPriceCache.data) {
+                console.warn('[DEBUG] API fetch failed, returning stale cache data');
+                return res.json(cryptoPriceCache.data); 
+            }
+            return res.status(502).json({ error: 'Failed to fetch prices from CoinMarketCap' });
+        }
+        const cmcData = await cmcResponse.json();
+        console.log('[DEBUG] CoinMarketCap API data received:', cmcData);
+
+        // Extract prices by ID
+        let maticPrice = cmcData.data['3890']?.quote?.USD?.price || null;
+        // Fallback to CoinGecko if MATIC is null
+        if (!maticPrice) {
+            try {
+                const cgkUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd';
+                console.log('[DEBUG] MATIC price not available from CMC, trying CoinGecko fallback...');
+                const cgkResponse = await fetch(cgkUrl);
+                if (cgkResponse.ok) {
+                    const cgkData = await cgkResponse.json();
+                    console.log('[DEBUG] CoinGecko API data received for MATIC fallback:', cgkData);
+                    maticPrice = cgkData['matic-network']?.usd || null;
+                    
+                    // If still null, try alternative ID
+                    if (!maticPrice) {
+                        const altCgkUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=polygon&vs_currencies=usd';
+                        const altCgkResponse = await fetch(altCgkUrl);
+                        if (altCgkResponse.ok) {
+                            const altCgkData = await altCgkResponse.json();
+                            console.log('[DEBUG] CoinGecko API data received for alternative MATIC fallback:', altCgkData);
+                            maticPrice = altCgkData['polygon']?.usd || null;
+                        }
+                    }
+                } else {
+                    console.log('[DEBUG] CoinGecko API response not ok for MATIC fallback:', cgkResponse.status);
+                }
+            } catch (maticError) {
+                console.error('[DEBUG] Error fetching MATIC price from fallback:', maticError);
+            }
+        }
+
+        const freshPrices = {
+            ETH: cmcData.data['1027']?.quote?.USD?.price || null,
+            MATIC: maticPrice,
+            BNB: cmcData.data['1839']?.quote?.USD?.price || null
+        };
+
+        // Update cache
+        cryptoPriceCache = {
+            data: freshPrices,
+            timestamp: now
+        };
+        console.log('[DEBUG] Updated crypto price cache');
+
+        res.json(freshPrices);
+    } catch (err) {
+        console.error('[DEBUG] CMC/CGK API error:', err);
+        if (cryptoPriceCache.data) {
+            console.warn('[DEBUG] API fetch error, returning stale cache data');
+            return res.json(cryptoPriceCache.data); 
+        }
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+
 // Handle 404
 app.use((req, res) => {
     const message = `404 Not Found: ${req.method} ${req.url}`;
@@ -4475,3 +4576,4 @@ async function recordWrongPayment(payment) {
         return false;
     }
 }
+

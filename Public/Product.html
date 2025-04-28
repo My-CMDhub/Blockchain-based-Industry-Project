@@ -389,16 +389,24 @@
         // Fetch crypto prices
         async function fetchCryptoPrices() {
             try {
-                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin,tether&vs_currencies=usd');
+                // Use backend proxy endpoint for CoinMarketCap API
+                const response = await fetch('/api/crypto-prices');
                 const data = await response.json();
                 cryptoPrices = {
-                    ETH: data.ethereum.usd,
-                    BTC: data.bitcoin.usd,
-                    USDT: data.tether.usd
+                    ETH: data.ETH,
+                    BTC: data.BTC,
+                    USDT: data.USDT
                 };
                 updateCryptoPrices();
+                // Update modal price displays
+                document.getElementById('ethPrice').textContent = cryptoPrices.ETH ? `1 ETH ≈ $${cryptoPrices.ETH.toFixed(2)}` : 'N/A';
+                document.getElementById('btcPrice').textContent = cryptoPrices.BTC ? `1 BTC ≈ $${cryptoPrices.BTC.toFixed(2)}` : 'N/A';
+                document.getElementById('usdtPrice').textContent = cryptoPrices.USDT ? `1 USDT ≈ $${cryptoPrices.USDT.toFixed(2)}` : 'N/A';
             } catch (error) {
                 console.error('Error fetching crypto prices:', error);
+                document.getElementById('ethPrice').textContent = 'N/A';
+                document.getElementById('btcPrice').textContent = 'N/A';
+                document.getElementById('usdtPrice').textContent = 'N/A';
             }
         }
 

@@ -3,514 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Status</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.0.7/css/boxicons.min.css" rel="stylesheet">
+    <title>Payment Status - Eco Store</title>
+    <!-- Add favicon -->
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root {
-            --primary-color: #2563eb;
-            --success-color: #059669;
-            --danger-color: #dc2626;
-            --warning-color: #d97706;
-            --background-color: #f8fafc;
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
         }
-
-        body {
-            background-color: var(--background-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
-
-        .payment-container {
-            max-width: 700px;
-            margin: 50px auto;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        .status-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .status-success {
-            color: var(--success-color);
-        }
-
-        .status-pending {
-            color: var(--warning-color);
-        }
-        
-        .status-wrong {
-            color: var(--danger-color);
-        }
-
-        .qr-container {
-            background-color: #f1f5f9;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .payment-address {
-            font-family: monospace;
-            word-break: break-all;
-            background-color: #fff;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
-            border: 1px solid #e2e8f0;
-        }
-
-        .copy-btn {
-            color: var(--primary-color);
-            cursor: pointer;
-            font-size: 1.25rem;
-            margin-left: 0.5rem;
-        }
-
-        .timer {
-            font-weight: bold;
-            color: var(--danger-color);
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
+        @keyframes fadeIn {
+            0% { opacity: 0; }
             100% { opacity: 1; }
-        }
-
-        .pulsing {
-            animation: pulse 2s infinite;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="payment-container bg-white p-4 p-md-5">
-            <div id="pendingPayment" style="display: none;">
-                <div class="text-center mb-4">
-                    <i class="bx bx-time status-icon status-pending pulsing"></i>
-                    <h2>Payment Pending</h2>
-                    <p class="text-muted">Please send the exact amount to the address below. The payment will be confirmed once it's received on the blockchain.</p>
-                    <p>Expires in: <span class="timer" id="countdown">00:00</span></p>
-                </div>
-
-                <div class="qr-container">
-                    <h4 class="mb-3">Scan QR Code or Copy Address</h4>
-                    <div id="qrcode" class="mb-3 d-flex justify-content-center"></div>
-                    <p class="mb-2 text-muted">Payment Address:</p>
-                    <div class="payment-address">
-                        <span id="paymentAddress"></span>
-                        <i class="bx bx-copy copy-btn" onclick="copyPaymentAddress()"></i>
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted">Amount:</span>
-                    <span class="fw-bold"><span id="paymentAmount"></span> ETH</span>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted">Order ID:</span>
-                    <span class="fw-bold" id="orderId"></span>
-                </div>
-
-                <div class="alert alert-warning" role="alert">
-                    <i class="bx bx-info-circle me-2"></i>
-                    <span>This is a test environment using the Sepolia network. You can get test ETH from the <a href="https://sepoliafaucet.com/" target="_blank">Sepolia Faucet</a>.</span>
-                </div>
-            </div>
-
-            <div id="successPayment" style="display: none;">
-                <div class="text-center mb-4">
-                    <i class="bx bx-check-circle status-icon status-success"></i>
-                    <h2>Payment Received!</h2>
-                    <p class="text-muted"><span id="successAmount"></span> ETH received. Transaction has been confirmed on the blockchain.</p>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted">Transaction Hash:</span>
-                    <a id="txHashLink" href="#" target="_blank" class="text-decoration-none">
-                        <span id="txHash"></span>
-                        <i class="bx bx-link-external ms-1"></i>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg fixed w-full z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="Product.html" class="flex items-center hover:text-green-600 transition-colors">
+                        <i class="fas fa-leaf text-green-600 text-2xl mr-2"></i>
+                        <span class="text-xl font-bold text-gray-800">Eco Store</span>
                     </a>
                 </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted">Order ID:</span>
-                    <span class="fw-bold" id="successOrderId"></span>
-                </div>
-
-                <div class="d-flex justify-content-center mt-4">
-                    <button class="btn btn-primary" onclick="window.close()">Close Window</button>
-                </div>
             </div>
-            
-            <div id="wrongPayment" class="payment-status-section bg-light p-4 rounded shadow-sm text-center mb-4" style="display: none;">
-                <div class="d-flex justify-content-center mb-3">
-                    <div class="status-icon bg-danger text-white">
-                        <i class="bx bx-x"></i>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="pt-20 pb-12">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 fade-in">
+            <!-- Payment Status -->
+            <div id="payment-success" class="bg-white rounded-lg shadow-md p-8 mb-6 hidden">
+                <div class="text-center mb-6">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+                        <i class="fas fa-check text-green-600 text-3xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
+                    <p class="text-gray-600">Your transaction has been confirmed on the blockchain.</p>
+                </div>
+                
+                <div class="border-t border-b border-gray-200 py-4 my-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-gray-600">Order ID:</span>
+                        <span id="order-id-display" class="font-mono text-gray-900"></span>
+                    </div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-gray-600">Amount Paid:</span>
+                        <span id="amount-display" class="font-medium text-gray-900"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Payment Address:</span>
+                        <span id="address-display" class="font-mono text-gray-900 text-sm"></span>
                     </div>
                 </div>
-                <h3 class="mb-3 text-danger">Wrong Payment Detected</h3>
-                <p class="mb-4">Your payment of <span id="wrongAmount" class="fw-bold">0.00</span> ETH was received, but the amount does not match the expected value.</p>
-                <div class="alert alert-danger mb-4">
-                    <div class="d-flex align-items-start">
-                        <i class="bx bx-info-circle me-2 mt-1"></i>
-                        <div>
-                            <strong>Important information:</strong>
-                            <div class="mt-1" id="wrongPaymentDetails">Payment amount mismatch</div>
-                            <div class="mt-1">Expected amount: <span id="wrongExpectedAmount" class="fw-bold">0.00</span> ETH</div>
-                            <div class="mt-1">Actual amount: <span id="wrongActualAmount" class="fw-bold">0.00</span> ETH</div>
+                
+                <div class="bg-green-50 rounded-lg p-4 mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-info-circle text-green-600"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-green-800">Order Information</h3>
+                            <p class="mt-2 text-sm text-green-700">
+                                Your order has been successfully placed. You'll receive a confirmation email shortly with details 
+                                about your purchase. Thank you for shopping with us!
+                            </p>
                         </div>
                     </div>
                 </div>
-                <div class="mb-3">
-                    <p>Transaction Hash: <span id="wrongTxHash" class="text-break fw-bold">unknown</span></p>
-                    <p><a id="wrongTxHashLink" href="#" target="_blank" class="btn btn-sm btn-outline-secondary">View on Etherscan <i class="bx bx-link-external"></i></a></p>
-                </div>
-                <div class="d-grid gap-2">
-                    <button class="btn btn-danger mb-2" onclick="contactSupport()">
-                        <i class="bx bx-support me-2"></i> Contact Support
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="window.location.href='/'">
-                        <i class="bx bx-home me-2"></i> Return to Home
-                    </button>
+                
+                <div class="flex justify-center space-x-4">
+                    <a href="Product.html" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                        <i class="fas fa-shopping-bag mr-2"></i> Continue Shopping
+                    </a>
                 </div>
             </div>
 
-            <div id="expiredPayment" style="display: none;">
-                <div class="text-center mb-4">
-                    <i class="bx bx-x-circle status-icon status-wrong"></i>
-                    <h2>Payment Expired</h2>
-                    <p class="text-muted">The payment window has expired. Please start a new payment.</p>
+            <!-- Payment Failed -->
+            <div id="payment-failed" class="bg-white rounded-lg shadow-md p-8 mb-6 hidden">
+                <div class="text-center mb-6">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+                        <i class="fas fa-times text-red-600 text-3xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h2>
+                    <p class="text-gray-600">We were unable to process your payment.</p>
                 </div>
-
-                <div class="alert alert-warning" role="alert">
-                    <i class="bx bx-time me-2"></i>
-                    <span>For security reasons, payment requests expire after 30 minutes. Please generate a new payment request.</span>
+                
+                <div class="bg-red-50 rounded-lg p-4 mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-600"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800">Error Information</h3>
+                            <p id="error-message" class="mt-2 text-sm text-red-700">
+                                There was an issue with your payment. Please try again or contact customer support if the problem persists.
+                            </p>
+                        </div>
+                    </div>
                 </div>
+                
+                <div class="flex justify-center space-x-4">
+                    <a href="Cart.html" class="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i> Return to Cart
+                    </a>
+                    <a href="Product.html" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-shopping-bag mr-2"></i> Continue Shopping
+                    </a>
+                </div>
+            </div>
 
-                <div class="d-flex justify-content-center mt-4">
-                    <button class="btn btn-primary" onclick="window.location.reload()">Generate New Payment</button>
+            <!-- Processing Payment -->
+            <div id="payment-processing" class="bg-white rounded-lg shadow-md p-8 mb-6">
+                <div class="text-center mb-6">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Processing Payment</h2>
+                    <p class="text-gray-600">Please wait while we verify your payment...</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.0/build/qrcode.min.js"></script>
     <script>
-        // Get payment ID from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const paymentId = urlParams.get('id');
-
-        // Elements
-        const pendingElem = document.getElementById('pendingPayment');
-        const successElem = document.getElementById('successPayment');
-        const wrongElem = document.getElementById('wrongPayment');
-        const expiredElem = document.getElementById('expiredPayment');
-
-        // Timer variables
-        let countdownInterval;
-        let expiryTime;
-
-        // Load payment data
-        window.addEventListener('DOMContentLoaded', function() {
-            // First check for direct URL parameters
-            const urlParamsStatus = urlParams.get('status');
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const status = urlParams.get('status');
+            const orderId = urlParams.get('id');
             const amount = urlParams.get('amount');
             const address = urlParams.get('address');
-            const expectedAmount = urlParams.get('expectedAmount');
+            const errorMsg = urlParams.get('error');
             
-            // If we have enough info in URL parameters, display status immediately
-            if (paymentId && urlParamsStatus && amount) {
-                const data = {
-                    id: paymentId,
-                    status: urlParamsStatus,
-                    amount: amount,
-                    address: address,
-                    expectedAmount: expectedAmount
-                };
-                
-                console.log('Using URL parameters for payment status:', data);
-                updatePaymentUI(data);
-                
-                // If status is 'wrong', no need to poll the API
-                if (urlParamsStatus === 'wrong') {
-                    return;
-                }
-            }
+            // Hide processing indicator
+            document.getElementById('payment-processing').classList.add('hidden');
             
-            // Continue with API polling if needed
-            if (!paymentId) {
-                showError('No payment ID provided');
-                return;
-            }
-            
-            loadPaymentStatus();
-            
-            // Set up polling for payment status updates
-            setInterval(loadPaymentStatus, 10000); // Check every 10 seconds
-        });
-        
-        // Load payment status from server
-        async function loadPaymentStatus() {
-            try {
-                const response = await fetch(`/api/payment-status?id=${paymentId}`);
+            if (status === 'confirmed') {
+                // Show success section
+                const successSection = document.getElementById('payment-success');
+                successSection.classList.remove('hidden');
                 
-                if (!response.ok) {
-                    throw new Error(`Server responded with status: ${response.status}`);
-                }
+                // Fill in details
+                document.getElementById('order-id-display').textContent = orderId || 'Unknown';
+                document.getElementById('amount-display').textContent = amount ? `${amount} ETH` : 'Unknown';
+                document.getElementById('address-display').textContent = address || 'Unknown';
                 
-                const data = await response.json();
+                // Clear cart in localStorage if it exists
+                localStorage.removeItem('cart');
+                localStorage.removeItem('paymentSession');
                 
-                console.log('Payment status:', data);
-                
-                if (data.success) {
-                    updatePaymentUI(data);
-                } else {
-                    showError(data.error || 'Failed to load payment status');
-                }
-            } catch (error) {
-                console.error('Error loading payment status:', error);
-                showError('Failed to connect to server. Please try again later.');
-            }
-        }
-        
-        // Update UI based on payment status
-        function updatePaymentUI(data) {
-            // Hide all status elements initially
-            pendingElem.style.display = 'none';
-            successElem.style.display = 'none';
-            wrongElem.style.display = 'none';
-            expiredElem.style.display = 'none';
-            
-            // Clear any existing countdown interval
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
-            
-            // Show appropriate status element
-            if (data.status === 'confirmed' || data.status === 'verified') {
-                showSuccessUI(data);
-            } else if (data.status === 'wrong' || data.isWrongPayment === true) {
-                showWrongPaymentUI(data);
-            } else if (data.status === 'expired' || data.isExpired === true) {
-                showExpiredUI(data);
             } else {
-                // Default to pending
-                showPendingUI(data);
-            }
-        }
-        
-        // Show pending payment UI
-        function showPendingUI(data) {
-            pendingElem.style.display = 'block';
-            
-            // Set payment details
-            document.getElementById('paymentAddress').textContent = data.address;
-            document.getElementById('paymentAmount').textContent = data.amount;
-            document.getElementById('orderId').textContent = data.orderId || data.id;
-            
-            // Generate QR code
-            if (data.address) {
-                const qrValue = `ethereum:${data.address}?value=${data.amountWei || '0'}`;
-                const qrContainer = document.getElementById('qrcode');
-                qrContainer.innerHTML = ''; // Clear previous QR code
+                // Show failed section
+                const failedSection = document.getElementById('payment-failed');
+                failedSection.classList.remove('hidden');
                 
-                QRCode.toCanvas(qrContainer, qrValue, {
-                    width: 200,
-                    margin: 1,
-                    color: {
-                        dark: '#000000',
-                        light: '#ffffff'
-                    }
-                }, function (error) {
-                    if (error) console.error('Error generating QR code:', error);
-                });
-            }
-            
-            // Setup countdown timer
-            if (data.expiresAt) {
-                expiryTime = new Date(data.expiresAt).getTime();
-                updateCountdown();
-                countdownInterval = setInterval(updateCountdown, 1000);
-            }
-        }
-        
-        // Show successful payment UI
-        function showSuccessUI(data) {
-            successElem.style.display = 'block';
-            
-            // Set success details
-            document.getElementById('successAmount').textContent = data.amount;
-            document.getElementById('successOrderId').textContent = data.orderId || data.id;
-            
-            // Set transaction hash and link
-            if (data.txHash) {
-                const hashElem = document.getElementById('txHash');
-                const linkElem = document.getElementById('txHashLink');
-                
-                // Format hash for display (truncate if needed)
-                const displayHash = data.txHash.length > 16 
-                    ? `${data.txHash.substring(0, 8)}...${data.txHash.substring(data.txHash.length - 8)}`
-                    : data.txHash;
-                
-                hashElem.textContent = displayHash;
-                linkElem.href = `https://sepolia.etherscan.io/tx/${data.txHash}`;
-            }
-        }
-        
-        // Show wrong payment UI
-        function showWrongPaymentUI(data) {
-            wrongElem.style.display = 'block';
-            
-            // Set wrong payment details
-            document.getElementById('wrongAmount').textContent = data.amount;
-            document.getElementById('wrongOrderId').textContent = data.orderId || data.id;
-            
-            // Set expected vs actual amount details
-            if (data.expectedAmount) {
-                document.getElementById('wrongExpectedAmount').textContent = data.expectedAmount;
-                document.getElementById('wrongActualAmount').textContent = data.amount;
-                
-                // Calculate the difference
-                const expected = parseFloat(data.expectedAmount);
-                const actual = parseFloat(data.amount);
-                
-                if (!isNaN(expected) && !isNaN(actual)) {
-                    const difference = Math.abs(expected - actual);
-                    const percentDiff = (difference / expected) * 100;
-                    
-                    // Show detailed explanation
-                    document.getElementById('wrongPaymentDetails').textContent = 
-                        `Please submit exactly ${data.expectedAmount} ETH. Your current payment of ${data.amount} ETH differs by ${difference.toFixed(6)} ETH (${percentDiff.toFixed(2)}%).`;
+                // Set error message if provided
+                if (errorMsg) {
+                    document.getElementById('error-message').textContent = errorMsg;
                 }
             }
-            
-            // Set transaction hash and link
-            if (data.txHash) {
-                const hashElem = document.getElementById('wrongTxHash');
-                const linkElem = document.getElementById('wrongTxHashLink');
-                
-                // Format hash for display (truncate if needed)
-                const displayHash = data.txHash.length > 16 
-                    ? `${data.txHash.substring(0, 8)}...${data.txHash.substring(data.txHash.length - 8)}`
-                    : data.txHash;
-                
-                hashElem.textContent = displayHash;
-                linkElem.href = `https://sepolia.etherscan.io/tx/${data.txHash}`;
-            }
-        }
-        
-        // Show expired payment address UI
-        function showExpiredUI(data) {
-            expiredElem.style.display = 'block';
-            
-            // If we have expiry reason details, display them
-            if (data.reason || data.expiredReason) {
-                const reasonElement = document.createElement('div');
-                reasonElement.className = 'alert alert-warning mt-3';
-                reasonElement.innerHTML = `
-                    <i class="bx bx-info-circle me-2"></i>
-                    <span>${data.reason || data.expiredReason}</span>
-                `;
-                
-                // Add expiry time if available
-                if (data.expiredAt) {
-                    const expiredDate = new Date(data.expiredAt);
-                    const expiredTimeStr = expiredDate.toLocaleString();
-                    
-                    const timeElement = document.createElement('div');
-                    timeElement.className = 'small text-muted mt-1';
-                    timeElement.textContent = `Expired at: ${expiredTimeStr}`;
-                    reasonElement.appendChild(timeElement);
-                }
-                
-                // Find the right place to insert this element
-                const containerEl = expiredElem.querySelector('.card-body') || expiredElem;
-                const buttonEl = containerEl.querySelector('.btn');
-                
-                if (buttonEl) {
-                    containerEl.insertBefore(reasonElement, buttonEl);
-                } else {
-                    containerEl.appendChild(reasonElement);
-                }
-            }
-        }
-        
-        // Update countdown timer
-        function updateCountdown() {
-            const now = new Date().getTime();
-            const timeLeft = expiryTime - now;
-            
-            if (timeLeft <= 0) {
-                // Payment has expired
-                clearInterval(countdownInterval);
-                expiredElem.style.display = 'block';
-                pendingElem.style.display = 'none';
-                return;
-            }
-            
-            // Calculate minutes and seconds
-            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-            
-            // Display countdown
-            const countdownElem = document.getElementById('countdown');
-            countdownElem.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-        
-        // Copy payment address to clipboard
-        function copyPaymentAddress() {
-            const address = document.getElementById('paymentAddress').textContent;
-            
-            navigator.clipboard.writeText(address).then(() => {
-                // Show a temporary "Copied!" message
-                const copyBtn = document.querySelector('.copy-btn');
-                const originalClass = copyBtn.className;
-                
-                copyBtn.className = 'bx bx-check copy-btn';
-                setTimeout(() => {
-                    copyBtn.className = originalClass;
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy address:', err);
-            });
-        }
-        
-        // Contact support
-        function contactSupport() {
-            const orderId = document.getElementById('wrongOrderId').textContent;
-            const txHash = document.getElementById('wrongTxHash').textContent;
-            
-            // Create a mailto link with pre-filled subject and body
-            const subject = `Payment issue with order ${orderId}`;
-            const body = `Order ID: ${orderId}\nTransaction Hash: ${txHash}\n\nPlease describe the issue:`;
-            const mailtoLink = `mailto:support@example.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            
-            window.open(mailtoLink);
-        }
-        
-        // Show error message
-        function showError(message) {
-            // Simple error display - could be enhanced with a modal or other UI
-            pendingElem.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bx bx-error-circle me-2"></i>
-                    ${message}
-                </div>
-                <div class="d-flex justify-content-center mt-4">
-                    <button class="btn btn-outline-secondary" onclick="window.location.reload()">Retry</button>
-                </div>
-            `;
-            pendingElem.style.display = 'block';
-            successElem.style.display = 'none';
-            wrongElem.style.display = 'none';
-            expiredElem.style.display = 'none';
-        }
+        });
     </script>
 </body>
 </html> 

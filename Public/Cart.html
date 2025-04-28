@@ -217,7 +217,7 @@
                             <div class="flex-shrink-0 mt-1">
                                 <i class="fas fa-clock text-blue-500"></i>
                             </div>
-                            <p class="ml-3 text-sm">The payment address will expire in 30 minutes. Please complete the payment before the countdown timer reaches zero.</p>
+                            <p class="ml-3 text-sm">The payment address will expire in 1 minute. Please complete the payment before the countdown timer reaches zero.</p>
                         </div>
                         <div class="flex items-start">
                             <div class="flex-shrink-0 mt-1">
@@ -293,6 +293,11 @@
         let networkCheckAttempts = 0;
         const MAX_RETRY_ATTEMPTS = 3;
         const cryptoPrices = {};
+
+        // Add these variables to track payment session
+        let paymentSession = null;
+        let countdownInterval = null;
+        let transactionCheckInterval = null;
 
         // Add network status check function
         async function checkNetworkStatus() {
@@ -431,9 +436,9 @@
 
                 // Check if we have valid data from the response
                 if (prices.ETH || prices.MATIC || prices.BNB) {
-                    cryptoPrices.ETH = prices.ETH;
-                    cryptoPrices.MATIC = prices.MATIC;
-                    cryptoPrices.BNB = prices.BNB;
+                cryptoPrices.ETH = prices.ETH;
+                cryptoPrices.MATIC = prices.MATIC;
+                cryptoPrices.BNB = prices.BNB;
                 } else {
                     throw new Error('Invalid price data format from API');
                 }
@@ -574,7 +579,7 @@
             // Pre-calculate values that don't need server response
             const orderId = generateOrderId();
             const cryptoAmount = (total / (cryptoPrices[selectedCrypto] || getDefaultPrice(selectedCrypto))).toFixed(8);
-            const expiryTime = new Date(Date.now() + 30 * 60000);
+            const expiryTime = new Date(Date.now() + 1 * 60000);
 
             // Show payment template immediately
             const mainContent = document.getElementById('main-content');
@@ -640,6 +645,24 @@
                 // Update payment address immediately when received
                 document.getElementById('payment-address').textContent = data.address;
 
+                // Save the payment session
+                paymentSession = {
+                    orderId: orderId,
+                    address: data.address,
+                    cryptoAmount: cryptoAmount,
+                    cryptoType: selectedCrypto,
+                    fiatAmount: total,
+                    fiatCurrency: 'USD',
+                    expiresAt: expiryTime.toISOString(),
+                    createdAt: new Date().toISOString(),
+                    isExpired: false,
+                    isWrongPayment: false,
+                    items: cart
+                };
+                
+                // Store in localStorage
+                localStorage.setItem('paymentSession', JSON.stringify(paymentSession));
+
                 // Generate QR code in parallel with other operations
                 if (qrContainer) {
                     qrContainer.innerHTML = '';
@@ -691,37 +714,36 @@
             }
         }
 
-        // Start countdown timer
+        // Start countdown timer with improved handling
         function startCountdown(expiresAt) {
             const timerElement = document.getElementById('countdown');
+            
+            // Clear any existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
             
             // Validate expiry time
             if (isNaN(expiresAt) || expiresAt <= Date.now()) {
                 // Default to 30 minutes if invalid
-                expiresAt = Date.now() + 30 * 60000;
+                expiresAt = new Date(Date.now() + 0.5 * 60000);
                 console.warn('Invalid expiry time, defaulting to 30 minutes');
             }
             
-            const interval = setInterval(() => {
+            countdownInterval = setInterval(() => {
                 const now = Date.now();
                 const timeLeft = expiresAt - now;
 
                 if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    timerElement.textContent = '<span class="text-red-600">Expired</span>';
-                    document.getElementById('transaction-status').innerHTML = `
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                            </div>
-                            <div class="ml-4">
-                                <h3 class="text-sm font-medium text-red-800">Payment Time Expired</h3>
-                                <p class="mt-1 text-sm text-red-700">
-                                    Please start a new payment session.
-                                </p>
-                            </div>
-                        </div>
-                    `;
+                    clearInterval(countdownInterval);
+                    
+                    // Update session as expired
+                    if (paymentSession) {
+                        paymentSession.isExpired = true;
+                        localStorage.setItem('paymentSession', JSON.stringify(paymentSession));
+                    }
+                    
+                    showExpiredPaymentUI();
                     return;
                 }
 
@@ -729,6 +751,463 @@
                 const seconds = Math.floor((timeLeft % 60000) / 1000);
                 timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
             }, 1000);
+            
+            // Store interval for cleanup
+            window.countdownInterval = countdownInterval;
+        }
+
+        // Show expired payment UI
+        function showExpiredPaymentUI() {
+            const timerElement = document.getElementById('countdown');
+            if (timerElement) {
+                timerElement.innerHTML = '<span class="text-red-600 font-bold">EXPIRED</span>';
+            }
+            
+            // Hide the QR code and payment address
+            const qrContainer = document.getElementById('qr-code');
+            if (qrContainer) {
+                qrContainer.innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
+                        <i class="fas fa-ban text-red-500 text-3xl mb-2"></i>
+                        <p class="text-red-700 font-medium">This payment address has expired</p>
+                    </div>
+                `;
+            }
+            
+            // Disable copy button and gray out the address
+            const addressElement = document.getElementById('payment-address');
+            if (addressElement) {
+                addressElement.innerHTML = `<span class="text-gray-400 line-through">${paymentSession?.address || 'Address expired'}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
+            }
+            
+            // Hide payment instructions
+            const instructionsElement = document.getElementById('payment-instructions');
+            if (instructionsElement) {
+                instructionsElement.style.display = 'none';
+            }
+            
+            const transactionStatus = document.getElementById('transaction-status');
+            if (transactionStatus) {
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                            </div>
+                            <div class="ml-4">
+                            <h3 class="text-md font-medium text-red-800">Payment Address Has Expired!</h3>
+                                <p class="mt-1 text-sm text-red-700">
+                                This payment address is no longer valid. Please generate a new address to continue.
+                                </p>
+                            <div class="mt-3">
+                                <button onclick="generateNewPaymentAddress()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
+                                    <i class="fas fa-redo mr-2"></i> Generate New Payment Address
+                                </button>
+                            </div>
+                            </div>
+                        </div>
+                    `;
+            }
+            
+            // Stop transaction detection
+            if (transactionCheckInterval) {
+                clearInterval(transactionCheckInterval);
+            }
+        }
+
+        // Show wrong payment UI
+        function showWrongPaymentUI() {
+            // Update the payment session
+            if (paymentSession) {
+                paymentSession.isWrongPayment = true;
+                localStorage.setItem('paymentSession', JSON.stringify(paymentSession));
+        }
+
+            // Hide the QR code and payment address
+            const qrContainer = document.getElementById('qr-code');
+            if (qrContainer) {
+                qrContainer.innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i>
+                        <p class="text-red-700 font-medium">Wrong payment amount detected</p>
+                    </div>
+                `;
+            }
+            
+            // Disable copy button and gray out the address
+            const addressElement = document.getElementById('payment-address');
+            if (addressElement) {
+                addressElement.innerHTML = `<span class="text-gray-400 line-through">${paymentSession?.address || 'Address expired'}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
+        }
+
+            // Change countdown to "EXPIRED"
+            const countdownElement = document.getElementById('countdown');
+            if (countdownElement) {
+                countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+            }
+            
+            // Hide payment instructions
+            const instructionsElement = document.getElementById('payment-instructions');
+            if (instructionsElement) {
+                instructionsElement.style.display = 'none';
+            }
+            
+            const transactionStatus = document.getElementById('transaction-status');
+            if (transactionStatus) {
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-md font-medium text-red-800">Wrong Payment Detected!</h3>
+                            <p class="mt-1 text-sm text-red-700">
+                                The payment amount received doesn't match the expected amount.
+                                Your order will not be processed due to the wrong payment amount.
+                            </p>
+                            <div class="mt-3">
+                                <button onclick="generateNewPaymentAddress()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
+                                    <i class="fas fa-redo mr-2"></i> Generate New Payment Address
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show modal alert for wrong payment
+            showWrongPaymentModal();
+        }
+
+        // Show wrong payment modal
+        function showWrongPaymentModal() {
+            // Create modal overlay
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modalOverlay.id = 'wrong-payment-modal';
+            
+            // Create modal content
+            modalOverlay.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 transform transition-all">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">Wrong Payment Detected</h3>
+                        <p class="text-gray-700 mb-4">
+                            We detected a payment with an incorrect amount. Your payment address has been invalidated 
+                            for security reasons. Please generate a new address with the correct amount.
+                        </p>
+                        <button onclick="document.getElementById('wrong-payment-modal').remove()" 
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Add to body
+            document.body.appendChild(modalOverlay);
+            
+            // Auto-close after 10 seconds
+            setTimeout(() => {
+                const modal = document.getElementById('wrong-payment-modal');
+                if (modal) modal.remove();
+            }, 10000);
+        }
+
+        // Generate new payment address after expiry or wrong payment
+        function generateNewPaymentAddress() {
+            // Clear the current payment session
+            paymentSession = null;
+            localStorage.removeItem('paymentSession');
+            
+            // Clear intervals
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (transactionCheckInterval) clearInterval(transactionCheckInterval);
+            
+            // Return to cart view
+            showMainCart();
+            
+            // Show message
+            showToast('Ready to generate new payment address. Please select a cryptocurrency and continue.', 'info');
+        }
+
+        // Update the startTransactionDetection function to be more efficient and handle session persistence
+        async function startTransactionDetection(address, cryptoType) {
+            console.log('Starting transaction detection for:', address);
+            
+            if (transactionCheckInterval) {
+                clearInterval(transactionCheckInterval);
+            }
+            
+            let provider;
+            const INFURA_URL = 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9';
+            const BACKUP_URL = 'https://rpc.sepolia.org';
+            
+            try {
+                // Try Infura first
+                provider = new ethers.providers.JsonRpcProvider(INFURA_URL);
+                const network = await provider.getNetwork();
+                console.log('Connected to Infura on network:', network.name);
+            } catch (error) {
+                console.warn('Infura connection failed, trying backup RPC');
+                try {
+                    provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
+                    await provider.getNetwork();
+                    console.log('Connected to backup RPC');
+                } catch (backupError) {
+                    console.error('All providers failed');
+                    const transactionStatus = document.getElementById('transaction-status');
+                    if (transactionStatus) {
+                        transactionStatus.innerHTML = `
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h3 class="text-sm font-medium text-red-800">Network Connection Error</h3>
+                                    <p class="mt-1 text-sm text-red-700">
+                                        Unable to monitor transactions. Please check your payment on the blockchain explorer.
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    showToast('Network connection error', 'error');
+                    return;
+                }
+            }
+
+            // Set up transaction monitoring
+            let checkCount = 0;
+            let lastBalance = 0;
+            transactionCheckInterval = setInterval(async () => {
+                try {
+                    // If the session is expired, stop checking
+                    if (paymentSession && paymentSession.isExpired) {
+                        clearInterval(transactionCheckInterval);
+                        return;
+                    }
+                    
+                    checkCount++;
+                    const balance = await provider.getBalance(address);
+                    const balanceInEth = ethers.utils.formatEther(balance);
+                    console.log(`Checking balance for ${address}: ${balanceInEth} ETH`);
+
+                    if (!balance.isZero()) {
+                        clearInterval(transactionCheckInterval);
+                        console.log('Payment detected!');
+                        
+                        // Notify backend about the payment to update HD wallet records
+                        try {
+                            const response = await fetch('/api/record-payment', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    address,
+                                    amount: balanceInEth,
+                                    cryptoType
+                                })
+                            });
+                            
+                            const responseData = await response.json();
+                            console.log('Payment recorded with backend:', responseData);
+                            
+                            // Check if address is expired
+                            if (responseData.isExpired) {
+                                // Update payment session
+                                if (paymentSession) {
+                                    paymentSession.isExpired = true;
+                                    localStorage.setItem('paymentSession', JSON.stringify(paymentSession));
+                                }
+                                
+                                showExpiredPaymentUI();
+                                return; // Don't proceed with normal payment flow
+                            }
+                            // Check if this was flagged as a wrong payment
+                            else if (responseData.isWrongPayment) {
+                                // Update payment session
+                                if (paymentSession) {
+                                    paymentSession.isWrongPayment = true;
+                                    localStorage.setItem('paymentSession', JSON.stringify(paymentSession));
+                                }
+                                
+                                showWrongPaymentUI();                        
+                                return; // Don't proceed with normal payment flow
+                            }
+                            
+                        } catch (recordError) {
+                            console.error('Failed to record payment with backend:', recordError);
+                            // Continue anyway since we detected the payment
+                        }
+                        
+                        const transactionStatus = document.getElementById('transaction-status');
+                        if (transactionStatus) {
+                            transactionStatus.innerHTML = `
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas fa-check-circle text-green-500 text-lg"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <h3 class="text-sm font-medium text-green-800">Payment Received!</h3>
+                                        <p class="mt-1 text-sm text-green-700">
+                                            ${balanceInEth} ETH received. Transaction has been confirmed on the blockchain.
+                                        </p>
+                                        <p class="mt-1 text-sm text-green-700">
+                                            Redirecting to order status page...
+                                        </p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        // Clear cart after successful payment
+                        cart = [];
+                        localStorage.setItem('cart', JSON.stringify(cart));
+                        
+                        // Clear payment session
+                        localStorage.removeItem('paymentSession');
+                        paymentSession = null;
+                        
+                        showToast('Payment received successfully!', 'success');
+                        
+                        // Redirect to payment-status page with success details
+                        setTimeout(() => {
+                            const statusParams = new URLSearchParams({
+                                id: paymentSession?.orderId || 'UNKNOWN',
+                                status: 'confirmed',
+                                amount: balanceInEth,
+                                address: address
+                            });
+                            window.location.href = `/payment-status.html?${statusParams.toString()}`;
+                        }, 2000);
+                    } else if (checkCount >= 60) { // Check for 5 minutes max (60 * 5 seconds)
+                        clearInterval(transactionCheckInterval);
+                        const transactionStatus = document.getElementById('transaction-status');
+                        if (transactionStatus) {
+                            transactionStatus.innerHTML = `
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas fa-exclamation-triangle text-yellow-500 text-lg"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <h3 class="text-sm font-medium text-yellow-800">No Payment Detected</h3>
+                                        <p class="mt-1 text-sm text-yellow-700">
+                                            We haven't detected your payment yet. If you've already sent the funds, please check the transaction status on a blockchain explorer.
+                                        </p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error checking transaction:', error);
+                    // Try to reconnect if connection fails
+                    try {
+                        provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
+                    } catch (reconnectError) {
+                        console.warn('Failed to reconnect to backup provider');
+                    }
+                }
+            }, 5000); // Check every 5 seconds
+
+            // Store interval ID for cleanup
+            window.transactionMonitorInterval = transactionCheckInterval;
+        }
+
+        // Function to restart checkout process after wrong payment or expired address
+        function restartCheckout() {
+            generateNewPaymentAddress();
+        }
+
+        // Check for active payment session
+        function checkForActivePaymentSession() {
+            const savedSession = localStorage.getItem('paymentSession');
+            if (savedSession) {
+                try {
+                    paymentSession = JSON.parse(savedSession);
+                    
+                    // Check if the session has expired
+                    const expiryTime = new Date(paymentSession.expiresAt);
+                    if (expiryTime <= new Date()) {
+                        // Session expired, mark it as such but still show the expired UI
+                        paymentSession.isExpired = true;
+                        localStorage.setItem('paymentSession', JSON.stringify(paymentSession));
+                    }
+                    
+                    // Restore payment UI
+                    restorePaymentUI();
+                } catch (error) {
+                    console.error('Error parsing saved payment session:', error);
+                    localStorage.removeItem('paymentSession');
+                }
+            }
+        }
+
+        // Restore payment UI from saved session
+        function restorePaymentUI() {
+            if (!paymentSession) return;
+            
+            // Show payment template
+            const mainContent = document.getElementById('main-content');
+            const template = document.getElementById('payment-template');
+            mainContent.innerHTML = template.innerHTML;
+            
+            // Update static information
+            document.getElementById('order-id').textContent = paymentSession.orderId;
+            document.getElementById('crypto-amount').textContent = `${paymentSession.cryptoAmount} ${paymentSession.cryptoType}`;
+            
+            // Handle expired session
+            if (paymentSession.isExpired) {
+                showExpiredPaymentUI();
+            } 
+            // Handle wrong payment
+            else if (paymentSession.isWrongPayment) {
+                showWrongPaymentUI();
+            } 
+            // Handle normal active session
+            else {
+                // Start or restore countdown
+                const expiryTime = new Date(paymentSession.expiresAt);
+                startCountdown(expiryTime);
+                
+                // Restore address and QR code
+                document.getElementById('payment-address').textContent = paymentSession.address;
+                
+                // Generate QR code
+                const qrContainer = document.getElementById('qr-code');
+                if (qrContainer) {
+                    qrContainer.innerHTML = '';
+                    new QRCode(qrContainer, {
+                        text: paymentSession.address,
+                        width: 128,
+                        height: 128,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                }
+                
+                // Show status and start transaction detection
+                const transactionStatus = document.getElementById('transaction-status');
+                transactionStatus.classList.remove('hidden');
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-spinner fa-spin text-yellow-500 text-lg"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-sm font-medium text-yellow-800">Waiting for Payment</h3>
+                            <p class="mt-1 text-sm text-yellow-700">
+                                Send ${paymentSession.cryptoAmount} ${paymentSession.cryptoType} to the address above
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+                // Start transaction detection
+                startTransactionDetection(paymentSession.address, paymentSession.cryptoType);
+            }
         }
 
         // Generate order ID
@@ -746,48 +1225,16 @@
 
         // Go back to cart function
         function goBackToCart() {
+            // Clear the payment session
+            paymentSession = null;
+            localStorage.removeItem('paymentSession');
+            
+            // Clear intervals
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (transactionCheckInterval) clearInterval(transactionCheckInterval);
+            
             showMainCart();
-            // Clear any intervals
-            if (window.transactionMonitorInterval) {
-                clearInterval(window.transactionMonitorInterval);
-            }
-            if (window.countdownInterval) {
-                clearInterval(window.countdownInterval);
-            }
-        }
-        
-        // Function to restart checkout process after wrong payment or expired address
-        function restartCheckout() {
-            // Clear any existing intervals
-            if (window.transactionMonitorInterval) {
-                clearInterval(window.transactionMonitorInterval);
-            }
-            if (window.countdownInterval) {
-                clearInterval(window.countdownInterval);
-            }
-            
-            // Show loading state
-            const transactionStatus = document.getElementById('transaction-status');
-            if (transactionStatus) {
-                transactionStatus.innerHTML = `
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-spinner fa-spin text-blue-500 text-lg"></i>
-                        </div>
-                        <div class="ml-4">
-                            <h3 class="text-sm font-medium text-blue-800">Restarting Checkout</h3>
-                            <p class="mt-1 text-sm text-blue-700">
-                                Please wait while we set up a new payment address...
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Simply reload the page to start fresh
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+            showToast('Returned to cart', 'info');
         }
 
         // Show toast notification
@@ -853,272 +1300,6 @@
             return defaults[crypto] || 2200;
         }
 
-        // Update the startTransactionDetection function to be more efficient
-        async function startTransactionDetection(address, cryptoType) {
-            console.log('Starting transaction detection for:', address);
-            
-            let provider;
-            const INFURA_URL = 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9';
-            const BACKUP_URL = 'https://rpc.sepolia.org';
-            
-            try {
-                // Try Infura first
-                provider = new ethers.providers.JsonRpcProvider(INFURA_URL);
-                const network = await provider.getNetwork();
-                console.log('Connected to Infura on network:', network.name);
-            } catch (error) {
-                console.warn('Infura connection failed, trying backup RPC');
-                try {
-                    provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
-                    await provider.getNetwork();
-                    console.log('Connected to backup RPC');
-                } catch (backupError) {
-                    console.error('All providers failed');
-                    const transactionStatus = document.getElementById('transaction-status');
-                    if (transactionStatus) {
-                        transactionStatus.innerHTML = `
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                                </div>
-                                <div class="ml-4">
-                                    <h3 class="text-sm font-medium text-red-800">Network Connection Error</h3>
-                                    <p class="mt-1 text-sm text-red-700">
-                                        Unable to monitor transactions. Please check your payment on the blockchain explorer.
-                                    </p>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    showToast('Network connection error', 'error');
-                    return;
-                }
-            }
-
-            // Set up transaction monitoring
-            let checkCount = 0;
-            let lastBalance = 0;
-            const interval = setInterval(async () => {
-                try {
-                    checkCount++;
-                    const balance = await provider.getBalance(address);
-                    const balanceInEth = ethers.utils.formatEther(balance);
-                    console.log(`Checking balance for ${address}: ${balanceInEth} ETH`);
-
-                    if (!balance.isZero()) {
-                        clearInterval(interval);
-                        console.log('Payment detected!');
-                        
-                        // Notify backend about the payment to update HD wallet records
-                        try {
-                            const response = await fetch('/api/record-payment', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    address,
-                                    amount: balanceInEth,
-                                    cryptoType
-                                })
-                            });
-                            
-                            const responseData = await response.json();
-                            console.log('Payment recorded with backend:', responseData);
-                            
-                            // Check if address is expired
-                            if (responseData.isExpired) {
-                                // Hide the QR code and payment address
-                                const qrContainer = document.getElementById('qr-code');
-                                if (qrContainer) {
-                                    qrContainer.innerHTML = `
-                                        <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
-                                            <i class="fas fa-ban text-red-500 text-3xl mb-2"></i>
-                                            <p class="text-red-700 font-medium">This payment address has expired</p>
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Disable copy button and gray out the address
-                                const addressElement = document.getElementById('payment-address');
-                                if (addressElement) {
-                                    addressElement.innerHTML = `<span class="text-gray-400 line-through">${address}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
-                                }
-                                
-                                // Hide payment instructions
-                                const instructionsElement = document.getElementById('payment-instructions');
-                                if (instructionsElement) {
-                                    instructionsElement.style.display = 'none';
-                                }
-                                
-                                // Change countdown to "EXPIRED"
-                                const countdownElement = document.getElementById('countdown');
-                                if (countdownElement) {
-                                    countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
-                                }
-                                
-                                const transactionStatus = document.getElementById('transaction-status');
-                                if (transactionStatus) {
-                                    transactionStatus.innerHTML = `
-                                        <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
-                                            <div class="flex-shrink-0">
-                                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                                            </div>
-                                            <div class="ml-4">
-                                                <h3 class="text-md font-medium text-red-800">Payment Address Has Expired!</h3>
-                                                <p class="mt-1 text-sm text-red-700">
-                                                    ${responseData.reason || 'This payment address has expired due to a wrong payment.'}
-                                                </p>
-                                                <div class="mt-3">
-                                                    <button onclick="restartCheckout()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
-                                                        <i class="fas fa-redo mr-2"></i> Generate New Payment Address
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                                
-                                showToast('Payment address has expired!', 'error');
-                                
-                                return; // Don't proceed with normal payment flow
-                            }
-                            // Check if this was flagged as a wrong payment
-                            else if (responseData.isWrongPayment) {
-                                // Hide the QR code and payment address
-                                const qrContainer = document.getElementById('qr-code');
-                                if (qrContainer) {
-                                    qrContainer.innerHTML = `
-                                        <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
-                                            <i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i>
-                                            <p class="text-red-700 font-medium">Wrong payment amount detected</p>
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Disable copy button and gray out the address
-                                const addressElement = document.getElementById('payment-address');
-                                if (addressElement) {
-                                    addressElement.innerHTML = `<span class="text-gray-400 line-through">${address}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
-                                }
-                                
-                                // Hide payment instructions
-                                const instructionsElement = document.getElementById('payment-instructions');
-                                if (instructionsElement) {
-                                    instructionsElement.style.display = 'none';
-                                }
-                                
-                                // Change countdown to "EXPIRED"
-                                const countdownElement = document.getElementById('countdown');
-                                if (countdownElement) {
-                                    countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
-                                }
-
-                                const transactionStatus = document.getElementById('transaction-status');
-                                if (transactionStatus) {
-                                    transactionStatus.innerHTML = `
-                                        <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
-                                            <div class="flex-shrink-0">
-                                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                                            </div>
-                                            <div class="ml-4">
-                                                <h3 class="text-md font-medium text-red-800">Wrong Payment Detected!</h3>
-                                                <p class="mt-1 text-sm text-red-700">
-                                                    ${balanceInEth} ETH received, but this doesn't match the expected amount.
-                                                    ${responseData.reason || 'The payment amount is incorrect.'}
-                                                </p>
-                                                <p class="mt-1 text-sm text-red-700">
-                                                    Your order will not be processed due to the wrong payment amount.
-                                                </p>
-                                                <div class="mt-3">
-                                                    <button onclick="restartCheckout()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
-                                                        <i class="fas fa-redo mr-2"></i> Generate New Payment Address
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                                
-                                showToast('Wrong payment amount detected!', 'error');
-                                
-                                return; // Don't proceed with normal payment flow
-                            }
-                            
-                        } catch (recordError) {
-                            console.error('Failed to record payment with backend:', recordError);
-                            // Continue anyway since we detected the payment
-                        }
-                        
-                        const transactionStatus = document.getElementById('transaction-status');
-                        if (transactionStatus) {
-                            transactionStatus.innerHTML = `
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check-circle text-green-500 text-lg"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <h3 class="text-sm font-medium text-green-800">Payment Received!</h3>
-                                        <p class="mt-1 text-sm text-green-700">
-                                            ${balanceInEth} ETH received. Transaction has been confirmed on the blockchain.
-                                        </p>
-                                        <p class="mt-1 text-sm text-green-700">
-                                            Redirecting to payment status page...
-                                        </p>
-                                    </div>
-                                </div>
-                            `;
-                        }
-                        
-                        // Clear cart after successful payment
-                        cart = [];
-                        localStorage.setItem('cart', JSON.stringify(cart));
-                        showToast('Payment received successfully!', 'success');
-                        
-                        // Redirect to payment-status page with success details
-                        setTimeout(() => {
-                            const statusParams = new URLSearchParams({
-                                id: orderId,
-                                status: 'confirmed',
-                                amount: balanceInEth,
-                                address: address
-                            });
-                            window.location.href = `/payment-status.html?${statusParams.toString()}`;
-                        }, 2000);
-                    } else if (checkCount >= 60) { // Check for 5 minutes max (60 * 5 seconds)
-                        clearInterval(interval);
-                        const transactionStatus = document.getElementById('transaction-status');
-                        if (transactionStatus) {
-                            transactionStatus.innerHTML = `
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-exclamation-triangle text-yellow-500 text-lg"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <h3 class="text-sm font-medium text-yellow-800">No Payment Detected</h3>
-                                        <p class="mt-1 text-sm text-yellow-700">
-                                            We haven't detected your payment yet. If you've already sent the funds, please check the transaction status on a blockchain explorer.
-                                        </p>
-                                    </div>
-                                </div>
-                            `;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error checking transaction:', error);
-                    // Try to reconnect if connection fails
-                    try {
-                        provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
-                    } catch (reconnectError) {
-                        console.warn('Failed to reconnect to backup provider');
-                    }
-                }
-            }, 5000); // Check every 5 seconds
-
-            // Store interval ID for cleanup
-            window.transactionMonitorInterval = interval;
-        }
-
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
             // Check network status first
@@ -1127,6 +1308,9 @@
             // Load cart and start price updates only if network is available
             loadCart();
             updateAllCryptoPrices();
+            
+            // Check if there's an active payment session
+            checkForActivePaymentSession();
             
             // Set up periodic price updates with error handling
             setInterval(() => {

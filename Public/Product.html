@@ -415,10 +415,9 @@
             products.forEach(product => {
                 const cryptoElement = document.getElementById(`crypto-${product.id}`);
                 if (cryptoElement) {
+                    const ethPrice = (cryptoPrices.ETH && !isNaN(cryptoPrices.ETH)) ? (product.price / cryptoPrices.ETH).toFixed(6) : 'N/A';
                     cryptoElement.innerHTML = `
-                        <span>≈ ${(product.price / cryptoPrices.ETH).toFixed(6)} ETH</span>
-                        <span class="mx-1">|</span>
-                        <span>${(product.price / cryptoPrices.BTC).toFixed(8)} BTC</span>
+                        <span>≈ ${ethPrice} ETH</span>
                     `;
                 }
             });

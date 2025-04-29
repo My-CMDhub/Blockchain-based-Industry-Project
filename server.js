@@ -9,6 +9,7 @@ const winston = require('winston');
 const ethers = require('ethers');
 const crypto = require('crypto');
 const dotenv = require('dotenv');
+
 dotenv.config();
 
 // Configure winston logger
@@ -47,6 +48,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('Public'));
+
+// Serve the Json directory at /Json
+app.use('/Json', express.static('Json'));
+
+// Serve merchant_transactions.json at the root
+app.use(express.static('.'));
 
 // /env-check endpoint for onboarding page status
 app.get('/env-check', (req, res) => {
@@ -158,6 +165,52 @@ app.use((req, res, next) => {
 
 // Apply API key validation
 app.use(validateApiKey);
+
+// API endpoint to update keys.json for address management
+app.post('/api/update-keys', async (req, res) => {
+    try {
+        const updatedKeys = req.body;
+        
+        // Validate input data
+        if (!updatedKeys || !updatedKeys.activeAddresses) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid keys data. Must contain activeAddresses object.'
+            });
+        }
+        
+        // Basic format validation
+        if (typeof updatedKeys.activeAddresses !== 'object') {
+            return res.status(400).json({
+                success: false,
+                error: 'activeAddresses must be an object'
+            });
+        }
+        
+        // If mnemonic or masterKey is missing, get the existing data
+        if (!updatedKeys.mnemonic || !updatedKeys.masterKey) {
+            const existingKeys = JSON.parse(secureReadFile('Json/keys.json'));
+            updatedKeys.mnemonic = existingKeys.mnemonic;
+            updatedKeys.masterKey = existingKeys.masterKey;
+        }
+        
+        // Save the updated keys to the file directly
+        try {
+            secureWriteFile('Json/keys.json', JSON.stringify(updatedKeys, null, 2));
+            logToFile(`Updated keys.json successfully. Address count: ${Object.keys(updatedKeys.activeAddresses).length}`);
+            return res.json({ success: true });
+        } catch (writeError) {
+            throw new Error(`Failed to write keys.json: ${writeError.message}`);
+        }
+    } catch (error) {
+        console.error('Error updating keys.json:', error);
+        logToFile(`Error updating keys.json: ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to update keys: ' + error.message
+        });
+    }
+});
 
 // Basic input validation for release funds endpoint
 app.use((req, res, next) => {
@@ -1411,6 +1464,8 @@ app.get('/merchant', (req, res) => {
     res.sendFile(__dirname + '/Public/merchant-dashboard.html');
 });
 
+
+
 // Get HD Wallet Balance
 app.get('/api/wallet-balance', async (req, res) => {
     try {
@@ -1695,7 +1750,7 @@ app.post('/api/generate-payment-address', async (req, res) => {
     try {
         logger.info('Generating payment address', { body: req.body });
         
-        const { amount, cryptoType, fiatAmount, fiatCurrency } = req.body;
+        const { amount, cryptoType, fiatAmount, fiatCurrency, orderId } = req.body; // <-- Accept orderId
         if (!amount || !cryptoType) {
             logger.error('Missing required parameters', { amount, cryptoType });
             return res.status(400).json({ 
@@ -1719,7 +1774,7 @@ app.post('/api/generate-payment-address', async (req, res) => {
             
             // Log the conversion for debugging
             logger.info('Formatted payment amount', { 
-                original: amount, 
+                original: amount,
                 formatted: formattedAmount,
                 fiatAmount: fiatAmount
             });
@@ -1790,7 +1845,8 @@ app.post('/api/generate-payment-address', async (req, res) => {
             cryptoType: cryptoType,
             createdAt: new Date().toISOString(),
             expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
-            status: 'pending'
+            status: 'pending',
+            orderId: orderId || null // <-- Store orderId if provided
         };
         
         // If fiat amount is provided, store it separately
@@ -1869,13 +1925,9 @@ app.post('/api/generate-payment-address', async (req, res) => {
             
             // Last resort fallback - generate completely random wallet
         const wallet = ethers.Wallet.createRandom();
-        res.json({
-            success: true,
-            address: wallet.address,
-                networkId: 11155111, 
-            networkType: 'sepolia',
-                expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
-                note: 'Emergency address generated'
+        res.status(500).json({
+            success: false,
+            error: 'Failed to generate payment address and emergency fallback failed.' + recoveryError.message
         });
         }
     }
@@ -3715,7 +3767,380 @@ app.get('/api/crypto-prices', async (req, res) => {
     }
 });
 
+// API endpoint to fetch addresses from keys.json
+app.get('/api/addresses', async (req, res) => {
+    try {
+        // Read the keys.json file
+        const keysData = JSON.parse(secureReadFile('Json/keys.json'));
+        
+        if (!keysData || !keysData.activeAddresses) {
+            return res.status(404).json({
+                success: false,
+                error: 'No addresses found or invalid keys.json format'
+            });
+        }
+        
+        const now = new Date();
+        const addresses = [];
+        
+        // Process each address
+        for (const [address, data] of Object.entries(keysData.activeAddresses)) {
+            const expiryDate = new Date(data.expiresAt);
+            const createdDate = new Date(data.createdAt);
+            
+            // Check if expired
+            const isExpired = expiryDate < now;
+            
+            // Consider addresses abandoned if they're older than 30 minutes and still pending
+            const ageInMinutes = (now - createdDate) / (1000 * 60);
+            const isAbandoned = ageInMinutes > 30 && data.status === 'pending';
+            
+            // Determine status
+            let status = 'active';
+            if (isExpired) status = 'expired';
+            else if (isAbandoned) status = 'abandoned';
+            
+            // Add to addresses array
+            addresses.push({
+                address,
+                data,
+                status,
+                isExpired,
+                isAbandoned,
+                createdAt: data.createdAt,
+                expiresAt: data.expiresAt
+            });
+        }
+        
+        // Return the addresses
+        return res.json({
+            success: true,
+            addresses: addresses
+        });
+    } catch (error) {
+        console.error('Error fetching addresses:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch addresses: ' + error.message
+        });
+    }
+});
 
+// API endpoint to clean up addresses
+app.post('/api/cleanup-addresses', async (req, res) => {
+    try {
+        const { type } = req.body;
+        
+        if (!type || (type !== 'expired' && type !== 'abandoned')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid cleanup type. Must be "expired" or "abandoned".'
+            });
+        }
+        
+        // Read the keys.json file
+        const keysData = JSON.parse(secureReadFile('Json/keys.json'));
+        
+        if (!keysData || !keysData.activeAddresses) {
+            return res.status(404).json({
+                success: false,
+                error: 'No addresses found or invalid keys.json format'
+            });
+        }
+        
+        const now = new Date();
+        const activeAddresses = keysData.activeAddresses;
+        const addressesToRemove = [];
+        
+        // Find addresses to remove
+        for (const [address, data] of Object.entries(activeAddresses)) {
+            const expiryDate = new Date(data.expiresAt);
+            const createdDate = new Date(data.createdAt);
+            
+            // Check criteria based on type
+            if (type === 'expired' && expiryDate < now) {
+                addressesToRemove.push(address);
+            } else if (type === 'abandoned') {
+                const ageInMinutes = (now - createdDate) / (1000 * 60);
+                if (ageInMinutes > 30 && data.status === 'pending') {
+                    addressesToRemove.push(address);
+                }
+            }
+        }
+        
+        if (addressesToRemove.length === 0) {
+            return res.json({
+                success: true,
+                message: `No ${type} addresses found to clean up.`,
+                count: 0
+            });
+        }
+        
+        // Remove addresses
+        addressesToRemove.forEach(address => {
+            delete activeAddresses[address];
+        });
+        
+        // Save updated keys
+        secureWriteFile('Json/keys.json', JSON.stringify(keysData, null, 2));
+        
+        logToFile(`Cleaned up ${addressesToRemove.length} ${type} addresses.`);
+        
+        return res.json({
+            success: true,
+            message: `Successfully cleaned up ${addressesToRemove.length} ${type} addresses.`,
+            count: addressesToRemove.length
+        });
+    } catch (error) {
+        console.error(`Error cleaning up addresses: ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            error: `Failed to clean up addresses: ${error.message}`
+        });
+    }
+});
+
+// API endpoint to delete a specific address
+app.post('/api/delete-address', async (req, res) => {
+    try {
+        const { address } = req.body;
+        
+        if (!address) {
+            return res.status(400).json({
+                success: false,
+                error: 'Address is required'
+            });
+        }
+        
+        // Read the keys.json file
+        const keysData = JSON.parse(secureReadFile('Json/keys.json'));
+        
+        if (!keysData || !keysData.activeAddresses) {
+            return res.status(404).json({
+                success: false,
+                error: 'No addresses found or invalid keys.json format'
+            });
+        }
+        
+        if (!keysData.activeAddresses[address]) {
+            return res.status(404).json({
+                success: false,
+                error: `Address ${address} not found`
+            });
+        }
+        
+        // Delete the address
+        delete keysData.activeAddresses[address];
+        
+        // Save updated keys
+        secureWriteFile('Json/keys.json', JSON.stringify(keysData, null, 2));
+        
+        logToFile(`Deleted address ${address}.`);
+        
+        return res.json({
+            success: true,
+            message: `Successfully deleted address ${address}.`
+        });
+    } catch (error) {
+        console.error(`Error deleting address: ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            error: `Failed to delete address: ${error.message}`
+        });
+    }
+});
+
+// --- HD Wallet Balance Endpoint ---
+const fetch = require('node-fetch');
+app.get('/api/hd-wallet-balance', async (req, res) => {
+    try {
+        // Load and parse keys.json
+        const keys = JSON.parse(await secureReadFile(path.join(__dirname, 'Json/keys.json')));
+        if (!keys || !keys.mnemonic) {
+            return res.status(500).json({ success: false, error: 'Mnemonic not found in keys.json' });
+        }
+        if (!keys.masterKey) {
+            return res.status(500).json({ success: false, error: 'MasterKey not found in keys.json' });
+        }
+        let mnemonic;
+        try {
+            mnemonic = decrypt(keys.mnemonic);
+            if (!mnemonic) throw new Error('Decryption returned empty mnemonic');
+        } catch (e) {
+            return res.status(500).json({ success: false, error: 'Failed to decrypt mnemonic: ' + e.message });
+        }
+        // Derive root address (m/44'/60'/0'/0/0)
+        const hdNode = ethers.utils.HDNode.fromMnemonic(mnemonic);
+        const rootNode = hdNode.derivePath("m/44'/60'/0'/0/0");
+        const address = rootNode.address;
+        // Get ETH balance
+        const provider = new ethers.providers.JsonRpcProvider(process.env.INFURA_URL || 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9');
+        const balanceWei = await provider.getBalance(address);
+        const ethBalance = ethers.utils.formatEther(balanceWei);
+        // Get USD price
+        let usdBalance = null;
+        try {
+            const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+            const priceData = await priceRes.json();
+            const ethUsd = priceData.ethereum.usd;
+            usdBalance = (parseFloat(ethBalance) * ethUsd).toFixed(2);
+        } catch (e) {
+            usdBalance = null;
+        }
+        res.json({
+            success: true,
+            address,
+            ethBalance,
+            usdBalance,
+            lastUpdated: new Date().toISOString()
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.get('/api/admin/statistics', async (req, res) => {
+    try {
+      const view = req.query.view;
+      let stats = {};
+      if (view === 'user') {
+        // Read keys.json
+        let keysPath = path.join(__dirname, 'Json', 'keys.json');
+        let keysData = {};
+        try {
+          keysData = JSON.parse(fs.readFileSync(keysPath, 'utf8'));
+        } catch (e) {
+          // File missing or invalid
+          keysData = {};
+        }
+        const addresses = keysData.activeAddresses ? Object.values(keysData.activeAddresses) : [];
+        stats = {
+          totalUserActivities: addresses.length,
+          pending: addresses.filter(a => a.status === 'pending').length,
+          confirmed: addresses.filter(a => a.status === 'confirmed').length,
+          wrongPayment: addresses.filter(a => a.status === 'wrong' || a.isWrongPayment).length,
+          releaseFund: addresses.filter(a => a.status === 'release').length
+        };
+      } else if (view === 'merchant') {
+        // Read merchant_transactions.json
+        let merchantPath = path.join(__dirname, 'merchant_transactions.json');
+        let merchantData = [];
+        try {
+          merchantData = JSON.parse(fs.readFileSync(merchantPath, 'utf8'));
+        } catch (e) {
+          merchantData = [];
+        }
+        stats = {
+          totalMerchantActivities: merchantData.length,
+          pending: merchantData.filter(a => a.status === 'pending').length,
+          confirmed: merchantData.filter(a => a.status === 'confirmed').length,
+          wrongPayment: merchantData.filter(a => a.status === 'wrong' || a.isWrongPayment).length,
+          releaseFund: merchantData.filter(a => a.status === 'release').length
+        };
+      } else {
+        return res.status(400).json({ error: 'Invalid view parameter' });
+      }
+      return res.json({ stats });
+    } catch (err) {
+      console.error('Error in /api/admin/statistics:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // New endpoint to discard a payment address
+app.post('/api/discard-payment-address', async (req, res) => {
+    try {
+        const { address } = req.body;
+        logger.info('Discarding payment address', { address });
+
+        if (!address) {
+            logger.warn('Discard payment address request missing address');
+            return res.status(400).json({ success: false, error: 'Address is required' });
+        }
+
+        // Read the keys.json file
+        const keys = getStoredKeys();
+
+        if (!keys.activeAddresses || !keys.activeAddresses[address]) {
+            logger.warn('Discard payment address: Address not found or already inactive', { address });
+            return res.json({ success: true, message: 'Address not found or already inactive' });
+        }
+
+        // Remove the address from activeAddresses
+        delete keys.activeAddresses[address];
+        logger.info('Address removed from activeAddresses in memory', { address });
+
+        // Save the updated keys.json file with atomic write
+        try {
+            const tempFile = './Json/keys_temp.json';
+            const finalFile = './Json/keys.json';
+            
+            // Write to a temporary file first for atomicity
+            secureWriteFile(tempFile, JSON.stringify(keys, null, 2));
+            
+            // Verify the temporary file before renaming
+            const tempKeys = getStoredKeys(tempFile);  // Assume a variant of getStoredKeys for temp file
+            if (!tempKeys.activeAddresses || !tempKeys.activeAddresses[address]) {
+                // Temporary file is correct, rename it to the final file
+                fs.renameSync(tempFile, finalFile);
+                logger.info('Address successfully discarded and verified in keys.json');
+                res.json({ success: true, message: 'Payment address discarded successfully' });
+            } else {
+                logger.error('Verification failed after writing to temporary file');
+                fs.unlinkSync(tempFile);  // Clean up temp file
+                res.status(500).json({ success: false, error: 'Failed to discard payment address - verification failed' });
+            }
+        } catch (updateError) {
+            logger.error('Error updating keys.json', { error: updateError });
+            res.status(500).json({ success: false, error: 'Failed to discard payment address' });
+        }
+    } catch (error) {
+        logger.error('Error discarding payment address', { error });
+        res.status(500).json({ success: false, error: 'Failed to discard payment address' });
+    }
+});
+
+// New endpoint to verify if a payment address is still active
+app.post('/api/verify-payment-address', async (req, res) => {
+    try {
+        const { address } = req.body;
+        logger.info('Verifying payment address status', { address });
+
+        if (!address) {
+            logger.warn('Verify payment address request missing address');
+            return res.status(400).json({ success: false, error: 'Address is required' });
+        }
+
+        const keys = getStoredKeys();
+        const addrInfo = keys.activeAddresses && keys.activeAddresses[address];
+
+        if (addrInfo && !addrInfo.isExpired && !addrInfo.isWrongPayment && addrInfo.status !== 'wrong') {
+            const expiresAt = new Date(addrInfo.expiresAt);
+            if (!isNaN(expiresAt) && expiresAt > Date.now()) {
+                logger.info('Payment address verified as active', { address });
+                return res.json({ success: true, active: true, message: 'Address is active' });
+            } else {
+                logger.warn('Payment address expired based on timestamp', { address, expiresAt: addrInfo.expiresAt });
+                if (!addrInfo.isExpired) {
+                    addrInfo.isExpired = true;
+                    addrInfo.expiredAt = new Date().toISOString();
+                    addrInfo.expiredReason = 'Expired based on timestamp check';
+                    updateStoredKeys(keys);
+                }
+                return res.json({ success: true, active: false, message: 'Address expired' });
+            }
+        } else if (addrInfo) {
+            logger.warn('Payment address found but is expired or wrong', { address });
+            return res.json({ success: true, active: false, message: 'Address expired or marked as wrong payment' });
+        } else {
+            logger.info('Payment address not found', { address });
+            return res.json({ success: true, active: false, message: 'Address not found' });
+        }
+    } catch (error) {
+        logger.error('Error verifying payment address', { error });
+        res.status(500).json({ success: false, error: 'Failed to verify payment address' });
+    }
+});
 
 // Handle 404
 app.use((req, res) => {
@@ -4576,4 +5001,9 @@ async function recordWrongPayment(payment) {
         return false;
     }
 }
+
+
+
+// Apply API key validation
+app.use(validateApiKey);
 

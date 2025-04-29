@@ -3,290 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.0.7/css/boxicons.min.css" rel="stylesheet">
+    <title>Blockchain Payment Admin Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary-color: #2563eb;
-            --secondary-color: #1e40af;
-            --success-color: #059669;
-            --danger-color: #dc2626;
-            --warning-color: #d97706;
-            --info-color: #0891b2;
-            --background-color: #f8fafc;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --light-bg: #f8fafc;
             --card-bg: #ffffff;
-            --text-primary: #1f2937;
-            --text-secondary: #4b5563;
-            --border-color: #e5e7eb;
+            --border-color: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
         }
+        
         body {
-            background-color: var(--background-color);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--light-bg);
             color: var(--text-primary);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
         }
-        .dashboard-container {
-            padding: 2rem;
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
         }
-        .stats-card {
-            background: var(--card-bg);
-            border-radius: 1rem;
+        
+        .card:hover {
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05), 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stat-card {
+            text-align: center;
             padding: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s ease-in-out;
-            border: 1px solid var(--border-color);
         }
-        .stats-card:hover {
-            transform: translateY(-2px);
+        
+        .stat-card .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
         }
-        .stats-value {
-            font-size: 1.8rem;
-            font-weight: 600;
+        
+        .stat-card .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: var(--secondary-color);
+            font-weight: 500;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            margin-right: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            background-color: rgba(37, 99, 235, 0.05);
             color: var(--primary-color);
         }
-        .stats-label {
-            color: var(--text-secondary);
-            font-size: 0.9rem; 
-            margin-top: 0.5rem;
-        }
-        .transaction-table {
-            background: var(--card-bg);
-            border-radius: 1rem;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        .transaction-table th {
-            background: var(--background-color);
-            color: var(--text-secondary);
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.8rem;
-            padding: 1rem;
-        }
-        .transaction-table td {
-            padding: 1rem;
-            vertical-align: middle;
-        }
-        .status-badge {
-            font-size: 0.75rem;
-            padding: 2px 8px;
-            border-radius: 12px;
-            background-color: #e9ecef;
-            color: #495057;
-        }
-        .status-confirmed {
-            background-color: #d1e7dd;
-            color: #0f5132;
-        }
-        .status-pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        .status-failed {
-            background-color: #f8d7da;
-            color: #842029;
-        }
-        .status-success {
-            background-color: #198754;
-            color: white;
-        }
-        .status-expired {
-            background-color: #e2e3e5;
-            color: #41464b;
-        }
-        .status-payment {
-            background-color: #cfe2ff;
-            color: #084298;
-        }
-        .status-release {
-            background-color: #d1e7dd;
-            color: #0f5132;
-        }
-        .status-other {
-            background-color: #e9ecef;
-            color: #495057;
-        }
-        .dashboard-card {
-            transition: all 0.3s ease;
-        }
-        .dashboard-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        .wrong-payment-row {
-            background-color: rgba(248, 215, 218, 0.3);
-        }
-        .wrong-payment-row:hover {
-            background-color: rgba(248, 215, 218, 0.5);
-        }
-        .expired-address-row {
-            background-color: rgba(226, 227, 229, 0.3);
-        }
-        .expired-address-row:hover {
-            background-color: rgba(226, 227, 229, 0.5);
-        }
-        .failed-release-row {
-            background-color: rgba(255, 243, 205, 0.3);
-        }
-        .failed-release-row:hover {
-            background-color: rgba(255, 243, 205, 0.5);
-        }
-        .success-release-row {
-            background-color: rgba(209, 231, 221, 0.3);
-        }
-        .success-release-row:hover {
-            background-color: rgba(209, 231, 221, 0.5);
-        }
-        .confirmed-payment-row {
-            background-color: rgba(207, 226, 255, 0.3);
-        }
-        .confirmed-payment-row:hover {
-            background-color: rgba(207, 226, 255, 0.5);
-        }
-        .wrong-payment-tag {
-            font-size: 0.65rem;
-            padding: 1px 5px;
-            border-radius: 8px;
-            background-color: #dc3545;
-            color: white;
-            margin-left: 5px;
-            vertical-align: middle;
-        }
-        .expired-tag {
-            font-size: 0.65rem;
-            padding: 1px 5px;
-            border-radius: 8px;
-            background-color: #6c757d;
-            color: white;
-            margin-left: 5px;
-            vertical-align: middle;
-        }
-        .wallet-address {
-            font-family: monospace;
-            font-size: 0.9rem;
-        }
-        .balance-info {
-            width: 100px;
-            display: inline-block;
-        }
-        .unverified-row {
-            background-color: rgba(234, 179, 8, 0.05);
-        }
-        .wrong-payment-row {
-            background-color: rgba(220, 38, 38, 0.15) !important;
-            border-left: 4px solid #dc2626 !important;
-        }
-        .wrong-payment-details {
-            background-color: rgba(220, 38, 38, 0.05);
-            border-left: 4px solid #dc2626;
-            padding: 0.5rem 1rem;
-            margin-top: 0.5rem;
-        }
-        .action-button {
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            transition: all 0.2s ease-in-out;
-        }
-        .action-button-primary {
-            background: var(--primary-color);
+        
+        .nav-tabs .nav-link.active {
+            background-color: var(--primary-color);
             color: white;
             border: none;
         }
-        .action-button-primary:hover {
-            background: var(--secondary-color);
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
         }
-        .action-button-outline {
-            background: transparent;
-            border: 2px solid var(--primary-color);
+        
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+        
+        .btn-outline-primary {
             color: var(--primary-color);
+            border-color: var(--primary-color);
         }
-        .action-button-outline:hover {
-            background: var(--primary-color);
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
             color: white;
         }
-        .address-card {
-            background: var(--card-bg);
-            border-radius: 1rem;
+        
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .table th {
+            font-weight: 600;
+            color: var(--text-secondary);
+            background-color: #f8fafc;
+            border-bottom: 1px solid var(--border-color);
             padding: 1rem;
-            margin-bottom: 1rem;
+        }
+        
+        .table td {
+            padding: 1rem;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .badge {
+            padding: 0.5em 0.75em;
+            font-weight: 500;
+            border-radius: 6px;
+        }
+        
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+        }
+        
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+        
+        .badge-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+        }
+        
+        .badge-secondary {
+            background-color: rgba(100, 116, 139, 0.1);
+            color: var(--secondary-color);
+        }
+        
+        .search-box {
+            border-radius: 8px;
             border: 1px solid var(--border-color);
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            width: 100%;
+            transition: all 0.2s ease;
+            background: #fff url('data:image/svg+xml;utf8,<svg fill="%2364748b" height="18" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99c.41.41 1.09.41 1.5 0s.41-1.09 0-1.5l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>') no-repeat 0.75rem center;
         }
-        .address-card .address {
-            font-family: monospace;
-            font-size: 0.9rem;
-            word-break: break-all;
+        
+        .search-box:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            outline: none;
+            background-color: #f0f6ff;
         }
-        .copy-button {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.8rem;
-            border-radius: 0.25rem;
-            background: var(--background-color);
+        
+        .action-btn {
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            margin-right: 0.25rem;
+            transition: all 0.2s ease;
+            background-color: var(--light-bg);
             border: 1px solid var(--border-color);
             color: var(--text-secondary);
-            cursor: pointer;
         }
-        .copy-button:hover {
-            background: var(--primary-color);
+        
+        .action-btn:hover {
+            background-color: var(--primary-color);
             color: white;
             border-color: var(--primary-color);
         }
-        .toast {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            padding: 1rem 2rem;
-            border-radius: 0.5rem;
-            background: var(--card-bg);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-            display: none;
+        
+        .alert {
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
         }
-        .toast.success {
-            border-left: 4px solid var(--success-color);
+        
+        .alert-info {
+            background-color: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid var(--primary-color);
+            color: var(--primary-color);
         }
-        .toast.error {
-            border-left: 4px solid var(--danger-color);
+        
+        .wallet-card {
+            max-width: 640px;
+            margin: 0 auto;
         }
-        .toast.warning {
-            border-left: 4px solid var(--warning-color);
+        
+        .wallet-address {
+            font-family: monospace;
+            padding: 0.5rem 1rem;
+            background-color: var(--light-bg);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            word-break: break-all;
         }
-        @media (max-width: 768px) {
-            .dashboard-container {
-                padding: 1rem;
-            }
-            .stats-card {
-                margin-bottom: 1rem;
-            }
-            .transaction-table {
-                font-size: 0.9rem;
-            }
+        
+        .wallet-balance {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary-color);
         }
-        .action-button-danger {
-            background: var(--danger-color);
+        
+        .wallet-usd {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+        }
+        
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            margin-right: 0.25rem;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        
+        .filter-btn.active {
+            background-color: var(--primary-color);
             color: white;
-            border: none;
         }
-        .action-button-danger:hover {
-            background: #b91c1c;
-        }
+        
+        /* Keep your original custom styles for backward compatibility */
+        
     </style>
 </head>
 <body>
-    <div class="dashboard-container">
-        <div class="row mb-4">
+    <div class="container-fluid py-4">
+        <div class="row">
             <div class="col-12">
-                <h1 class="mb-4">Admin Dashboard</h1>
-                <p class="lead">Monitor all user and merchant activities, transactions, and payment addresses. <strong>No sensitive data is ever shown.</strong></p>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h1 class="h3 mb-1">Admin Dashboard</h1>
+                                <p class="text-secondary mb-0">Monitor all user and merchant activities, transactions, and payment addresses. No sensitive data is ever shown.</p>
+                            </div>
+                            <div class="d-flex">
+                                <div class="btn-group me-3" role="group">
+                                    <button type="button" class="btn btn-outline-primary active" id="toggle-merchant">Merchant</button>
+                                    <button type="button" class="btn btn-outline-primary" id="toggle-user">User</button>
+                                </div>
+                                <div class="btn-group filter-group" role="group">
+                                    <button type="button" class="btn btn-outline-secondary active" data-status="all">All</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-status="pending">Pending</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-status="confirmed">Confirmed</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-status="wrong">Wrong Payment</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-status="release">Release Fund</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab Navigation -->
+                        <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities-content" type="button" role="tab" aria-controls="activities-content" aria-selected="true">
+                                    <i class="fas fa-chart-line me-2"></i>Activities
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="hdwallet-tab" data-bs-toggle="tab" data-bs-target="#hdwallet-content" type="button" role="tab" aria-controls="hdwallet-content" aria-selected="false">
+                                    <i class="fas fa-wallet me-2"></i>HD Wallet
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Content -->
+                        <div class="tab-content" id="adminTabsContent">
+                            <div class="tab-pane fade show active" id="activities-content" role="tabpanel" aria-labelledby="activities-tab">
+                                <div id="admin-dashboard-content"></div>
+                            </div>
+                            <div class="tab-pane fade" id="hdwallet-content" role="tabpanel" aria-labelledby="hdwallet-tab">
+                                <div id="hdwallet-dashboard-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <!-- Summary cards, tables, and advanced features will be added here. -->
-        <div id="admin-dashboard-content"></div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/timeago.js@4.0.2/dist/timeago.min.js"></script>
+    
     <script>
-        
-    // --- Admin Dashboard Master Control JS ---
+    // --- Next-Level Admin Dashboard State & Logic ---
+    const dashboardState = {
+        type: 'merchant', // 'merchant' or 'user'
+        status: 'all', // 'all', 'pending', 'confirmed', 'wrong', 'release'
+        search: '',
+        activities: { merchant: [], user: [] },
+        raw: []
+    };
+
     // Utility: Fetch JSON file (local or server)
     async function fetchJSON(path) {
         try {
@@ -300,18 +311,66 @@
     }
 
     // Utility: Show toast
-    function showToast(msg, type = 'info') {
-        let toast = document.getElementById('admin-toast');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'admin-toast';
-            toast.className = 'toast position-fixed bottom-0 end-0 m-4';
-            toast.style.zIndex = 9999;
-            document.body.appendChild(toast);
+    function showToast(message, type = 'info') {
+        // Check if toast container exists, if not create it
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+            toastContainer.style.zIndex = '5';
+            document.body.appendChild(toastContainer);
         }
-        toast.innerHTML = `<div class='alert alert-${type} mb-0'>${msg}</div>`;
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 3500);
+        
+        // Create toast element with appropriate styling
+        const toastId = 'toast-' + Date.now();
+        const toast = document.createElement('div');
+        toast.id = toastId;
+        toast.className = 'toast';
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        
+        // Set toast color based on type
+        let bgClass = 'bg-primary text-white';
+        let iconClass = 'fas fa-info-circle';
+        
+        if (type === 'success') {
+            bgClass = 'bg-success text-white';
+            iconClass = 'fas fa-check-circle';
+        } else if (type === 'error' || type === 'danger') {
+            bgClass = 'bg-danger text-white';
+            iconClass = 'fas fa-exclamation-circle';
+        } else if (type === 'warning') {
+            bgClass = 'bg-warning text-dark';
+            iconClass = 'fas fa-exclamation-triangle';
+        }
+        
+        toast.innerHTML = `
+            <div class="toast-header ${bgClass}">
+                <i class="${iconClass} me-2"></i>
+                <strong class="me-auto">Notification</strong>
+                <small>Just now</small>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Initialize and show the toast using Bootstrap
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: true,
+            delay: 3000
+        });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toast.addEventListener('hidden.bs.toast', function() {
+            toast.remove();
+        });
     }
 
     // Utility: Format date
@@ -342,9 +401,9 @@
         return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[s]));
     }
 
-    // Main: Load and render dashboard
+    // --- Main: Load and render dashboard ---
     async function loadAdminDashboard() {
-        // Robust fetch: try both files, show warnings if missing, but always render dashboard
+        // Fetch both files
         const keys = await fetchJSON('Json/keys.json');
         const merchantTxs = await fetchJSON('merchant_transactions.json');
 
@@ -354,13 +413,14 @@
             return;
         }
 
-        // --- 1. Parse all activities ---
-        let activities = [];
-        // a) From keys.json activeAddresses
+        // --- Parse activities into merchant/user ---
+        dashboardState.activities = { merchant: [], user: [] };
+        dashboardState.raw = [];
+        // a) From keys.json activeAddresses (user activities)
         if (keys && keys.activeAddresses) {
             for (const [address, data] of Object.entries(keys.activeAddresses)) {
-                activities.push({
-                    type: 'address',
+                dashboardState.activities.user.push({
+                    type: 'user',
                     address,
                     status: data.status || 'pending',
                     cryptoType: data.cryptoType || '-',
@@ -378,11 +438,11 @@
                 });
             }
         }
-        // b) From merchant_transactions.json (if any)
+        // b) From merchant_transactions.json (merchant activities)
         if (merchantTxs && Array.isArray(merchantTxs)) {
             for (const tx of merchantTxs) {
-                activities.push({
-                    type: 'transaction',
+                dashboardState.activities.merchant.push({
+                    type: 'merchant',
                     address: tx.address || '-',
                     status: tx.status || '-',
                     cryptoType: tx.cryptoType || '-',
@@ -400,65 +460,113 @@
                 });
             }
         }
+        renderDashboard();
+    }
 
-        // --- 2. Summary stats ---
+    // --- Render dashboard (summary, filters, table) ---
+    function renderDashboard() {
+        const type = dashboardState.type;
+        const status = dashboardState.status;
+        const search = dashboardState.search.trim().toLowerCase();
+        const activities = dashboardState.activities[type];
+
+        // --- Filtered activities ---
+        let filtered = activities.filter(a => {
+            let matchStatus = (status === 'all') || (a.status === status) || (status === 'wrong' && a.isWrongPayment) || (status === 'release' && a.status === 'release');
+            let matchSearch = !search || (
+                (a.address && a.address.toLowerCase().includes(search)) ||
+                (a.status && a.status.toLowerCase().includes(search)) ||
+                (a.cryptoType && a.cryptoType.toLowerCase().includes(search))
+            );
+            return matchStatus && matchSearch;
+        });
+
+        // --- Summary stats ---
         const total = activities.length;
         const pending = activities.filter(a => a.status === 'pending').length;
         const confirmed = activities.filter(a => a.status === 'confirmed').length;
-        const wrong = activities.filter(a => a.status === 'wrong').length;
-        const expired = activities.filter(a => a.status === 'expired').length;
+        const wrong = activities.filter(a => a.isWrongPayment).length;
+        const release = activities.filter(a => a.status === 'release').length;
 
-        // --- 3. Render summary cards ---
         let summaryHTML = `
         <div class="row mb-4">
             <div class="col-md-3 mb-2">
                 <div class="stats-card text-center">
                     <div class="stats-value">${total}</div>
-                    <div class="stats-label">Total Activities</div>
+                    <div class="stats-label">Total ${type.charAt(0).toUpperCase() + type.slice(1)} Activities</div>
                 </div>
             </div>
-            <div class="col-md-3 mb-2">
+            <div class="col-md-2 mb-2">
                 <div class="stats-card text-center">
                     <div class="stats-value">${pending}</div>
                     <div class="stats-label">Pending</div>
                 </div>
             </div>
-            <div class="col-md-3 mb-2">
+            <div class="col-md-2 mb-2">
                 <div class="stats-card text-center">
                     <div class="stats-value">${confirmed}</div>
                     <div class="stats-label">Confirmed</div>
                 </div>
             </div>
-            <div class="col-md-3 mb-2">
+            <div class="col-md-2 mb-2">
                 <div class="stats-card text-center">
                     <div class="stats-value">${wrong}</div>
                     <div class="stats-label">Wrong Payment</div>
                 </div>
             </div>
+            <div class="col-md-3 mb-2">
+                <div class="stats-card text-center">
+                    <div class="stats-value">${release}</div>
+                    <div class="stats-label">Release Fund</div>
+                </div>
+            </div>
         </div>
         `;
 
-        // --- 4. Render master table ---
+        // --- Add cleanup options for User activities ---
+        let cleanupHTML = '';
+        if (type === 'user') {
+            cleanupHTML = `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Address Cleanup</h5>
+                    <p class="text-muted mb-3">Clean up addresses to prevent database bloat and improve system performance.</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-danger" onclick="cleanupExpiredAddresses()">
+                            <i class="fas fa-trash-alt me-2"></i> Clean Up Expired Addresses
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="cleanupAbandonedAddresses()">
+                            <i class="fas fa-broom me-2"></i> Clean Up Abandoned Addresses
+                        </button>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        // --- Table ---
         let tableHTML = `
         <div class="card mb-4">
             <div class="card-body">
-                <h5 class="card-title mb-3">All Activities (User & Merchant)</h5>
+                <h5 class="card-title mb-3">${type.charAt(0).toUpperCase() + type.slice(1)} Activities</h5>
                 <div class="mb-2">
-                    <input type="text" class="form-control" id="admin-search" placeholder="Search by address, status, type...">
+                    <input type="text" class="form-control search-box" id="admin-search" placeholder="Search activities..." value="${esc(dashboardState.search)}" aria-label="Search activities">
                 </div>
                 <div class="table-responsive transaction-table">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" aria-label="${type} activities table">
                         <thead>
                             <tr>
                                 <th>Type</th>
+                                <th>Order ID</th>
                                 <th>Address</th>
                                 <th>Status</th>
+                                <th>Time Left</th>
                                 <th>Crypto</th>
                                 <th>Amount</th>
                                 <th>Fiat</th>
                                 <th>Created</th>
                                 <th>Expires</th>
-                                <th>Details</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="admin-activity-table">
@@ -468,80 +576,1341 @@
             </div>
         </div>
         `;
-
-        document.getElementById('admin-dashboard-content').innerHTML = summaryHTML + tableHTML;
-
-        // --- 5. Render table rows ---
-        function renderTableRows(filter = '') {
-            let rows = '';
-            const f = filter.trim().toLowerCase();
-            activities.forEach((a, i) => {
-                if (f && !(
-                    (a.address && a.address.toLowerCase().includes(f)) ||
-                    (a.status && a.status.toLowerCase().includes(f)) ||
-                    (a.type && a.type.toLowerCase().includes(f))
-                )) return;
-                rows += `<tr class="${a.isWrongPayment ? 'wrong-payment-row' : a.isExpired ? 'expired-address-row' : ''}">
-                    <td>${esc(a.type)}</td>
-                    <td><span class="wallet-address">${esc(a.address)}</span></td>
-                    <td>${statusBadge(a.status)}</td>
-                    <td>${esc(a.cryptoType)}</td>
-                    <td>${esc(a.amount)}</td>
-                    <td>${esc(a.fiatAmount)} ${esc(a.fiatCurrency)}</td>
-                    <td>${fmtDate(a.createdAt)}</td>
-                    <td>${fmtDate(a.expiresAt)}</td>
-                    <td><button class="btn btn-sm btn-outline-primary" data-idx="${i}" onclick="showAdminDetails(${i})">View</button></td>
-                </tr>`;
-            });
-            document.getElementById('admin-activity-table').innerHTML = rows || '<tr><td colspan="9" class="text-center">No activities found.</td></tr>';
-        }
-        renderTableRows();
-        document.getElementById('admin-search').addEventListener('input', e => renderTableRows(e.target.value));
-
-        // --- 6. Details modal ---
-        window.showAdminDetails = function(idx) {
-            const a = activities[idx];
-            let modal = document.getElementById('admin-details-modal');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'admin-details-modal';
-                modal.className = 'modal fade';
-                modal.tabIndex = -1;
-                modal.innerHTML = `
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Activity Details</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body" id="admin-details-body"></div>
-                    </div>
-                </div>`;
-                document.body.appendChild(modal);
-            }
-            // Render details (no secrets)
-            let html = `<table class="table table-bordered">
-                <tr><th>Type</th><td>${esc(a.type)}</td></tr>
-                <tr><th>Address</th><td>${esc(a.address)}</td></tr>
-                <tr><th>Status</th><td>${statusBadge(a.status)}</td></tr>
-                <tr><th>Crypto</th><td>${esc(a.cryptoType)}</td></tr>
-                <tr><th>Amount</th><td>${esc(a.amount)}</td></tr>
-                <tr><th>Expected Amount</th><td>${esc(a.expectedAmount)}</td></tr>
-                <tr><th>Fiat</th><td>${esc(a.fiatAmount)} ${esc(a.fiatCurrency)}</td></tr>
-                <tr><th>Created</th><td>${fmtDate(a.createdAt)}</td></tr>
-                <tr><th>Expires</th><td>${fmtDate(a.expiresAt)}</td></tr>
-                <tr><th>Source</th><td>${esc(a.source)}</td></tr>
-                ${a.isWrongPayment ? `<tr><th>Wrong Payment Reason</th><td class='text-danger'>${esc(a.wrongReason)}</td></tr>` : ''}
-                ${a.isExpired ? `<tr><th>Expired</th><td class='text-secondary'>Yes</td></tr>` : ''}
-            </table>`;
-            document.getElementById('admin-details-body').innerHTML = html;
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-        };
+        document.getElementById('admin-dashboard-content').innerHTML = summaryHTML + cleanupHTML + tableHTML;
+        renderTableRows(filtered);
+        attachSearchHandler();
+        attachToggleHandlers();
+        attachStatusFilterHandlers();
     }
+
+    // --- Render table rows ---
+    function renderTableRows(filtered) {
+        let rows = '';
+        const now = Date.now();
+        filtered.forEach((a, i) => {
+            // Determine row class based on status and timer
+            let rowClass = '';
+            let statusIndicator = '';
+            let isExpired = false;
+            let timeLeft = '';
+            let expiresAt = a.expiresAt ? new Date(a.expiresAt) : null;
+            if (expiresAt && expiresAt <= new Date()) {
+                isExpired = true;
+                rowClass = 'expired-address-row';
+                statusIndicator = '<span class="badge bg-secondary ms-2">Expired</span>';
+                timeLeft = '<span class="text-danger">Expired</span>';
+            } else if (expiresAt) {
+                // Calculate time left in seconds
+                const diff = Math.max(0, Math.floor((expiresAt - now) / 1000));
+                const min = Math.floor(diff / 60);
+                const sec = diff % 60;
+                timeLeft = `<span class="countdown-timer" data-expires="${expiresAt.toISOString()}" data-row="${i}">${min}:${sec.toString().padStart(2, '0')}</span>`;
+            } else {
+                timeLeft = '-';
+            }
+            if (a.isWrongPayment) {
+                rowClass = 'wrong-payment-row';
+                statusIndicator = '<span class="badge bg-danger ms-2">Wrong Payment</span>';
+            } else if (!isExpired && a.status === 'pending' && a.createdAt) {
+                const createdDate = new Date(a.createdAt);
+                const ageInMinutes = (now - createdDate) / (1000 * 60);
+                if (ageInMinutes > 30) {
+                    rowClass = 'abandoned-address-row';
+                    statusIndicator = '<span class="badge bg-warning text-dark ms-2">Abandoned</span>';
+                }
+            }
+            rows += `<tr class="${rowClass}">
+                <td>${esc(a.type)}</td>
+                <td>${esc(a.orderId || (a.raw && a.raw.orderId) || '-')}</td>
+                <td><span class="wallet-address">${esc(a.address)}</span></td>
+                <td>${statusBadge(isExpired ? 'expired' : a.status)} ${statusIndicator}</td>
+                <td>${timeLeft}</td>
+                <td>${esc(a.cryptoType)}</td>
+                <td>${esc(a.amount)}</td>
+                <td>${esc(a.fiatAmount)} ${esc(a.fiatCurrency)}</td>
+                <td>${fmtDate(a.createdAt)}</td>
+                <td>${fmtDate(a.expiresAt)}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" data-idx="${i}" onclick="showAdminDetails(${i})" aria-label="View details for ${esc(a.address)}">View</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteAddressFromActivities('${a.address}')" aria-label="Delete address ${esc(a.address)}">Delete</button>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('admin-activity-table').innerHTML = rows || '<tr><td colspan="11" class="text-center">No activities found.</td></tr>';
+        startCountdownTimers();
+    }
+
+    // --- Start countdown timers for all address rows ---
+    function startCountdownTimers() {
+  if (window.countdownInterval) clearInterval(window.countdownInterval);
+  window.countdownInterval = setInterval(() => {
+    document.querySelectorAll('.countdown-timer').forEach(cell => {
+      const expiresAt = new Date(cell.dataset.expires).getTime();
+      const now = Date.now();
+      let diff = Math.max(0, Math.floor((expiresAt - now) / 1000));
+      if (diff <= 0) {
+        cell.textContent = 'Expired';
+        // Optionally update status badge here
+      } else {
+        const min = Math.floor(diff / 60);
+        const sec = diff % 60;
+        cell.textContent = `${min}:${sec.toString().padStart(2, '0')}`;
+      }
+    });
+  }, 1000);
+}
+
+    // --- Filter table rows based on search term ---
+    function filterTableRows(searchTerm) {
+        const rows = document.querySelectorAll('#admin-activity-table tr');
+        const term = searchTerm.trim().toLowerCase();
+        rows.forEach(row => {
+            if (!term) {
+                row.style.display = '';
+                return;
+            }
+            // Search all cell text
+            const rowText = Array.from(row.cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+            row.style.display = rowText.includes(term) ? '' : 'none';
+        });
+    }
+
+    // --- Attach search handler ---
+    function attachSearchHandler() {
+        const searchInput = document.getElementById('admin-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', e => {
+                dashboardState.search = e.target.value;
+                // Instead of full re-render, just filter rows for better UX
+                filterTableRows(dashboardState.search);
+            });
+        }
+    }
+
+    // --- Attach toggle handlers (merchant/user) ---
+    function attachToggleHandlers() {
+        const merchantBtn = document.getElementById('toggle-merchant');
+        const userBtn = document.getElementById('toggle-user');
+        if (merchantBtn && userBtn) {
+            merchantBtn.onclick = () => {
+                dashboardState.type = 'merchant';
+                merchantBtn.classList.add('btn-primary', 'active');
+                merchantBtn.classList.remove('btn-outline-primary');
+                merchantBtn.setAttribute('aria-pressed', 'true');
+                userBtn.classList.remove('btn-primary', 'active');
+                userBtn.classList.add('btn-outline-primary');
+                userBtn.setAttribute('aria-pressed', 'false');
+                renderDashboard();
+            };
+            userBtn.onclick = () => {
+                dashboardState.type = 'user';
+                userBtn.classList.add('btn-primary', 'active');
+                userBtn.classList.remove('btn-outline-primary');
+                userBtn.setAttribute('aria-pressed', 'true');
+                merchantBtn.classList.remove('btn-primary', 'active');
+                merchantBtn.classList.add('btn-outline-primary');
+                merchantBtn.setAttribute('aria-pressed', 'false');
+                renderDashboard();
+            };
+        }
+    }
+
+    // --- Attach status filter handlers ---
+    function attachStatusFilterHandlers() {
+        const statusBtns = document.querySelectorAll('[data-status]');
+        statusBtns.forEach(btn => {
+            btn.onclick = () => {
+                statusBtns.forEach(b => b.classList.remove('active'));
+                statusBtns.forEach(b => b.setAttribute('aria-pressed', 'false'));
+                btn.classList.add('active');
+                btn.setAttribute('aria-pressed', 'true');
+                dashboardState.status = btn.getAttribute('data-status');
+                renderDashboard();
+            };
+        });
+    }
+
+    // --- Details modal ---
+    window.showAdminDetails = function(idx) {
+        const type = dashboardState.type;
+        const filtered = dashboardState.activities[type].filter(a => {
+            let matchStatus = (dashboardState.status === 'all') || (a.status === dashboardState.status) || (dashboardState.status === 'wrong' && a.isWrongPayment) || (dashboardState.status === 'release' && a.status === 'release');
+            let matchSearch = !dashboardState.search.trim() || (
+                (a.address && a.address.toLowerCase().includes(dashboardState.search.trim().toLowerCase())) ||
+                (a.status && a.status.toLowerCase().includes(dashboardState.search.trim().toLowerCase())) ||
+                (a.cryptoType && a.cryptoType.toLowerCase().includes(dashboardState.search.trim().toLowerCase()))
+            );
+            return matchStatus && matchSearch;
+        });
+        const a = filtered[idx];
+        let modal = document.getElementById('admin-details-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-details-modal';
+            modal.className = 'modal fade';
+            modal.tabIndex = -1;
+            modal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Activity Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="admin-details-body"></div>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+        }
+        // Render details (no secrets)
+        let html = `<table class="table table-bordered">
+            <tr><th>Type</th><td>${esc(a.type)}</td></tr>
+            <tr><th>Address</th><td>${esc(a.address)}</td></tr>
+            <tr><th>Status</th><td>${statusBadge(a.status)}</td></tr>
+            <tr><th>Crypto</th><td>${esc(a.cryptoType)}</td></tr>
+            <tr><th>Amount</th><td>${esc(a.amount)}</td></tr>
+            <tr><th>Expected Amount</th><td>${esc(a.expectedAmount)}</td></tr>
+            <tr><th>Fiat</th><td>${esc(a.fiatAmount)} ${esc(a.fiatCurrency)}</td></tr>
+            <tr><th>Created</th><td>${fmtDate(a.createdAt)}</td></tr>
+            <tr><th>Expires</th><td>${fmtDate(a.expiresAt)}</td></tr>
+            <tr><th>Source</th><td>${esc(a.source)}</td></tr>
+            ${a.isWrongPayment ? `<tr><th>Wrong Payment Reason</th><td class='text-danger'>${esc(a.wrongReason)}</td></tr>` : ''}
+            ${a.isExpired ? `<tr><th>Expired</th><td class='text-secondary'>Yes</td></tr>` : ''}
+        </table>`;
+        document.getElementById('admin-details-body').innerHTML = html;
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    };
 
     // --- On page load ---
     document.addEventListener('DOMContentLoaded', loadAdminDashboard);
+
+    // Initialize dashboard
+    $(document).ready(function() {
+        // Initialize timeago
+        timeago.render(document.querySelectorAll('.timeago'));
+        
+        // Load activities on page load
+        loadActivities();
+        
+        // Initialize tabs
+        $('.nav-tabs a').on('click', function(e) {
+            e.preventDefault();
+            $(this).tab('show');
+            
+            // Load data based on active tab
+            const tabId = $(this).attr('href');
+            if (tabId === '#tab-activities') {
+                loadActivities();
+            } else if (tabId === '#tab-addresses') {
+                loadAddresses();
+            }
+        });
+        
+        // Initial tab data loading
+        const activeTab = $('.nav-tabs .active').attr('href');
+        if (activeTab === '#tab-activities') {
+            loadActivities();
+        } else if (activeTab === '#tab-addresses') {
+            loadAddresses();
+        }
+        
+        // Address search functionality
+        $('#address-search').on('input', function() {
+            const searchTerm = $(this).val().toLowerCase();
+            filterAddresses(searchTerm);
+        });
+        
+        // Buttons for cleaning up addresses
+        $('#cleanup-expired').on('click', function() {
+            if (confirm('Are you sure you want to clean up expired addresses? This action cannot be undone.')) {
+                cleanupAddresses('expired');
+            }
+        });
+        
+        $('#cleanup-abandoned').on('click', function() {
+            if (confirm('Are you sure you want to clean up abandoned addresses? This action cannot be undone.')) {
+                cleanupAddresses('abandoned');
+            }
+        });
+    });
+    
+    // Load activities
+    function loadActivities() {
+        $('#activities-container').html('<div class="loading-container"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>');
+        
+        $.ajax({
+            url: '/api/activities',
+            method: 'GET',
+            success: function(data) {
+                setTimeout(() => {
+                    displayActivities(data);
+                }, 500); // Simulated delay for demo purposes
+            },
+            error: function(err) {
+                $('#activities-container').html('<div class="alert alert-danger">Error loading activities. Please try again later.</div>');
+                console.error('Error loading activities:', err);
+            }
+        });
+    }
+    
+    // Display activities
+    function displayActivities(activities) {
+        if (!activities || activities.length === 0) {
+            $('#activities-container').html('<div class="empty-state"><i class="fas fa-inbox fa-3x mb-3"></i><h5>No Activities Yet</h5><p>Recent activities will appear here.</p></div>');
+            return;
+        }
+        
+        let html = '';
+        activities.forEach(activity => {
+            // Build activity card HTML here based on your data structure
+            html += `<div class="card activity-card">
+                <div class="card-body">
+                    <h5 class="card-title">${activity.title}</h5>
+                    <p class="card-text">${activity.description}</p>
+                    <div class="activity-meta">
+                        <span class="timeago" datetime="${activity.timestamp}">${activity.timestamp}</span>
+                    </div>
+                </div>
+            </div>`;
+        });
+        
+        $('#activities-container').html(html);
+        timeago.render(document.querySelectorAll('.timeago'));
+    }
+    
+    // Load addresses
+    function loadAddresses() {
+        $('#addresses-container').html('<div class="loading-container"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>');
+        
+        $.ajax({
+            url: '/api/addresses',
+            method: 'GET',
+            success: function(data) {
+                setTimeout(() => {
+                    addresses = data; // Store addresses globally for filtering
+                    displayAddresses(data);
+                }, 500); // Simulated delay for demo purposes
+            },
+            error: function(err) {
+                $('#addresses-container').html('<div class="alert alert-danger">Error loading addresses. Please try again later.</div>');
+                console.error('Error loading addresses:', err);
+            }
+        });
+    }
+    
+    // Global variable to store addresses for filtering
+    let addresses = [];
+    
+    // Display addresses
+    function displayAddresses(addressList) {
+        if (!addressList || addressList.length === 0) {
+            $('#addresses-container').html('<div class="empty-state"><i class="fas fa-map-marker-alt fa-3x mb-3"></i><h5>No Addresses Found</h5><p>There are no addresses to manage at this time.</p></div>');
+            return;
+        }
+        
+        let html = '';
+        addressList.forEach(address => {
+            const statusClass = getAddressStatusClass(address.status);
+            const createdDate = new Date(address.createdAt).toLocaleString();
+            
+            html += `<div class="address-item ${statusClass}" data-address="${address.address}">
+                <div class="address-created">Created: ${createdDate}</div>
+                <div class="address-info">
+                    <strong>Address:</strong> ${address.address}
+                </div>
+                <div class="address-info">
+                    <strong>Status:</strong> <span class="badge ${getBadgeClass(address.status)}">${address.status}</span>
+                </div>
+                <div class="address-info">
+                    <strong>Last Activity:</strong> <span class="timeago" datetime="${address.lastActivity}">${address.lastActivity}</span>
+                </div>
+                <div class="address-actions">
+                    <button class="btn btn-sm btn-danger delete-address" data-address="${address.address}">Delete</button>
+                </div>
+            </div>`;
+        });
+        
+        $('#addresses-container').html(html);
+        timeago.render(document.querySelectorAll('.timeago'));
+        
+        // Add event listener for delete buttons
+        $('.delete-address').on('click', function() {
+            const address = $(this).data('address');
+            if (confirm(`Are you sure you want to delete address ${address}? This action cannot be undone.`)) {
+                deleteAddress(address);
+            }
+        });
+    }
+    
+    // Helper function to get address status class
+    function getAddressStatusClass(status) {
+        switch(status.toLowerCase()) {
+            case 'expired':
+                return 'address-expired';
+            case 'abandoned':
+                return 'address-abandoned';
+            default:
+                return 'address-active';
+        }
+    }
+    
+    // Helper function to get badge class
+    function getBadgeClass(status) {
+        switch(status.toLowerCase()) {
+            case 'expired':
+                return 'badge-wrong';
+            case 'abandoned':
+                return 'badge-pending';
+            default:
+                return 'badge-confirmed';
+        }
+    }
+    
+    // Filter addresses based on search term
+    function filterAddresses(searchTerm) {
+        if (!searchTerm) {
+            displayAddresses(addresses);
+            return;
+        }
+        
+        const filteredAddresses = addresses.filter(address => 
+            address.address.toLowerCase().includes(searchTerm)
+        );
+        
+        displayAddresses(filteredAddresses);
+    }
+    
+    // Clean up addresses
+    function cleanupAddresses(type) {
+        $('#cleanup-logs').html('<div class="alert alert-info">Cleaning up ' + type + ' addresses...</div>');
+        
+        $.ajax({
+            url: '/api/cleanup-addresses',
+            method: 'POST',
+            data: { type: type },
+            success: function(data) {
+                $('#cleanup-logs').html('<div class="alert alert-success">Successfully cleaned up ' + data.count + ' ' + type + ' addresses.</div>');
+                loadAddresses(); // Reload addresses
+            },
+            error: function(err) {
+                $('#cleanup-logs').html('<div class="alert alert-danger">Error cleaning up addresses. Please try again later.</div>');
+                console.error('Error cleaning up addresses:', err);
+            }
+        });
+    }
+    
+    // Delete individual address
+    function deleteAddress(address) {
+        $.ajax({
+            url: '/api/delete-address',
+            method: 'POST',
+            data: { address: address },
+            success: function(data) {
+                $('#cleanup-logs').html('<div class="alert alert-success">Successfully deleted address ' + address + '.</div>');
+                loadAddresses(); // Reload addresses
+            },
+            error: function(err) {
+                $('#cleanup-logs').html('<div class="alert alert-danger">Error deleting address. Please try again later.</div>');
+                console.error('Error deleting address:', err);
+            }
+        });
+    }
+    
+    // Enhanced Address Management Functionality
+    
+    // Global addresses storage
+    let addressData = {
+        addresses: [],
+        filtered: [],
+        stats: {
+            total: 0,
+            active: 0,
+            expired: 0,
+            abandoned: 0
+        }
+    };
+    
+    // Initialize dashboard with additional capabilities
+    $(document).ready(function() {
+        // Initialize tabs with Bootstrap 5
+        var tabTriggerList = [].slice.call(document.querySelectorAll('#adminTabs button'));
+        var tabList = tabTriggerList.map(function(tabTriggerEl) {
+            return new bootstrap.Tab(tabTriggerEl);
+        });
+        
+        // Address search functionality - debounced version
+        let searchTimeout;
+        $('#address-search').on('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = $(this).val().toLowerCase().trim();
+                filterAddressesEnhanced(searchTerm);
+            }, 300);
+        });
+        
+        // Add click handlers for cleanup buttons
+        $('#cleanup-addresses').on('click', function() {
+            if (confirm('Are you sure you want to clean up expired addresses? This action cannot be undone.')) {
+                cleanupAddressesEnhanced('expired');
+            }
+        });
+        
+        $('#cleanup-abandoned').on('click', function() {
+            if (confirm('Are you sure you want to clean up abandoned addresses? This action cannot be undone.')) {
+                cleanupAddressesEnhanced('abandoned');
+            }
+        });
+        
+        // Add click handler for refresh button
+        $('#refresh-addresses').on('click', function() {
+            loadAddressesEnhanced();
+        });
+        
+        // Load addresses when tab is shown
+        $('button[data-bs-target="#address-management"]').on('shown.bs.tab', function(e) {
+            loadAddressesEnhanced();
+        });
+        
+        // If address management tab is active on page load, load addresses
+        if ($('#address-management-tab').hasClass('active')) {
+            loadAddressesEnhanced();
+        }
+    });
+    
+    // Enhanced function to load addresses
+    function loadAddressesEnhanced() {
+        $('#address-list').html('<div class="d-flex justify-content-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading addresses...</span></div></div>');
+        
+        // In a real implementation, you would fetch this from your server
+        // For demonstration, we'll use a simple AJAX call that might be mocked in development
+        $.ajax({
+            url: '/api/addresses',
+            method: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                // Process the address data
+                processAddressData(data);
+                
+                // Display the addresses
+                displayAddressesEnhanced();
+            },
+            error: function(error) {
+                // For development or if backend not ready, use mock data
+                console.warn('Using mock address data as API call failed', error);
+                
+                // Generate mock address data
+                const mockData = generateMockAddressData();
+                
+                // Process the mock address data
+                processAddressData(mockData);
+                
+                // Display the addresses
+                displayAddressesEnhanced();
+            }
+        });
+    }
+    
+    // Function to generate mock address data for development
+    function generateMockAddressData() {
+        const statuses = ['active', 'expired', 'abandoned'];
+        const cryptoTypes = ['BTC', 'ETH', 'USDT', 'USDC'];
+        const now = new Date();
+        
+        const mockAddresses = [];
+        
+        for (let i = 0; i < 20; i++) {
+            const status = statuses[Math.floor(Math.random() * statuses.length)];
+            const createdAt = new Date(now.getTime() - Math.random() * 1000 * 60 * 60 * 48); // Random time in the last 48 hours
+            let lastActivity;
+            
+            if (status === 'abandoned') {
+                lastActivity = new Date(createdAt.getTime() + Math.random() * 1000 * 60 * 10); // 10 minutes after creation
+            } else if (status === 'expired') {
+                lastActivity = new Date(createdAt.getTime() + Math.random() * 1000 * 60 * 60); // 1 hour after creation
+            } else {
+                lastActivity = new Date(now.getTime() - Math.random() * 1000 * 60 * 30); // Random time in the last 30 minutes
+            }
+            
+            mockAddresses.push({
+                address: `0x${Math.random().toString(16).substring(2, 42)}`,
+                status: status,
+                cryptoType: cryptoTypes[Math.floor(Math.random() * cryptoTypes.length)],
+                createdAt: createdAt.toISOString(),
+                lastActivity: lastActivity.toISOString(),
+                expiresAt: new Date(createdAt.getTime() + 1000 * 60 * 60 * 2).toISOString(), // 2 hours after creation
+                assignedTo: Math.random() > 0.5 ? 'user-' + Math.floor(Math.random() * 1000) : null
+            });
+        }
+        
+        return mockAddresses;
+    }
+    
+    // Process address data and calculate statistics
+    function processAddressData(data) {
+        addressData.addresses = data;
+        addressData.filtered = [...data];
+        
+        // Calculate statistics
+        addressData.stats = {
+            total: data.length,
+            active: data.filter(a => a.status === 'active').length,
+            expired: data.filter(a => a.status === 'expired').length,
+            abandoned: data.filter(a => a.status === 'abandoned').length
+        };
+    }
+    
+    // Display enhanced addresses with stats
+    function displayAddressesEnhanced() {
+        // Build the statistics HTML
+        const statsHtml = `
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">${addressData.stats.total}</h5>
+                        <p class="card-text text-muted">Total Addresses</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">${addressData.stats.active}</h5>
+                        <p class="card-text text-muted">Active Addresses</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger">${addressData.stats.expired}</h5>
+                        <p class="card-text text-muted">Expired Addresses</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">${addressData.stats.abandoned}</h5>
+                        <p class="card-text text-muted">Abandoned Addresses</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+        
+        // Build the addresses HTML
+        let addressesHtml = '';
+        
+        if (addressData.filtered.length === 0) {
+            addressesHtml = `
+            <div class="empty-state">
+                <i class="fas fa-map-marker-alt fa-3x mb-3"></i>
+                <h5>No Addresses Found</h5>
+                <p class="text-muted">No addresses match your current filter criteria.</p>
+            </div>
+            `;
+        } else {
+            // Sort addresses by creation date (newest first)
+            const sortedAddresses = [...addressData.filtered].sort((a, b) => {
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+            
+            sortedAddresses.forEach(address => {
+                const statusClass = getAddressStatusClass(address.status);
+                const badgeClass = getBadgeClass(address.status);
+                const createdDate = new Date(address.createdAt).toLocaleString();
+                const expiresDate = new Date(address.expiresAt).toLocaleString();
+                
+                addressesHtml += `
+                <div class="address-item ${statusClass}" data-address="${address.address}" data-status="${address.status}">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="address-created">Created: ${createdDate}</div>
+                            <div class="address-info">
+                                <strong>Address:</strong> 
+                                <span class="address">${address.address}</span>
+                                <button class="btn btn-sm btn-link copy-address p-0 ms-1" data-address="${address.address}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="address-info">
+                                <strong>Status:</strong> <span class="badge ${badgeClass}">${address.status}</span>
+                            </div>
+                            <div class="address-info">
+                                <strong>Crypto:</strong> ${address.cryptoType || 'Unknown'}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="address-info">
+                                <strong>Last Activity:</strong> <span class="timeago" datetime="${address.lastActivity}">${address.lastActivity}</span>
+                            </div>
+                            <div class="address-info">
+                                <strong>Expires:</strong> ${expiresDate}
+                            </div>
+                            <div class="address-info">
+                                <strong>Assigned:</strong> ${address.assignedTo || 'Not assigned'}
+                            </div>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button class="btn btn-sm btn-danger delete-address" data-address="${address.address}">
+                                <i class="fas fa-trash-alt"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+        }
+        
+        // Update the DOM
+        $('#address-list').html(statsHtml + addressesHtml);
+        
+        // Initialize timeago
+        timeago.render(document.querySelectorAll('.timeago'));
+        
+        // Add event listeners
+        $('.delete-address').on('click', function() {
+            const address = $(this).data('address');
+            if (confirm(`Are you sure you want to delete address ${address}? This action cannot be undone.`)) {
+                deleteAddressEnhanced(address);
+            }
+        });
+        
+        $('.copy-address').on('click', function() {
+            const address = $(this).data('address');
+            navigator.clipboard.writeText(address).then(() => {
+                showToast('Address copied to clipboard', 'success');
+            }, () => {
+                showToast('Failed to copy address', 'danger');
+            });
+        });
+    }
+    
+    // Enhanced function to filter addresses
+    function filterAddressesEnhanced(searchTerm) {
+        if (!searchTerm) {
+            addressData.filtered = [...addressData.addresses];
+        } else {
+            addressData.filtered = addressData.addresses.filter(address => 
+                address.address.toLowerCase().includes(searchTerm) ||
+                address.status.toLowerCase().includes(searchTerm) ||
+                (address.cryptoType && address.cryptoType.toLowerCase().includes(searchTerm)) ||
+                (address.assignedTo && address.assignedTo.toLowerCase().includes(searchTerm))
+            );
+        }
+        
+        displayAddressesEnhanced();
+    }
+    
+    // Enhanced function to clean up addresses
+    function cleanupAddressesEnhanced(type) {
+        const addressesToCleanup = addressData.addresses.filter(a => a.status === type);
+        
+        if (addressesToCleanup.length === 0) {
+            showNotification(`No ${type} addresses to clean up`, 'info');
+            return;
+        }
+        
+        $('#cleanup-logs').html(`<div>Cleaning up ${addressesToCleanup.length} ${type} addresses...</div>`);
+        
+        // In a real implementation, you would send this to your server
+        // For demonstration, we'll use a simple AJAX call that might be mocked
+        $.ajax({
+            url: '/api/cleanup-addresses',
+            method: 'POST',
+            data: { type: type },
+            dataType: 'json',
+            success: function(response) {
+                // Update the local data
+                addressData.addresses = addressData.addresses.filter(a => a.status !== type);
+                addressData.filtered = addressData.filtered.filter(a => a.status !== type);
+                
+                // Recalculate statistics
+                addressData.stats = {
+                    total: addressData.addresses.length,
+                    active: addressData.addresses.filter(a => a.status === 'active').length,
+                    expired: addressData.addresses.filter(a => a.status === 'expired').length,
+                    abandoned: addressData.addresses.filter(a => a.status === 'abandoned').length
+                };
+                
+                // Update the display
+                displayAddressesEnhanced();
+                
+                // Show success message
+                $('#cleanup-logs').append(`<div class="text-success">Successfully cleaned up ${addressesToCleanup.length} ${type} addresses.</div>`);
+                showNotification(`Cleaned up ${addressesToCleanup.length} ${type} addresses`, 'success');
+            },
+            error: function(error) {
+                console.error('Error cleaning up addresses:', error);
+                
+                // For development, simulate success
+                // Update the local data
+                addressData.addresses = addressData.addresses.filter(a => a.status !== type);
+                addressData.filtered = addressData.filtered.filter(a => a.status !== type);
+                
+                // Recalculate statistics
+                addressData.stats = {
+                    total: addressData.addresses.length,
+                    active: addressData.addresses.filter(a => a.status === 'active').length,
+                    expired: addressData.addresses.filter(a => a.status === 'expired').length,
+                    abandoned: addressData.addresses.filter(a => a.status === 'abandoned').length
+                };
+                
+                // Update the display
+                displayAddressesEnhanced();
+                
+                // Show success message
+                $('#cleanup-logs').append(`<div class="text-success">Successfully cleaned up ${addressesToCleanup.length} ${type} addresses.</div>`);
+                showNotification(`Cleaned up ${addressesToCleanup.length} ${type} addresses`, 'success');
+            }
+        });
+    }
+    
+    // Enhanced function to delete an individual address
+    function deleteAddressEnhanced(address) {
+        $('#cleanup-logs').html(`<div>Deleting address ${address}...</div>`);
+        
+        $.ajax({
+            url: '/api/delete-address',
+            method: 'POST',
+            data: { address: address },
+            dataType: 'json',
+            success: function(response) {
+                // Update the local data
+                addressData.addresses = addressData.addresses.filter(a => a.address !== address);
+                addressData.filtered = addressData.filtered.filter(a => a.address !== address);
+                
+                // Recalculate statistics
+                addressData.stats = {
+                    total: addressData.addresses.length,
+                    active: addressData.addresses.filter(a => a.status === 'active').length,
+                    expired: addressData.addresses.filter(a => a.status === 'expired').length,
+                    abandoned: addressData.addresses.filter(a => a.status === 'abandoned').length
+                };
+                
+                // Update the display
+                displayAddressesEnhanced();
+                
+                // Show success message
+                $('#cleanup-logs').append(`<div class="text-success">Successfully deleted address ${address}.</div>`);
+                showNotification(`Address deleted successfully`, 'success');
+            },
+            error: function(error) {
+                console.error('Error deleting address:', error);
+                
+                // For development, simulate success
+                // Update the local data
+                addressData.addresses = addressData.addresses.filter(a => a.address !== address);
+                addressData.filtered = addressData.filtered.filter(a => a.address !== address);
+                
+                // Recalculate statistics
+                addressData.stats = {
+                    total: addressData.addresses.length,
+                    active: addressData.addresses.filter(a => a.status === 'active').length,
+                    expired: addressData.addresses.filter(a => a.status === 'expired').length,
+                    abandoned: addressData.addresses.filter(a => a.status === 'abandoned').length
+                };
+                
+                // Update the display
+                displayAddressesEnhanced();
+                
+                // Show success message
+                $('#cleanup-logs').append(`<div class="text-success">Successfully deleted address ${address}.</div>`);
+                showNotification(`Address deleted successfully`, 'success');
+            }
+        });
+    }
+    
+    // Show notification toast
+    function showNotification(message, type) {
+        let toast = document.getElementById('notification-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'notification-toast';
+            toast.className = 'toast position-fixed bottom-0 end-0 m-4';
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            document.body.appendChild(toast);
+        }
+        
+        toast.innerHTML = `
+        <div class="toast-header">
+            <strong class="me-auto">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body bg-${type} text-white">
+            ${message}
+        </div>
+        `;
+        
+        const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toast.addEventListener('hidden.bs.toast', function() {
+            toast.remove();
+        });
+    }
+
+    // --- Function to delete address from Activities tab ---
+    window.deleteAddressFromActivities = async function(address) {
+        // Truncate address for display in confirmation
+        const shortAddress = address.substring(0, 8) + '...' + address.substring(address.length - 6);
+        
+        if (!confirm(`Are you sure you want to delete address ${shortAddress}? This action cannot be undone.`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/delete-address', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ address: address })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete address: ${response.status} - ${errorText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast(`Successfully deleted address: ${shortAddress}`, 'success');
+                
+                // Reload data after deletion
+                loadAdminDashboard();
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Error deleting address:', error);
+            showToast(`Failed to delete address: ${error.message}`, 'danger');
+        }
+    };
+
+    // --- Bulk cleanup functions ---
+    window.cleanupExpiredAddresses = async function() {
+        if (!confirm('Are you sure you want to clean up all expired addresses? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/cleanup-addresses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ type: 'expired' })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to clean up expired addresses: ${response.status} - ${errorText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast(result.message, 'success');
+                
+                // Reload data after cleanup
+                loadAdminDashboard();
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Error cleaning up expired addresses:', error);
+            showToast(`Failed to clean up addresses: ${error.message}`, 'danger');
+        }
+    };
+    
+    window.cleanupAbandonedAddresses = async function() {
+        if (!confirm('Are you sure you want to clean up all abandoned addresses? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/cleanup-addresses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ type: 'abandoned' })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to clean up abandoned addresses: ${response.status} - ${errorText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast(result.message, 'success');
+                
+                // Reload data after cleanup
+                loadAdminDashboard();
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Error cleaning up abandoned addresses:', error);
+            showToast(`Failed to clean up addresses: ${error.message}`, 'danger');
+        }
+    };
+
+    // --- HD Wallet Tab Logic ---
+    async function loadHDWalletTab() {
+        const container = document.getElementById('hdwallet-dashboard-content');
+        container.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>`;
+        
+        try {
+            const res = await fetch('/api/hd-wallet-balance');
+            const data = await res.json();
+            
+            if (!data.success) throw new Error(data.error || 'Failed to fetch wallet balance');
+            
+            const eth = data.ethBalance;
+            const usd = data.usdBalance !== null ? `$${data.usdBalance}` : 'N/A';
+            const address = data.address;
+            const lastUpdated = new Date(data.lastUpdated).toLocaleString();
+            
+            container.innerHTML = `
+                <div class="card wallet-card">
+                    <div class="card-body text-center p-5">
+                        <h3 class="mb-4">HD Wallet Status</h3>
+                        
+                        <div class="mb-4">
+                            <p class="text-secondary mb-2">Wallet Address</p>
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <span class="wallet-address me-2" id="hdwallet-address">${address}</span>
+                                <button class="btn btn-sm btn-outline-secondary" id="copy-hdwallet-address" aria-label="Copy wallet address">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="my-4">
+                            <div class="wallet-balance mb-1">${eth} ETH</div>
+                            <div class="wallet-usd mb-3">${usd} USD</div>
+                        </div>
+                        
+                        <div class="text-secondary mb-4" style="font-size:0.9rem;">
+                            Last updated: ${lastUpdated}
+                        </div>
+                        
+                        <button class="btn btn-primary px-4 py-2" id="refresh-hdwallet-balance">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Balance
+                        </button>
+                        
+                        <div class="alert alert-info mt-4" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            This is the total on-chain balance. Some funds may be from expired or wrong payments.
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('copy-hdwallet-address').onclick = function() {
+                navigator.clipboard.writeText(address).then(() => {
+                    showToast('Wallet address copied to clipboard', 'success');
+                });
+            };
+            
+            document.getElementById('refresh-hdwallet-balance').onclick = loadHDWalletTab;
+            
+        } catch (err) {
+            container.innerHTML = `
+                <div class="alert alert-danger mx-auto" style="max-width: 500px;">
+                    <div class="d-flex">
+                        <div class="me-3">
+                            <i class="fas fa-exclamation-circle fa-2x text-danger"></i>
+                        </div>
+                        <div>
+                            <h5 class="alert-heading">Failed to load HD wallet balance</h5>
+                            <p class="mb-0">${err.message}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-center">
+                        <button class="btn btn-outline-danger" onclick="loadHDWalletTab()">
+                            <i class="fas fa-sync-alt me-2"></i>Try Again
+                        </button>
+                    </div>
+                </div>`;
+        }
+    }
+
+    // --- Tab switching logic ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set initial view
+        renderDashboardStatistics('merchant');
+        
+        // Merchant/User toggle
+        document.getElementById('toggle-merchant').addEventListener('click', function() {
+            this.classList.add('active');
+            document.getElementById('toggle-user').classList.remove('active');
+            renderDashboardStatistics('merchant');
+        });
+        
+        document.getElementById('toggle-user').addEventListener('click', function() {
+            this.classList.add('active');
+            document.getElementById('toggle-merchant').classList.remove('active');
+            renderDashboardStatistics('user');
+        });
+        
+        // HD Wallet tab
+        const hdTab = document.getElementById('hdwallet-tab');
+        if (hdTab) {
+            hdTab.addEventListener('click', function() {
+                loadHDWalletTab();
+            });
+        }
+        
+        // Filter buttons - now using data-status attribute
+        document.addEventListener('click', function(e) {
+            const filterBtn = e.target.closest('[data-status]');
+            if (filterBtn) {
+                const filterBtns = document.querySelectorAll('[data-status]');
+                filterBtns.forEach(btn => btn.classList.remove('active'));
+                filterBtn.classList.add('active');
+                
+                // Apply filter
+                const filter = filterBtn.dataset.status;
+                applyTableFilter(filter);
+            }
+        });
+        
+        // Event delegation for delete buttons
+        document.addEventListener('click', function(e) {
+            // Check if the element or any of its parents have the class
+            const deleteBtn = e.target.closest('.delete-address-btn');
+            if (deleteBtn) {
+                const address = deleteBtn.dataset.address;
+                deleteAddress(address);
+            }
+        });
+    });
+
+    function applyTableFilter(filter) {
+        const rows = document.querySelectorAll('#addressTableBody tr');
+        rows.forEach(row => {
+            if (filter === 'all') {
+                row.style.display = '';
+                return;
+            }
+            
+            const rowStatus = row.dataset.status;
+            if (!rowStatus) return;
+            
+            // Match status to filter
+            let showRow = false;
+            if (filter === 'pending' && rowStatus === 'pending') showRow = true;
+            if (filter === 'confirmed' && rowStatus === 'confirmed') showRow = true;
+            if (filter === 'wrong' && rowStatus === 'wrong') showRow = true;
+            if (filter === 'release' && rowStatus === 'release') showRow = true;
+            
+            row.style.display = showRow ? '' : 'none';
+        });
+    }
+
+    // --- Function to determine current view ---
+    function getCurrentView() {
+        return document.getElementById('toggle-user').classList.contains('active') ? 'user' : 'merchant';
+    }
+
+    // --- Update stat cards without full re-render ---
+    function updateStatCards(stats, view) {
+        const totalKey = view === 'merchant' ? 'totalMerchantActivities' : 'totalUserActivities';
+        const statItems = [
+            { key: totalKey, label: view === 'merchant' ? 'Total Merchant Activities' : 'Total User Activities' },
+            { key: 'pending', label: 'Pending' },
+            { key: 'confirmed', label: 'Confirmed' },
+            { key: 'wrongPayment', label: 'Wrong Payment' },
+            { key: 'releaseFund', label: 'Release Fund' }
+        ];
+        
+        statItems.forEach((item, index) => {
+            const statCards = document.querySelectorAll('.stat-card .stat-number');
+            if (statCards[index]) {
+                statCards[index].textContent = stats[item.key] || 0;
+            }
+        });
+    }
+
+    // --- Event handlers for cleaning up addresses ---
+    function cleanupExpiredAddresses() {
+        if (!confirm('Are you sure you want to clean up all expired addresses?')) return;
+        
+        const btn = document.getElementById('cleanExpiredBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+        btn.disabled = true;
+        
+        fetch('/api/admin/cleanup-expired-addresses', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Successfully deleted ${data.deleted} expired addresses`, 'success');
+                    // Refresh the view
+                    const view = getCurrentView();
+                    renderDashboardStatistics(view);
+                } else {
+                    showToast(`Error: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                showToast(`Error: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    }
+
+    function cleanupAbandonedAddresses() {
+        if (!confirm('Are you sure you want to clean up all abandoned addresses?')) return;
+        
+        const btn = document.getElementById('cleanAbandonedBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+        btn.disabled = true;
+        
+        fetch('/api/admin/cleanup-abandoned-addresses', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Successfully deleted ${data.deleted} abandoned addresses`, 'success');
+                    // Refresh the view
+                    const view = getCurrentView();
+                    renderDashboardStatistics(view);
+                } else {
+                    showToast(`Error: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                showToast(`Error: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    }
+
+    // --- Delete address function ---
+    function deleteAddress(address) {
+        if (!confirm(`Are you sure you want to delete address ${address}?`)) return;
+        
+        fetch('/api/delete-address', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ address })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                showToast('Address deleted successfully', 'success');
+                // Remove the row from the table
+                const row = document.querySelector(`tr[data-address="${address}"]`);
+                if (row) row.remove();
+                // Refresh stats
+                const view = getCurrentView();
+                fetch(`/api/admin/statistics?view=${view}`)
+                    .then(response => response.json())
+                    .then(statsData => {
+                        updateStatCards(statsData.stats || {}, view);
+                    });
+            } else {
+                showToast(`Error: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            showToast(`Error: ${error.message}`, 'error');
+        });
+    }
+
+    // This function is called to render dashboard statistics
+    function renderDashboardStatistics(view) {
+        const container = document.getElementById('admin-dashboard-content');
+        container.innerHTML = '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"></div></div>';
+        
+        fetch(`/api/admin/statistics?view=${view}`)
+            .then(response => response.json())
+            .then(data => {
+                const stats = data.stats || {};
+                
+                const statsRow = document.createElement('div');
+                statsRow.className = 'row mb-4';
+                
+                // Create a card for each stat
+                const totalKey = view === 'merchant' ? 'totalMerchantActivities' : 'totalUserActivities';
+                const statItems = [
+                    { key: totalKey, label: view === 'merchant' ? 'Total Merchant Activities' : 'Total User Activities', icon: 'fas fa-chart-line' },
+                    { key: 'pending', label: 'Pending', icon: 'fas fa-clock' },
+                    { key: 'confirmed', label: 'Confirmed', icon: 'fas fa-check-circle' },
+                    { key: 'wrongPayment', label: 'Wrong Payment', icon: 'fas fa-exclamation-triangle' },
+                    { key: 'releaseFund', label: 'Release Fund', icon: 'fas fa-money-bill-wave' }
+                ];
+                
+                statItems.forEach(item => {
+                    const statCard = document.createElement('div');
+                    statCard.className = 'col-md-4 col-lg-2 mb-3';
+                    statCard.innerHTML = `
+                        <div class="card stat-card h-100">
+                            <div class="d-flex flex-column justify-content-center h-100">
+                                <div class="mb-2">
+                                    <i class="${item.icon} fa-2x opacity-75" style="color: var(--primary-color);"></i>
+                                </div>
+                                <div class="stat-number">${stats[item.key] || 0}</div>
+                                <div class="stat-label">${item.label}</div>
+                            </div>
+                        </div>
+                    `;
+                    statsRow.appendChild(statCard);
+                });
+                
+                container.innerHTML = '';
+                container.appendChild(statsRow);
+                
+                // Remove the call to renderAddressCleanup(container);
+                // Remove the call to fetchAndRenderTableData(view, tbody);
+                // Instead, use the existing dashboard logic to render the table
+                loadAdminDashboard();
+            })
+            .catch(error => {
+                console.error('Error fetching statistics:', error);
+                container.innerHTML = `<div class="alert alert-danger">Failed to load dashboard statistics: ${error.message}</div>`;
+            });
+    }
     </script>
+    <footer class="bg-white shadow-sm mt-15 py-4">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-secondary small">
+                    © 2025 Blockchain Payment System
+                </div>
+                <div class="text-secondary small">
+                    <span class="me-3">Admin Dashboard</span>
+                    <span><i class="fas fa-shield-alt me-1"></i>Secure Connection</span>
+                </div>
+            </div>
+        </div>
+    </footer>
 </body>
 </html> 

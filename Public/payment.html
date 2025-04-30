@@ -23,6 +23,66 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Blur and Blinking Loading Effect */
+        .loading-placeholder {
+            filter: blur(4px);
+            opacity: 0.6;
+            animation: blink 1.5s linear infinite;
+            background-color: #e2e8f0; /* Light gray background */
+            border-radius: 4px; /* Slightly rounded corners */
+            display: inline-block; /* Needed for background */
+            min-width: 50px; /* Ensure some width */
+            min-height: 1em; /* Ensure some height */
+            vertical-align: middle; /* Align nicely with text */
+        }
+
+        /* Specific placeholder styles */
+        #qr-code.loading-placeholder {
+            min-width: 128px; /* Match QR code size */
+            min-height: 128px;
+            display: flex; /* Keep centering for spinner */
+            align-items: center;
+            justify-content: center;
+            background-color: #f7fafc; /* Lighter background for QR area */
+            filter: none; /* Don't blur the spinner itself */
+            opacity: 1; /* Don't fade the spinner */
+            animation: none; /* No blinking for the QR container */
+        }
+        #payment-address.loading-placeholder {
+            min-width: 200px; /* Wider placeholder for address */
+        }
+
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+        }
+
+        /* Ensure content visibility once loaded */
+        .loading-placeholder.loaded {
+            filter: none;
+            opacity: 1;
+            animation: none;
+            background-color: transparent;
+            min-width: auto;
+            min-height: auto;
+            display: initial; /* Or inline, block depending on element */
+        }
+        #qr-code.loaded {
+             background-color: #ffffff; /* White background when loaded */
+             display: block; /* Or however QRCode.js renders it */
+        }
+         /* Style for blurred text when expired/wrong */
+        .blurred-text {
+            filter: blur(4px);
+            user-select: none;
+            background-color: #fecaca; /* Light red background */
+            padding: 2px 5px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
     </style>
 </head>
 <body class="bg-gray-50">
@@ -58,30 +118,30 @@
             <div class="bg-white rounded-lg shadow-md p-6 my-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-xl font-semibold text-gray-800">Cryptocurrency Payment</h2>
-                    <span class="text-gray-500 text-sm">Order ID: <span id="order-id" class="font-mono">LOADING...</span></span>
+                    <span class="text-gray-500 text-sm">Order ID: <span id="order-id" class="font-mono loading-placeholder">&nbsp;</span></span>
                 </div>
                 
                 <div class="border-b border-gray-200 pb-4 mb-4">
                     <div class="flex justify-between mb-2">
                         <span class="text-gray-600">Amount:</span>
-                        <span id="crypto-amount" class="font-medium">LOADING...</span>
+                        <span id="crypto-amount" class="font-medium loading-placeholder">&nbsp;</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Expires:</span>
-                        <span id="countdown" class="font-medium text-orange-600">LOADING...</span>
+                        <span id="countdown" class="font-medium text-orange-600 loading-placeholder">&nbsp;</span>
                     </div>
                 </div>
                 
                 <div class="bg-gray-50 rounded-lg p-4 mb-6">
                     <div class="flex flex-col items-center space-y-4">
                         <h3 class="text-gray-700 font-medium">Scan QR Code or Copy Address</h3>
-                        <div id="qr-code" class="border border-gray-200 p-2 rounded bg-white min-w-[128px] min-h-[128px] flex items-center justify-center">
+                        <div id="qr-code" class="border border-gray-200 p-2 rounded bg-white min-w-[128px] min-h-[128px] flex items-center justify-center loading-placeholder">
                             <div class="spinner"></div>
                         </div>
                         <div class="flex flex-col items-center space-y-1 w-full">
                             <p class="text-gray-500 text-sm">Payment Address:</p>
                             <div class="flex items-center w-full">
-                                <code id="payment-address" class="bg-gray-100 px-3 py-2 rounded text-sm font-mono truncate flex-grow text-center">GENERATING...</code>
+                                <code id="payment-address" class="bg-gray-100 px-3 py-2 rounded text-sm font-mono truncate flex-grow text-center loading-placeholder">&nbsp;</code>
                                 <button onclick="copyPaymentAddress()" class="ml-2 p-2 text-blue-600 hover:text-blue-800 focus:outline-none">
                                     <i class="fas fa-copy"></i>
                                 </button>
@@ -374,7 +434,8 @@
         // Copy payment address function
         function copyPaymentAddress() {
             const addressElement = document.getElementById('payment-address');
-            if (!addressElement || addressElement.textContent === 'GENERATING...') return;
+            // Check if it's still in loading state
+            if (!addressElement || addressElement.classList.contains('loading-placeholder') || addressElement.querySelector('.blurred-text')) return;
             const address = addressElement.textContent;
             navigator.clipboard.writeText(address).then(() => {
                 showToast('Payment address copied to clipboard', 'success');
@@ -391,9 +452,15 @@
             const expiryTime = new Date(expiresAt);
             if (isNaN(expiryTime) || expiryTime <= Date.now()) {
                  timerElement.innerHTML = '<span class="text-red-600 font-bold">EXPIRED</span>';
+                 timerElement.classList.remove('loading-placeholder');
+                 timerElement.classList.add('loaded');
                  showExpiredPaymentUI(); // Handle expired UI immediately
                  return;
             }
+
+            // Remove loading state before starting the timer
+            timerElement.classList.remove('loading-placeholder');
+            timerElement.classList.add('loaded');
             
             countdownInterval = setInterval(() => {
                 const now = Date.now();
@@ -402,6 +469,7 @@
                 if (timeLeft <= 0) {
                     clearInterval(countdownInterval);
                     if (paymentSession) paymentSession.isExpired = true;
+                    timerElement.innerHTML = '<span class="text-red-600 font-bold">EXPIRED</span>'; // Update text on expiry
                     showExpiredPaymentUI();
                     return;
                 }
@@ -417,16 +485,25 @@
             if (paymentSession) paymentSession.isWrongPayment = true;
 
             const qrContainer = document.getElementById('qr-code');
-            if (qrContainer) qrContainer.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 text-center"><i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i><p class="text-red-700 font-medium">Wrong payment amount detected</p><p class="mt-2 text-red-700"><span class="blurred-address" style="filter: blur(4px); user-select: none;">Invalid Address</span></p></div>`;
+            if (qrContainer) {
+                 qrContainer.classList.remove('loading-placeholder');
+                 qrContainer.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 text-center"><i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i><p class="text-red-700 font-medium">Wrong payment amount detected</p><p class="mt-2 text-red-700"><span class="blurred-text">Invalid Address</span></p></div>`;
+            }
             
             const addressElement = document.getElementById('payment-address');
-            if (addressElement) addressElement.innerHTML = `<span class="blurred-address" style="filter: blur(4px); user-select: none;">Invalid Address</span>`;
+            if (addressElement) {
+                 addressElement.classList.remove('loading-placeholder');
+                 addressElement.innerHTML = `<span class="blurred-text">Invalid Address</span>`;
+            }
             // Remove the copy button if present
             const copyBtn = addressElement?.parentElement?.querySelector('button');
             if (copyBtn) copyBtn.remove();
 
             const countdownElement = document.getElementById('countdown');
-            if (countdownElement) countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+            if (countdownElement) {
+                 countdownElement.classList.remove('loading-placeholder');
+                 countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+            }
             
             const instructionsElement = document.getElementById('payment-instructions');
             if (instructionsElement) instructionsElement.style.display = 'none';
@@ -728,9 +805,16 @@
                  paymentSession = initialPaymentData;
                  console.log("Starting new payment session with data from Cart:", paymentSession);
 
-                // Display initial info
-                document.getElementById('order-id').textContent = paymentSession.orderId || 'N/A';
-                document.getElementById('crypto-amount').textContent = `${paymentSession.cryptoAmount} ${paymentSession.selectedCrypto}`;
+                // Display initial info (remove loading class when setting)
+                const orderIdElem = document.getElementById('order-id');
+                orderIdElem.textContent = paymentSession.orderId || 'N/A';
+                orderIdElem.classList.remove('loading-placeholder');
+                orderIdElem.classList.add('loaded');
+
+                const cryptoAmountElem = document.getElementById('crypto-amount');
+                cryptoAmountElem.textContent = `${paymentSession.cryptoAmount} ${paymentSession.selectedCrypto}`;
+                cryptoAmountElem.classList.remove('loading-placeholder');
+                cryptoAmountElem.classList.add('loaded');
 
                 // Show loading state for transaction status while generating address
                  const transactionStatus = document.getElementById('transaction-status');
@@ -771,10 +855,15 @@
                     console.log("Saved complete paymentSession to sessionStorage:", paymentSession);
 
                     // Update UI with generated address and start processes
-                    document.getElementById('payment-address').textContent = data.address;
+                    const paymentAddressElem = document.getElementById('payment-address');
+                    paymentAddressElem.textContent = data.address;
+                    paymentAddressElem.classList.remove('loading-placeholder');
+                    paymentAddressElem.classList.add('loaded');
 
                     const qrContainer = document.getElementById('qr-code');
                     if (qrContainer) {
+                         qrContainer.classList.remove('loading-placeholder'); // Remove placeholder class
+                         qrContainer.classList.add('loaded'); // Add loaded class
                          qrContainer.innerHTML = ''; // Clear spinner
                         new QRCode(qrContainer, {
                             text: data.address,
@@ -786,7 +875,7 @@
                         });
                     }
 
-                    startCountdown(paymentSession.expiresAt);
+                    startCountdown(paymentSession.expiresAt); // This now also removes loading class from countdown
                     startTransactionDetection(data.address, paymentSession.selectedCrypto, paymentSession.cryptoAmount);
 
                 } catch (error) {
@@ -826,14 +915,27 @@
             // Start heartbeat to verify address is still active
             startHeartbeat(session.address);
 
-            // Display existing info
-            document.getElementById('order-id').textContent = session.orderId || 'N/A';
-            document.getElementById('crypto-amount').textContent = `${session.cryptoAmount} ${session.selectedCrypto}`;
-            document.getElementById('payment-address').textContent = session.address;
+            // Display existing info (remove loading classes)
+            const orderIdElem = document.getElementById('order-id');
+            orderIdElem.textContent = session.orderId || 'N/A';
+            orderIdElem.classList.remove('loading-placeholder');
+            orderIdElem.classList.add('loaded');
+
+            const cryptoAmountElem = document.getElementById('crypto-amount');
+            cryptoAmountElem.textContent = `${session.cryptoAmount} ${session.selectedCrypto}`;
+            cryptoAmountElem.classList.remove('loading-placeholder');
+            cryptoAmountElem.classList.add('loaded');
+
+            const paymentAddressElem = document.getElementById('payment-address');
+            paymentAddressElem.textContent = session.address;
+            paymentAddressElem.classList.remove('loading-placeholder');
+            paymentAddressElem.classList.add('loaded');
 
             // Generate QR code from existing address
             const qrContainer = document.getElementById('qr-code');
             if (qrContainer) {
+                qrContainer.classList.remove('loading-placeholder'); // Remove placeholder class
+                qrContainer.classList.add('loaded'); // Add loaded class
                 qrContainer.innerHTML = ''; // Clear spinner
                 new QRCode(qrContainer, {
                     text: session.address,
@@ -845,7 +947,7 @@
                 });
             }
 
-            // Resume countdown
+            // Resume countdown (this now also removes loading class)
             startCountdown(session.expiresAt);
 
             // Resume transaction detection
@@ -873,13 +975,25 @@
         // Show expired payment UI
         function showExpiredPaymentUI() {
             const qrContainer = document.getElementById('qr-code');
-            if (qrContainer) qrContainer.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 text-center"><i class="fas fa-ban text-red-500 text-3xl mb-2"></i><p class="text-red-700 font-medium">This payment address has expired</p><p class="mt-2 text-red-700"><span class="blurred-address" style="filter: blur(4px); user-select: none;">Expired Address</span></p></div>`;
+            if (qrContainer) {
+                 qrContainer.classList.remove('loading-placeholder');
+                 qrContainer.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 text-center"><i class="fas fa-ban text-red-500 text-3xl mb-2"></i><p class="text-red-700 font-medium">This payment address has expired</p><p class="mt-2 text-red-700"><span class="blurred-text">Expired Address</span></p></div>`;
+            }
             
             const addressElement = document.getElementById('payment-address');
-            if (addressElement) addressElement.innerHTML = `<span class="blurred-address" style="filter: blur(4px); user-select: none;">Expired Address</span>`;
+            if (addressElement) {
+                addressElement.classList.remove('loading-placeholder');
+                addressElement.innerHTML = `<span class="blurred-text">Expired Address</span>`;
+            }
             // Remove the copy button if present
             const copyBtn = addressElement?.parentElement?.querySelector('button');
             if (copyBtn) copyBtn.remove();
+
+            const countdownElement = document.getElementById('countdown');
+            if (countdownElement) {
+                countdownElement.classList.remove('loading-placeholder');
+                countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+            }
             
             const instructionsElement = document.getElementById('payment-instructions');
             if (instructionsElement) instructionsElement.style.display = 'none';

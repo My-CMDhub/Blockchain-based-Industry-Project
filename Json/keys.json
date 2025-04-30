@@ -7,5 +7,18 @@
     "iv": "cbe0b018bf3724cd29adc840058677e1",
     "encryptedData": "c75cbec9ebc6d8205e2a8329560de767963a0ad04705864c1161dbfb44033037373840c69bcde01247d08a734f5285d0d0999b5623df47e4673d9bf8527ba29ef932f5572880d092ab294051ad8cfce4b489613ac401636b36d99c73ed0a9141a6f9b38bc799a1baee6441f5ed36dd57"
   },
-  "activeAddresses": {}
+  "activeAddresses": {
+    "0x117D27869971401704EDf8B58b29BdBa3AE0D28C": {
+      "index": 1,
+      "ethAmount": "0.00330682",
+      "expectedAmount": "0.00330682",
+      "cryptoType": "ETH",
+      "createdAt": "2025-04-30T05:04:10.341Z",
+      "expiresAt": "2025-04-30T05:34:10.341Z",
+      "status": "pending",
+      "orderId": "ORD-MA3H1CXX",
+      "fiatAmount": "5.99",
+      "fiatCurrency": "USD"
+    }
+  }
 }

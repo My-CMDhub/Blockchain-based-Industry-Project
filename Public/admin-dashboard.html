@@ -1581,7 +1581,7 @@
             if (!data.success) throw new Error(data.error || 'Failed to fetch wallet balance');
             
             const eth = data.ethBalance;
-            const usd = data.usdBalance !== null ? `$${data.usdBalance}` : 'N/A';
+            const aud = data.audBalance !== null ? `$${data.audBalance}` : 'N/A';
             const address = data.address;
             const lastUpdated = new Date(data.lastUpdated).toLocaleString();
             
@@ -1602,7 +1602,7 @@
                         
                         <div class="my-4">
                             <div class="wallet-balance mb-1">${eth} ETH</div>
-                            <div class="wallet-usd mb-3">${usd} USD</div>
+                            <div class="wallet-usd mb-3">${aud} AUD</div>
                         </div>
                         
                         <div class="text-secondary mb-4" style="font-size:0.9rem;">

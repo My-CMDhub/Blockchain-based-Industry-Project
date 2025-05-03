@@ -4,18 +4,12 @@ const Web3 = require('web3');
 const fs = require('fs');
 const path = require('path');
 const { recoverWallet, getStoredKeys } = require('./recover.js');
-const { decrypt } = require('./encryptionUtils');
+const { decrypt } = require('./encryptionUtils.js');
 const winston = require('winston');
 const ethers = require('ethers');
 const crypto = require('crypto');
 const dotenv = require('dotenv');
 const { BigNumber } = require('ethers');
-const { secureReadFile, secureWriteFile } = require('./server/utils/fileUtils');
-const { getFreshProvider, getReliableNonce, getReliableGasPrice, waitForTransactionReceipt, checkTransactionReceipt, getBalanceWithRetry, shouldRetryTransaction, isProviderError } = require('./server/utils/web3Utils');
-const { logBlockchain, logToFile } = require('./server/utils/logger');
-const paymentRoutes = require('./server/routes/paymentRoutes');
-const walletRoutes = require('./server/routes/walletRoutes');
-const merchantRoutes = require('./server/routes/merchantRoutes');
 
 dotenv.config();
 
@@ -35,6 +29,21 @@ const logger = winston.createLogger({
     })
   ]
 });
+
+// Configure logging
+function logBlockchain(operation, details) {
+    // Skip logging to file
+    console.log(`=== BLOCKCHAIN OPERATION [${new Date().toISOString()}] ===`);
+    console.log(`>> Operation: ${operation}`);
+    console.log(`>> Details: ${JSON.stringify(details, null, 2)}`);
+    console.log('=======================================');
+}
+
+// Log to file function
+function logToFile(message) {
+    // Skip logging to file
+    console.log(message);
+}
 
 const app = express();
 app.use(cors());
@@ -57,6 +66,38 @@ app.get('/env-check', (req, res) => {
         moralis: !!process.env.MORALIS_API_KEY
     });
 });
+
+// Secure file operation functions to prevent path traversal attacks
+function secureWriteFile(filePath, data) {
+    // Normalize the path to prevent directory traversal
+    const normalizedPath = path.normalize(filePath);
+    const absolutePath = path.resolve(normalizedPath);
+    
+    // Check if the path is within the allowed directories
+    const baseDir = path.resolve('.');
+    if (!absolutePath.startsWith(baseDir)) {
+        throw new Error(`Security error: Attempted to write to file outside of application directory: ${filePath}`);
+    }
+    
+    // Write the file
+    fs.writeFileSync(absolutePath, data);
+    return true;
+}
+
+function secureReadFile(filePath) {
+    // Normalize the path to prevent directory traversal
+    const normalizedPath = path.normalize(filePath);
+    const absolutePath = path.resolve(normalizedPath);
+    
+    // Check if the path is within the allowed directories
+    const baseDir = path.resolve('.');
+    if (!absolutePath.startsWith(baseDir)) {
+        throw new Error(`Security error: Attempted to read file outside of application directory: ${filePath}`);
+    }
+    
+    // Read the file
+    return fs.readFileSync(absolutePath, 'utf8');
+}
 
 // Simple API key validation for sensitive endpoints only
 function validateApiKey(req, res, next) {
@@ -227,22 +268,7 @@ app.post('/api/release-all-funds', async (req, res) => {
         
         // Initialize web3 provider for transaction
         console.log('Initializing fresh Web3 provider...');
-        let freshWeb3;
-        try {
-          freshWeb3 = await getFreshProvider();
-        } catch (err) {
-          console.error('Failed to get a fresh Web3 provider:', err);
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to connect to any Ethereum RPC provider. Please try again later.'
-          });
-        }
-        if (!freshWeb3 || !freshWeb3.utils) {
-          return res.status(500).json({
-            success: false,
-            error: 'Web3 provider is not available or invalid. Please try again later.'
-          });
-        }
+        const freshWeb3 = await getFreshProvider();
         console.log('Web3 provider initialized successfully');
         
         // Get wallet keys from storage
@@ -284,8 +310,8 @@ app.post('/api/release-all-funds', async (req, res) => {
             console.log(`Address ${addr} balance: ${balance} ETH`);
             
             addressBalances.push({
-                address,
-                balance,
+                address: addr,
+                balance: parseFloat(balance),
                 ethBalance: balance,
                 index: addrInfo.index
             });
@@ -856,8 +882,7 @@ try {
     });
     
     web3 = new Web3(provider);
-    global.web3 = web3;
-    console.log('Web3 HTTP provider initialized and global.web3 set:', !!global.web3, 'URL:', cleanInfuraUrl);
+    console.log('Web3 HTTP provider initialized with URL:', cleanInfuraUrl);
     
     // Test connection immediately
     web3.eth.getBlockNumber()
@@ -1269,6 +1294,122 @@ const TX_DEFAULTS = {
     gasPrice: '50000000000' // 50 gwei in wei
 };
 
+// Get a fresh provider when needed - updated with better RPC endpoints and reliability
+async function getFreshProvider() {
+    console.log('Getting fresh provider with prioritized endpoints...');
+    
+    // Use multiple RPC endpoints with priority order
+    const rpcEndpoints = [
+        // Primary options
+        'https://ethereum-sepolia.publicnode.com',
+        'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9',
+        // Add an Alchemy endpoint
+        'https://eth-sepolia.g.alchemy.com/v2/demo',
+        // Fallback options
+        'https://rpc.sepolia.org',
+        'https://sepolia.gateway.tenderly.co',
+        'https://rpc2.sepolia.org',
+        'https://eth-sepolia.public.blastapi.io'
+    ];
+    
+    // Add custom endpoints from environment if available
+    if (process.env.CUSTOM_RPC_ENDPOINTS) {
+        try {
+            const customEndpoints = process.env.CUSTOM_RPC_ENDPOINTS.split(',');
+            rpcEndpoints.unshift(...customEndpoints); // Add custom endpoints with higher priority
+            console.log(`Added ${customEndpoints.length} custom RPC endpoints from environment`);
+        } catch (error) {
+            console.error('Failed to parse custom RPC endpoints:', error);
+        }
+    }
+    
+    // Track errors for better diagnostics
+    const errors = [];
+    
+    // Try each provider until one works
+    for (const endpoint of rpcEndpoints) {
+        try {
+            const providerName = endpoint.split('//')[1].split('.')[0];
+            console.log(`Trying provider: ${providerName}`);
+            
+            const provider = new Web3.providers.HttpProvider(endpoint, {
+                timeout: 30000, // 30 second timeout
+                // Add retry mechanism
+                reconnect: {
+                    auto: true,
+                    delay: 1000,
+                    maxAttempts: 3
+                }
+            });
+            
+            const web3 = new Web3(provider);
+            
+            // Verify the connection and network in a more robust way
+            try {
+                const [network, chainId, blockNumber] = await Promise.all([
+                    web3.eth.net.getNetworkType().catch(() => null),
+                    web3.eth.getChainId().catch(() => null),
+                    web3.eth.getBlockNumber().catch(() => null)
+                ]);
+                
+                // Verify we're on Sepolia (chainId 11155111)
+                if (chainId === 11155111) {
+                    console.log(`Provider ${providerName} connected successfully! Current block: ${blockNumber}`);
+                    
+                    // Log success
+                    logBlockchain('WEB3_PROVIDER_SUCCESS', {
+                        provider: providerName,
+                        endpoint: endpoint,
+                        network: 'Sepolia',
+                        blockNumber: blockNumber
+                    });
+                    
+                    // Cache this working provider for fallback purposes
+                    global.lastWorkingProvider = provider;
+                    global.lastWorkingProviderTimestamp = Date.now();
+                    global.lastWorkingWeb3 = web3;
+                    
+                    return web3;
+                } else {
+                    console.warn(`Provider ${providerName} connected to wrong network: ${network}, chainId: ${chainId}`);
+                    errors.push(`Provider ${providerName}: Wrong network (chainId: ${chainId})`);
+                    continue; // Try the next provider
+                }
+            } catch (verificationError) {
+                console.error(`Provider ${providerName} connection verification failed:`, verificationError.message);
+                errors.push(`Provider ${providerName}: Verification failed - ${verificationError.message}`);
+                continue; // Try the next provider
+            }
+            
+        } catch (error) {
+            const providerName = endpoint.split('//')[1].split('.')[0];
+            console.error(`Provider ${providerName} connection failed:`, error.message);
+            errors.push(`Provider ${providerName}: ${error.message}`);
+            // Continue to the next provider
+        }
+    }
+    
+    // Try to use cached provider as a last resort
+    if (global.lastWorkingWeb3 && global.lastWorkingProviderTimestamp && 
+        (Date.now() - global.lastWorkingProviderTimestamp) < 3600000) { // Less than 1 hour old
+        console.log('All providers failed, trying the last working provider from cache...');
+        
+        try {
+            // Verify the cached provider still works
+            const blockNumber = await global.lastWorkingWeb3.eth.getBlockNumber();
+            console.log(`Cached provider is working! Current block: ${blockNumber}`);
+            return global.lastWorkingWeb3;
+        } catch (cachedError) {
+            console.error('Cached provider also failed:', cachedError.message);
+        }
+    }
+    
+    // Log all provider errors for diagnostics
+    logBlockchain('ALL_PROVIDERS_FAILED', { errors });
+    
+    throw new Error('Failed to connect to any RPC provider. Please check your internet connection and try again later.');
+}
+
 // Use HTTP polling instead of WebSockets
 let blockCheckInterval;
 
@@ -1329,10 +1470,6 @@ app.get('/merchant', (req, res) => {
 // Get HD Wallet Balance
 app.get('/api/wallet-balance', async (req, res) => {
     try {
-        console.log('DEBUG: process.env.INFURA_URL in /api/wallet-balance:', process.env.INFURA_URL);
-        // Log the provider URL that will be used
-        const providerUrl = process.env.INFURA_URL || MERCHANT_ADDRESS;
-        console.log('DEBUG: Provider URL to be used:', providerUrl);
         // Check rate limit for this endpoint
         const rateLimitKey = `rateLimit:wallet-balance:${req.ip}`;
         if (global[rateLimitKey] && global[rateLimitKey] > 10) {
@@ -1373,24 +1510,7 @@ app.get('/api/wallet-balance', async (req, res) => {
         const activeAddresses = keys.activeAddresses || {};
         
         // Initialize Web3 provider
-        let freshWeb3;
-        try {
-          freshWeb3 = await getFreshProvider();
-          console.log('DEBUG: freshWeb3 returned from getFreshProvider:', !!freshWeb3);
-          console.log('DEBUG: freshWeb3.utils exists:', !!(freshWeb3 && freshWeb3.utils));
-        } catch (err) {
-          console.error('Failed to get a fresh Web3 provider:', err);
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to connect to any Ethereum RPC provider. Please try again later.'
-          });
-        }
-        if (!freshWeb3 || !freshWeb3.utils) {
-          return res.status(500).json({
-            success: false,
-            error: 'Web3 provider is not available or invalid. Please try again later.'
-          });
-        }
+        const freshWeb3 = await getFreshProvider();
         
         // Create a map to store balances by address
         const balances = new Map();
@@ -1985,11 +2105,188 @@ app.post('/api/verify-transaction', async (req, res) => {
     }
 });
 
+// Process payment - revised to use real blockchain data only
+app.post('/api/process-payment', async (req, res) => {
+    const { cryptoType, address, pollCount, txHash } = req.body;
+    
+    console.log(`[${new Date().toISOString()}] Payment check for address: ${address}, pollCount: ${pollCount || 'N/A'}`);
+    logToFile(`Payment check for address: ${address}, pollCount: ${pollCount || 'N/A'}`);
+    
+    try {
+        // If transaction hash is directly provided
+        if (txHash) {
+            try {
+                const txReceipt = await web3.eth.getTransactionReceipt(txHash);
+                
+                // Transaction found on blockchain
+                if (txReceipt) {
+                    // Check if transaction is confirmed (has block number and status)
+                    if (txReceipt.blockNumber && txReceipt.status) {
+                        logBlockchain('TRANSACTION_CONFIRMED', {
+                            hash: txHash,
+                            blockNumber: txReceipt.blockNumber,
+                            from: txReceipt.from,
+                            to: txReceipt.to
+                        });
+                        
+                        return res.json({
+                            success: true,
+                            status: 'confirmed',
+                            txHash: txHash,
+                            receipt: {
+                                blockNumber: txReceipt.blockNumber,
+                                status: txReceipt.status
+                            }
+                        });
+                    } 
+                    // Transaction exists but failed
+                    else if (txReceipt.blockNumber && !txReceipt.status) {
+                        logBlockchain('TRANSACTION_FAILED', {
+                            hash: txHash,
+                            blockNumber: txReceipt.blockNumber
+                        });
+                        
+                        return res.json({
+                            success: false,
+                            status: 'failed',
+                            txHash: txHash,
+                            error: 'Transaction was rejected by the blockchain'
+                        });
+                    }
+                    // Transaction exists but still pending 
+                    else {
+                        logBlockchain('TRANSACTION_PENDING', {
+                            hash: txHash
+                        });
+                        
+                        return res.json({
+                            success: true,
+                            status: 'pending',
+                            txHash: txHash,
+                            pending: true
+                        });
+                    }
+                }
+                // Transaction not found yet
+                else {
+                    logBlockchain('TRANSACTION_NOT_FOUND', {
+                        hash: txHash
+                    });
+                    
+                    return res.json({
+                        success: true,
+                        status: 'not_found',
+                        txHash: txHash
+                    });
+                }
+            } catch (txError) {
+                console.error('Error checking transaction:', txError);
+                logBlockchain('TRANSACTION_CHECK_ERROR', {
+                    hash: txHash,
+                    error: txError.message
+                });
+                
+                return res.status(500).json({
+                    success: false,
+                    error: 'Error checking transaction: ' + txError.message
+                });
+            }
+        }
+        
+        // No hash provided, check for transactions to the address
+        if (address) {
+            try {
+                // Check if the address is expired in our records
+                const keys = getStoredKeys();
+                const addrInfo = keys.activeAddresses && keys.activeAddresses[address];
+                
+                if (addrInfo && addrInfo.isExpired === true) {
+                    console.log(`Rejecting payment processing for expired address ${address}`);
+                    return res.status(400).json({
+                        success: false,
+                        isExpired: true,
+                        message: 'This payment address has expired',
+                        reason: addrInfo.expiredReason || 'Address expired due to previous wrong payment',
+                        expiredAt: addrInfo.expiredAt || new Date().toISOString()
+                    });
+                }
+                
+                // Check the most recent blocks for transactions to this address
+                const latestBlockNumber = await web3.eth.getBlockNumber();
+                const blocksToCheck = 5; // Check the last 5 blocks
+                
+                for (let i = 0; i < blocksToCheck; i++) {
+                    const blockNumber = latestBlockNumber - i;
+                    const block = await web3.eth.getBlock(blockNumber, true);
+                    
+                    if (block && block.transactions) {
+                        // Find transactions to our address
+                        const matchingTx = block.transactions.find(tx => 
+                            tx.to && tx.to.toLowerCase() === address.toLowerCase());
+                        
+                        if (matchingTx) {
+                            // Found a matching transaction!
+                            const txReceipt = await web3.eth.getTransactionReceipt(matchingTx.hash);
+                            
+                            logBlockchain('TRANSACTION_FOUND_IN_BLOCK', {
+                                hash: matchingTx.hash,
+                                blockNumber: matchingTx.blockNumber,
+                                from: matchingTx.from,
+                                to: matchingTx.to,
+                                value: web3.utils.fromWei(matchingTx.value, 'ether') + ' ETH'
+                            });
+                            
+                            return res.json({
+                                success: true,
+                                status: txReceipt && txReceipt.status ? 'confirmed' : 'failed',
+                                txHash: matchingTx.hash,
+                                receipt: txReceipt
+                            });
+                        }
+                    }
+                }
+                
+                // No transaction found yet, return this fact
+                return res.json({
+                    success: true,
+                    status: 'no_transaction',
+                    message: 'No transactions found yet for this address'
+                });
+                
+            } catch (addressCheckError) {
+                console.error('Error checking address for transactions:', addressCheckError);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Error checking for transactions: ' + addressCheckError.message
+                });
+            }
+        }
+        
+        // If we got here, we don't have enough information to check for transactions
+        return res.status(400).json({
+            success: false,
+            error: 'Missing required parameters: address or txHash'
+        });
+        
+    } catch (error) {
+        const errorMsg = `Payment processing failed: ${error.message || 'Unknown error'}`;
+        console.error(errorMsg);
+        logToFile(`ERROR: ${errorMsg}`);
+        
+        logBlockchain('PAYMENT_CHECK_FAILED', {
+            error: error.message,
+            stack: error.stack
+        });
+        
+        res.status(500).json({
+            success: false,
+            error: 'Payment check failed: ' + (error.message || 'Unknown error')
+        });
+    }
+});
+
 // Get merchant transaction history
 app.get('/api/merchant-transactions', async (req, res) => {
-    // Ensure these are defined at the top of the handler
-    const cachedWrongPaymentsKey = 'wrong_payments_cache';
-    const cachedWrongPaymentsTimestampKey = 'wrong_payments_timestamp';
     try {
         // Use cache control headers for better client-side caching
         res.set('Cache-Control', 'private, max-age=30'); // Cache for 30 seconds on client
@@ -2017,9 +2314,1219 @@ app.get('/api/merchant-transactions', async (req, res) => {
             
                     // Ensure we have an array
                     if (!Array.isArray(transactions)) {
-                        console.warn('Transaction log was corrupted, using empty array');
+                        console.warn('Transaction log was corrupted, resetting to empty array');
                         transactions = [];
                         
+                        // Create a backup of the corrupted file
+                        const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
+                        fs.copyFileSync(txFile, backupFile);
+                        console.warn(`Created backup of corrupted file: ${backupFile}`);
+                        
+                        // Reset the file with an empty array
+                        secureWriteFile(txFile, JSON.stringify([]));
+                    }
+                } else {
+                    console.log('Transaction file is empty, initializing with empty array');
+                    transactions = [];
+                    secureWriteFile(txFile, JSON.stringify([]));
+                }
+            } catch (parseError) {
+                console.error('Error parsing transaction log:', parseError);
+                
+                // Create a backup of the corrupted file
+                const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
+                try {
+                    fs.copyFileSync(txFile, backupFile);
+                    console.warn(`Created backup of corrupted file: ${backupFile}`);
+                } catch (backupError) {
+                    console.error('Error creating backup:', backupError);
+                }
+                
+                // Reset with empty array
+                transactions = [];
+                secureWriteFile(txFile, JSON.stringify([]));
+            }
+        } else {
+            console.log('Transaction file does not exist, creating empty file');
+            transactions = [];
+            secureWriteFile(txFile, JSON.stringify([]));
+        }
+        
+        // Try to enhance transaction data with wallet information
+        try {
+            // Get active addresses info (only if transaction list is not empty)
+            if (transactions.length > 0) {
+                const keys = getStoredKeys();
+                const activeAddresses = keys.activeAddresses || {};
+                
+                // Enhance transactions with additional data
+                transactions = transactions.map(tx => {
+                    // Check if this is an address we know about
+                    if (tx.address && activeAddresses[tx.address]) {
+                        const addrInfo = activeAddresses[tx.address];
+                        return {
+                            ...tx,
+                            addrInfo: {
+                                createdAt: addrInfo.createdAt,
+                                expectedAmount: addrInfo.expectedAmount,
+                                cryptoType: addrInfo.cryptoType,
+                                status: addrInfo.status
+                            }
+                        };
+                    }
+                    return tx;
+                });
+            }
+        } catch (walletError) {
+            console.warn('Could not enhance transactions with wallet data:', walletError.message);
+            // Continue with basic transaction data
+        }
+        
+        // Check for wrong payments and mark them
+        let transactionsUpdated = false;
+        transactions = transactions.map(tx => {
+            // Skip non-payment transactions and already processed transactions with verified status
+            if (tx.type !== 'payment' || (tx.amountVerified !== undefined && tx.wrongPaymentRecorded === true)) {
+                return tx;
+            }
+            
+            // Log the transaction being checked
+            console.log(`Checking payment correctness for transaction: ${tx.txHash || tx.address || 'unknown'}`);
+            
+            // Verify the payment amount is correct
+            const isCorrect = isPaymentAmountCorrect(tx);
+            
+            // Mark the transaction with verification result
+            tx.amountVerified = isCorrect;
+            transactionsUpdated = true;
+            
+            // If the amount is wrong, record it for admin review and mark it clearly
+            if (!isCorrect) {
+                console.log(`Payment amount incorrect for ${tx.txHash || tx.address || 'unknown'}: expected=${tx.addrInfo?.expectedAmount || tx.expectedAmount}, actual=${tx.amount}`);
+                
+                // Set all relevant wrong payment flags
+                tx.isWrongPayment = true;
+                tx.wrongPayment = true;
+                tx.status = 'wrong'; // Explicitly mark status as wrong for UI display
+                
+                // Record the wrong payment if not already recorded
+                if (!tx.wrongPaymentRecorded) {
+                    recordWrongPayment(tx);
+                    tx.wrongPaymentRecorded = true;
+                    console.log(`Marked transaction ${tx.txHash || tx.address || 'unknown'} as wrong payment`);
+                }
+            } else {
+                // If payment is correct, ensure status is set properly
+                if (!tx.status || tx.status === 'pending') {
+                    tx.status = 'confirmed';
+                }
+            }
+            
+            return tx;
+        });
+        
+        // Improved wrong payment detection in transaction list
+        // Count wrong payments and calculate their total
+        let wrongPaymentsCount = 0;
+        let wrongPaymentsAmount = "0";
+        
+        try {
+            // Improved filter to catch all possible wrong payment markers
+            const wrongPayments = transactions.filter(tx => 
+                tx.type === 'payment' && 
+                (
+                    tx.amountVerified === false || 
+                    tx.status === 'wrong' || 
+                    tx.isWrongPayment === true ||
+                    tx.wrongPayment === true ||
+                    tx.wrongPaymentRecorded === true
+                )
+            );
+            
+            wrongPaymentsCount = wrongPayments.length;
+            
+            // Calculate total wrong payment amount
+            if (wrongPaymentsCount > 0) {
+                console.log(`Found ${wrongPaymentsCount} wrong payments, calculating total amount...`);
+                
+                // Use a safer approach to sum amounts to avoid BigInt conversion errors
+                let totalWei = BigInt(0);
+                
+                for (const tx of wrongPayments) {
+                    try {
+                        let amountWei;
+                        
+                        if (tx.amountWei) {
+                            // Use amountWei directly if available
+                            amountWei = tx.amountWei.toString();
+                        } else if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
+                            // Amount is in ETH format, convert to wei
+                            amountWei = web3.utils.toWei(tx.amount, 'ether');
+                        } else {
+                            // Amount is already in Wei or a number
+                            amountWei = tx.amount.toString();
+                        }
+                        
+                        totalWei = totalWei + BigInt(amountWei);
+                        console.log(`Added wrong payment: ${tx.amount} ETH (${amountWei} wei), running total: ${totalWei} wei`);
+                    } catch (e) {
+                        console.error('Error processing wrong payment amount:', e, tx);
+                        // Continue with other transactions
+                    }
+                }
+                
+                // Convert total wei to ETH
+                wrongPaymentsAmount = web3.utils.fromWei(totalWei.toString(), 'ether');
+                console.log(`Wrong payments: ${wrongPaymentsCount}, Total: ${wrongPaymentsAmount} ETH`);
+            }
+        } catch (countError) {
+            console.error('Error counting wrong payments:', countError);
+            // Use default values in case of error
+            wrongPaymentsCount = 0;
+            wrongPaymentsAmount = "0";
+        }
+        
+        // Save the updated transactions back to file if any transactions were updated
+        if (transactionsUpdated) {
+            try {
+                secureWriteFile(txFile, JSON.stringify(transactions, null, 2));
+                console.log('Saved updated transaction data with payment verification');
+            } catch (saveError) {
+                console.error('Error saving updated transaction data:', saveError);
+            }
+        }
+        
+        // Sort by timestamp (newest first)
+        transactions.sort((a, b) => {
+            if (!a.timestamp) return 1;
+            if (!b.timestamp) return -1;
+            return new Date(b.timestamp) - new Date(a.timestamp);
+        });
+        
+        // Prepare response
+        const responseData = {
+            success: true,
+            transactions: transactions.slice(0, 100), // Limit to most recent 100
+            total: transactions.length,
+            timestamp: Date.now(),
+            wrongPayments: wrongPaymentsCount,
+            wrongPaymentsAmount: wrongPaymentsAmount
+        };
+        
+        // Cache the response
+        global[cachedTxKey] = responseData;
+        global[cachedTxTimestampKey] = Date.now();
+        
+        res.json(responseData);
+    } catch (error) {
+        console.error('Error fetching merchant transactions:', error);
+        
+        // If we have a cached version, return that with a warning
+        const cachedTxKey = 'tx_history_cache';
+        if (global[cachedTxKey]) {
+            console.log('Returning stale cached transaction history due to error');
+            // Clone the cached data and mark it as stale
+            const staleData = {
+                ...global[cachedTxKey],
+                stale: true,
+                warning: 'Using cached data due to error'
+            };
+            return res.json(staleData);
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch transaction history: ' + error.message
+        });
+    }
+});
+
+// Improved transaction sending with better retry logic
+async function sendTransactionWithRetry(web3, signedTx, retries = 5, timeout = 180000) {
+    let attempt = 0;
+    let lastError = null;
+    
+    while (attempt < retries) {
+        attempt++;
+        console.log(`Sending transaction: Attempt ${attempt}/${retries}`);
+        
+        try {
+            // Start timer for this attempt
+            const startTime = Date.now();
+            
+            // Send the transaction
+            const receipt = await new Promise((resolve, reject) => {
+                let timeoutId;
+                
+                // Setup timeout for this attempt
+                timeoutId = setTimeout(() => {
+                    reject(new Error(`Transaction send timed out after ${timeout / 1000} seconds`));
+                }, timeout);
+                
+                // Attempt to send the transaction
+                web3.eth.sendSignedTransaction(signedTx.rawTransaction)
+                    .once('transactionHash', (hash) => {
+                        console.log(`Transaction hash received: ${hash}`);
+                        // Log the transaction hash - but keep waiting for receipt
+                        logBlockchain('TX_HASH_RECEIVED', { hash, attempt });
+                    })
+                    .once('receipt', (receipt) => {
+                        clearTimeout(timeoutId);
+                        console.log(`Transaction receipt received: ${JSON.stringify(receipt, null, 2)}`);
+                        resolve(receipt);
+                    })
+                    .once('error', (error) => {
+                        clearTimeout(timeoutId);
+                        reject(error);
+                    });
+            });
+            
+            // If we get here, transaction was successful
+            const duration = (Date.now() - startTime) / 1000;
+            console.log(`Transaction confirmed in ${duration} seconds on attempt ${attempt}/${retries}`);
+            
+            // Log success
+            logBlockchain('TX_SUCCESS', {
+                txHash: receipt.transactionHash,
+                blockNumber: receipt.blockNumber,
+                gasUsed: receipt.gasUsed,
+                attempt: attempt,
+                duration: duration
+            });
+            
+            return receipt;
+            
+        } catch (error) {
+            lastError = error;
+            console.error(`Transaction attempt ${attempt}/${retries} failed:`, error.message);
+            
+            // Log the error for diagnostics
+            logBlockchain('TX_ATTEMPT_FAILED', {
+                attempt: attempt,
+                error: error.message,
+                errorCode: error.code || 'unknown'
+            });
+            
+            // Check if we should retry based on the error
+            if (shouldRetryTransaction(error) && attempt < retries) {
+                const delay = Math.min(2000 * attempt, 10000); // Exponential backoff with max 10 seconds
+                console.log(`Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                // If the error suggests RPC issues, get a fresh provider
+                if (isProviderError(error)) {
+                    try {
+                        console.log('Provider error detected, getting fresh provider for next attempt...');
+                        const freshWeb3 = await getFreshProvider();
+                        web3 = freshWeb3; // Use the fresh provider for the next attempt
+                    } catch (providerError) {
+                        console.error('Failed to get fresh provider:', providerError.message);
+                        // Continue with existing provider
+                    }
+                }
+                
+                // Continue to next attempt
+                continue;
+            } else {
+                // We should not retry or have exhausted retries
+                break;
+            }
+        }
+    }
+    
+    // If we get here, all attempts failed
+    throw new Error(`Transaction failed after ${attempt} attempts. Last error: ${lastError.message}`);
+}
+
+// Helper to determine if we should retry a transaction based on error type
+function shouldRetryTransaction(error) {
+    // List of errors that we should retry on
+    const retryableErrors = [
+        'connection error', 'timeout', 'timed out', 'CONNECTION ERROR',
+        'nonce too low', 'known transaction', 'replacement transaction underpriced',
+        'already known', 'invalid json response', 'invalid response'
+    ];
+    
+    // Check if the error message contains any of our retryable errors
+    return retryableErrors.some(retryErr => error.message.toLowerCase().includes(retryErr.toLowerCase()));
+}
+
+// Helper to identify provider errors
+function isProviderError(error) {
+    const providerErrorIndicators = [
+        'connection error', 'timeout', 'timed out', 'CONNECTION ERROR',
+        'invalid json response', 'invalid response', 'not connected', 'unavailable',
+        'cannot fetch', 'bad gateway', '502', '503', '504'
+    ];
+    
+    return providerErrorIndicators.some(indicator => 
+        error.message.toLowerCase().includes(indicator.toLowerCase()));
+}
+
+// Helper function to wait for receipt with timeout
+async function waitForTransactionReceipt(web3, txHash, timeout = 120000) {
+    console.log(`Waiting for transaction receipt for ${txHash} (timeout: ${timeout}ms)...`);
+    
+    // Implement a more robust receipt checking mechanism
+    const checkInterval = 3000; // Check every 3 seconds
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+        try {
+            const receipt = await web3.eth.getTransactionReceipt(txHash);
+            if (receipt && receipt.blockNumber) {
+                return receipt;
+            }
+            
+            // Log progress periodically
+            if ((Date.now() - startTime) % 15000 < checkInterval) {
+                console.log(`Still waiting for receipt... (${Math.round((Date.now() - startTime)/1000)}s elapsed)`);
+                
+                // Check current block number
+                try {
+                    const currentBlock = await web3.eth.getBlockNumber();
+                    console.log(`Current block: ${currentBlock}`);
+                } catch (blockError) {
+                    console.error(`Error checking current block: ${blockError.message}`);
+                }
+            }
+            
+            // Wait before next check
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+        } catch (error) {
+            console.error(`Error checking receipt: ${error.message}`);
+            
+            // If we detect a connection issue, try to refresh the provider
+            if (error.message.includes('CONNECTION ERROR') || 
+                error.message.includes('Invalid JSON RPC response') ||
+                error.message.includes('timeout')) {
+                console.log('Connection error detected, trying to get fresh provider...');
+                try {
+                    const freshWeb3 = await getFreshProvider();
+                    console.log('Successfully switched to a fresh provider');
+                    web3 = freshWeb3; // Replace the web3 instance
+                } catch (providerError) {
+                    console.error(`Failed to get fresh provider: ${providerError.message}`);
+                }
+            }
+            
+            // Wait a bit longer after errors
+            await new Promise(resolve => setTimeout(resolve, checkInterval * 2));
+        }
+    }
+    
+    console.log(`Timeout reached while waiting for transaction receipt`);
+    return null;
+}
+
+// Enhanced helper to check transaction receipt with polling
+async function checkTransactionReceipt(web3, txHash, maxAttempts = 10) {
+    console.log(`Checking for transaction receipt: ${txHash}`);
+    let attempts = 0;
+    
+    // Try multiple providers if first one fails
+    async function getReceiptWithFallback(txHash) {
+        try {
+            return await web3.eth.getTransactionReceipt(txHash);
+        } catch (error) {
+            console.error('Error in primary provider, trying fallback for receipt check...');
+            try {
+                const fallbackWeb3 = await getFreshProvider();
+                return await fallbackWeb3.eth.getTransactionReceipt(txHash);
+            } catch (fallbackError) {
+                console.error('Fallback provider also failed for receipt check');
+                return null;
+            }
+        }
+    }
+    
+    while (attempts < maxAttempts) {
+        attempts++;
+        try {
+            const receipt = await getReceiptWithFallback(txHash);
+            if (receipt) {
+                console.log(`Receipt found on attempt ${attempts}/${maxAttempts}:`, JSON.stringify({
+                    blockNumber: receipt.blockNumber,
+                    status: receipt.status,
+                    gasUsed: receipt.gasUsed
+                }, null, 2));
+                return receipt;
+            }
+            console.log(`Receipt not found yet, attempt ${attempts}/${maxAttempts}`);
+        } catch (error) {
+            console.error(`Error checking receipt (attempt ${attempts}/${maxAttempts}):`, error.message);
+        }
+        
+        // Wait before the next attempt - increasing wait times
+        const delay = 2000 * Math.pow(1.5, attempts-1);
+        console.log(`Waiting ${delay}ms before next receipt check...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    console.log(`Could not find receipt after ${maxAttempts} attempts`);
+    return null; // Return null if no receipt found after all attempts
+}
+
+// Release funds to merchant
+app.post('/api/release-funds', async (req, res) => {
+    const { amount } = req.body;
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] POST /api/release-funds`);
+    console.log(`[${timestamp}] Request Body: ${JSON.stringify(req.body)}`);
+    
+    if (!amount) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Amount is required' 
+        });
+    }
+    
+    console.log('====================', 'FUND RELEASE REQUEST', '====================');
+    console.log(`Request received to release ${amount} ETH`);
+    
+    try {
+        // Verify merchant address is configured
+        const merchantAddress = process.env.MERCHANT_ADDRESS || DEFAULT_MERCHANT_ADDRESS;
+        console.log(`Merchant address verified: ${merchantAddress}`);
+        console.log(`Requested amount: ${amount} ETH`);
+    
+        logBlockchain('FUNDS_RELEASE_REQUESTED', { amount });
+    
+        // Initialize web3 provider for transaction
+        console.log('Initializing fresh Web3 provider...');
+        const freshWeb3 = await getFreshProvider();
+        console.log('Web3 provider initialized successfully');
+        
+        // Get wallet keys from storage
+        console.log('Retrieving wallet keys...');
+        const keys = getStoredKeys();
+        console.log('Keys retrieved successfully');
+        
+        // Decrypt the mnemonic
+        console.log('Decrypting mnemonic...');
+        const mnemonic = decrypt(keys.mnemonic);
+        console.log('Mnemonic decrypted successfully');
+        
+        // Recover the root wallet from mnemonic
+        console.log('Recovering root wallet...');
+        const rootAddress = await recoverWallet(mnemonic, 0);
+        const rootAddr = rootAddress.address;
+        console.log(`Root address: ${rootAddr}`);
+        
+        // Check if root address matches merchant address
+        if (rootAddr.toLowerCase() !== merchantAddress.toLowerCase()) {
+            console.warn(`Warning: Root address ${rootAddr} doesn't match configured merchant address ${merchantAddress}`);
+        }
+        
+        // Get active HD wallet addresses
+        const activeAddresses = keys.activeAddresses || {};
+        console.log(`Found ${Object.keys(activeAddresses).length} active addresses`);
+        
+        // Check root address balance
+        console.log('Checking root address balance...');
+        const rootBalance = await getBalanceWithRetry(freshWeb3, rootAddr);
+        console.log(`Root address balance: ${rootBalance} ETH`);
+        
+        // Convert amount to ETH float for safe comparison
+        const requestedAmount = parseFloat(amount);
+        const rootBalanceFloat = parseFloat(rootBalance);
+        
+        // Check all active address balances to find one with sufficient funds
+        console.log(`Checking balances of ${Object.keys(activeAddresses).length} active addresses...`);
+        const addressBalances = [];
+        
+        for (const addr in activeAddresses) {
+            const addrInfo = activeAddresses[addr];
+            
+            // Skip addresses that don't belong to our wallet (wrong payments)
+            if (addrInfo.isWrongPayment === true) {
+                console.log(`Skipping wrong payment address: ${addr}`);
+                continue;
+            }
+            
+            console.log(`Checking balance for ${addr}...`);
+            const balance = await getBalanceWithRetry(freshWeb3, addr);
+            console.log(`Address ${addr} balance: ${balance} ETH`);
+            
+            // Skip addresses with zero balance to optimize
+            if (parseFloat(balance) > 0) {
+                addressBalances.push({
+                    address: addr,
+                    balance: parseFloat(balance),
+                    ethBalance: balance,
+                    index: addrInfo.index
+                });
+            }
+        }
+        
+        // Calculate total balance (including root balance)
+        const totalBalanceEth = addressBalances.reduce((sum, addr) => sum + addr.balance, 0) + rootBalanceFloat;
+        console.log(`Total available balance across all addresses: ${totalBalanceEth} ETH`);
+        
+        // Convert amount to wei for calculations
+        const amountWei = freshWeb3.utils.toWei(amount, 'ether');
+        console.log(`Requested amount in wei: ${amountWei}`);
+        
+        // First try to use root address if it has sufficient balance
+        if (rootBalanceFloat >= requestedAmount) {
+            // Root address has enough funds, proceed with transaction
+            console.log(`Root address has sufficient balance (${rootBalance} ETH). Using it for the transfer.`);
+            
+            // Check for existing pending transactions from root address to merchant
+            const pendingTx = await checkPendingTransactions(rootAddr, merchantAddress);
+            
+            // If we found a pending transaction, check if it's truly still pending
+            if (pendingTx && pendingTx.txHash) {
+                console.log(`Found existing pending transaction ${pendingTx.txHash}, checking status...`);
+                
+                // Check if transaction is actually still pending by checking for a receipt
+                const receipt = await checkTransactionReceipt(freshWeb3, pendingTx.txHash);
+                if (receipt) {
+                    console.log(`Found receipt for pending transaction: ${JSON.stringify(receipt)}`);
+                    
+                    // Update transaction status in our log based on receipt info
+                    updateTransactionLog(pendingTx.txHash, {
+                        status: receipt.status,
+                        blockNumber: receipt.blockNumber,
+                        confirmations: 1, // At least 1 confirmation since it's mined
+                    });
+                    
+                    if (receipt.status === true) {
+                        // Transaction was successful, so no need to send a new one
+                        console.log(`Found receipt for pending transaction, not sending a new one`);
+                        return res.json({
+                            success: true,
+                            message: `Found existing transaction in progress: ${pendingTx.txHash}`,
+                            txHash: pendingTx.txHash,
+                            amount: pendingTx.amount,
+                            timestamp: pendingTx.timestamp,
+                            existingTransaction: true
+                        });
+                    } else {
+                        // Transaction failed, should send a new one
+                        console.log(`Previous transaction failed, sending a new one`);
+                    }
+                } else {
+                    // No receipt found, transaction is still pending
+                    console.log(`No receipt found, existing transaction is still pending`);
+                    return res.json({
+                        success: true,
+                        message: `Found existing transaction in progress: ${pendingTx.txHash}`,
+                        txHash: pendingTx.txHash,
+                        amount: pendingTx.amount,
+                        timestamp: pendingTx.timestamp,
+                        existingTransaction: true
+                    });
+                }
+            }
+            
+            // Proceed with sending a new transaction from root address
+            console.log('Preparing transaction from root address...');
+            
+            try {
+                // Get reliable nonce for root address
+                const nonce = await getReliableNonce(freshWeb3, rootAddr);
+                console.log(`Using nonce: ${nonce} for root address`);
+                
+                // Get reliable gas price
+                const gasPrice = await getReliableGasPrice(freshWeb3);
+                console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
+                
+                // Standard gas limit for ETH transfer
+                const gasLimit = 21000;
+                console.log(`Using gas limit: ${gasLimit}`);
+                
+                // Calculate gas cost
+                const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
+                const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
+                console.log(`Estimated gas cost: ${gasCostEth} ETH`);
+                
+                // Calculate maximum amount to send (considering gas)
+                const maxAmountWei = BigInt(freshWeb3.utils.toWei(rootBalance, 'ether')) - gasCostWei;
+                const requestedAmountWei = BigInt(freshWeb3.utils.toWei(amount, 'ether'));
+                
+                // Ensure we're not trying to send more than available after gas
+                if (requestedAmountWei > maxAmountWei) {
+                    console.log(`Requested amount plus gas exceeds available balance`);
+                    console.log(`Max sendable amount: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`);
+                    
+                    return res.status(400).json({
+                        success: false,
+                        error: `Insufficient balance after gas fees. Available to send: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`
+                    });
+                }
+                
+                // Prepare transaction data
+                const txData = {
+                    from: rootAddr,
+                    to: merchantAddress,
+                    value: freshWeb3.utils.toHex(requestedAmountWei.toString()),
+                    gas: gasLimit,
+                    gasPrice: gasPrice,
+                    nonce: nonce
+                };
+                
+                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
+                
+                // Sign transaction
+                console.log('Signing transaction...');
+                const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
+                console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                
+                // Send transaction with retry mechanism
+                console.log('Sending transaction with retry...');
+                const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                console.log('Transaction successfully sent and confirmed!');
+                console.log(`Transaction hash: ${receipt.transactionHash}`);
+                console.log(`Block number: ${receipt.blockNumber}`);
+                console.log(`Gas used: ${receipt.gasUsed}`);
+                
+                // Record the transaction
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const txLogEntry = {
+                    txId: txId,
+                    txHash: signedTx.transactionHash,
+                    from: rootAddr,
+                    to: merchantAddress,
+                    amount: amount,
+                    amountWei: requestedAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: receipt.status,
+                    blockNumber: receipt.blockNumber,
+                    gasUsed: receipt.gasUsed,
+                    type: 'release'
+                };
+                
+                // Save transaction to log
+                saveTxLog(txLogEntry);
+                
+                // Return success response
+                return res.json({
+                    success: true,
+                    txHash: signedTx.transactionHash,
+                    amount: amount,
+                    timestamp: new Date().toISOString(),
+                    blockNumber: receipt.blockNumber
+                });
+                
+            } catch (txError) {
+                console.error('Error sending transaction from root address:', txError);
+                console.error('Stack trace:', txError.stack);
+                
+                // Log the detailed error for debugging
+                logBlockchain('TX_ERROR', {
+                    address: rootAddr,
+                    error: txError.message,
+                    stack: txError.stack
+                });
+                
+                // Record the failed transaction attempt in our logs
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const failedTxEntry = {
+                    txId: txId,
+                    from: rootAddr,
+                    to: merchantAddress,
+                    amount: amount,
+                    amountWei: requestedAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: 'failed',
+                    error: txError.message,
+                    type: 'release',
+                    attemptedRelease: true,
+                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
+                };
+                
+                // Save failed transaction to log for tracking and debugging
+                saveTxLog(failedTxEntry);
+                
+                return res.status(500).json({
+                    success: false,
+                    error: `Failed to send transaction: ${txError.message}`
+                });
+            }
+        } else {
+            console.log(`Root address has insufficient balance. Consolidating funds from ${addressBalances.length} active addresses...`);
+            
+            // Find addresses with positive balances
+            const fundedAddresses = addressBalances.filter(addr => addr.balance > 0);
+            console.log(`Found ${fundedAddresses.length} addresses with positive balances`);
+            
+            if (fundedAddresses.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Insufficient balance across all wallet addresses'
+                });
+            }
+            
+            // Find address with highest balance
+            const highestBalanceAddr = fundedAddresses.reduce((max, addr) => 
+                addr.balance > max.balance ? addr : max, fundedAddresses[0]);
+                
+            console.log(`Highest balance address: ${highestBalanceAddr.address} with ${highestBalanceAddr.ethBalance} ETH`);
+            
+            if (highestBalanceAddr.balance < requestedAmount) {
+                // If no single address has enough, check if total balance is sufficient
+                if (totalBalanceEth >= requestedAmount) {
+                    console.log(`No single address has sufficient funds, but total balance is enough. Multiple transactions needed.`);
+                    
+                    // Implementation for multiple transactions could go here
+                    // For now, return an informative error
+                    return res.status(400).json({
+                        success: false,
+                        error: `No single address has sufficient balance. Requested: ${amount} ETH, Total available: ${totalBalanceEth} ETH. Consider using 'Release All Funds' instead.`
+                    });
+                }
+                
+                return res.status(400).json({
+                    success: false,
+                    error: `Insufficient balance. Requested: ${amount} ETH, Available: ${highestBalanceAddr.ethBalance} ETH (highest single address), Total: ${totalBalanceEth} ETH`
+                });
+            }
+            
+            console.log(`Using address ${highestBalanceAddr.address} with balance ${highestBalanceAddr.ethBalance} ETH for direct release`);
+            
+            // Proceed with sending a new transaction from highest balance address
+            console.log('Preparing transaction from highest balance address...');
+            
+            try {
+                // Ensure we have a valid index before recovering the wallet
+                let senderIndex = highestBalanceAddr.index;
+                if (senderIndex === undefined || senderIndex === null) {
+                    console.warn(`Index for address ${highestBalanceAddr.address} was undefined. Attempting to retrieve from keys.activeAddresses...`);
+                    const addrInfo = keys.activeAddresses[highestBalanceAddr.address];
+                    if (addrInfo && addrInfo.index !== undefined) {
+                        senderIndex = addrInfo.index;
+                        console.log(`Successfully retrieved index: ${senderIndex}`);
+                    } else {
+                        console.warn(`Could not find index in activeAddresses. Checking address index map...`);
+                        // Try to find the index in our scanned map
+                        const normalizedAddr = highestBalanceAddr.address.toLowerCase();
+                        if (addressIndexMap[normalizedAddr]) {
+                            senderIndex = addressIndexMap[normalizedAddr];
+                            console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in scanned map`);
+                        } else {
+                            // If we still can't find it, do a deeper scan with more addresses
+                            console.log(`Performing deep scan for address ${highestBalanceAddr.address}...`);
+                            const deepScanMap = await scanForAddressIndices(mnemonic, 200); // Scan 200 indices
+                            if (deepScanMap[normalizedAddr]) {
+                                senderIndex = deepScanMap[normalizedAddr];
+                                console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in deep scan`);
+                            } else {
+                                throw new Error(`Could not determine derivation index for address ${highestBalanceAddr.address}`);
+                            }
+                        }
+                    }
+                }
+
+                // Recover the private key for this address using the validated index
+                console.log(`Recovering wallet for index ${senderIndex}...`);
+                const senderWallet = await recoverWallet(mnemonic, senderIndex);
+                
+                // Verify address matches (case-insensitive compare)
+                if (senderWallet.address.toLowerCase() !== highestBalanceAddr.address.toLowerCase()) {
+                    console.error(`Address mismatch! Expected: ${highestBalanceAddr.address}, Got: ${senderWallet.address}`);
+                    
+                    // Try a different approach - search through more indices to find the matching wallet
+                    console.log(`Searching for wallet matching address ${highestBalanceAddr.address}...`);
+                    const foundWallet = await findWalletForAddress(mnemonic, highestBalanceAddr.address);
+                    
+                    if (!foundWallet) {
+                        throw new Error('Address derivation mismatch - could not find matching wallet');
+                    }
+                    
+                    console.log(`Found wallet with matching address at index ${foundWallet.index}`);
+                    senderWallet = foundWallet.wallet;
+                    senderIndex = foundWallet.index;
+                    
+                    // Update our records for future use
+                    if (!activeAddresses[highestBalanceAddr.address]) {
+                        activeAddresses[highestBalanceAddr.address] = { index: senderIndex };
+                        
+                        // Try to save the updated address list
+                        try {
+                            updateAddressIndex(highestBalanceAddr.address, senderIndex);
+                            console.log(`Updated address index map with ${highestBalanceAddr.address} -> ${senderIndex}`);
+                        } catch (updateError) {
+                            console.error(`Failed to update address index map:`, updateError);
+                        }
+                    }
+                }
+                
+                // Get reliable nonce for sender address
+                const nonce = await getReliableNonce(freshWeb3, highestBalanceAddr.address);
+                console.log(`Using nonce: ${nonce} for address ${highestBalanceAddr.address}`);
+                
+                // Get reliable gas price
+                const gasPrice = await getReliableGasPrice(freshWeb3);
+                console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
+                
+                // Standard gas limit for ETH transfer
+                const gasLimit = 21000;
+                console.log(`Using gas limit: ${gasLimit}`);
+                
+                // Calculate gas cost
+                const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
+                const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
+                console.log(`Estimated gas cost: ${gasCostEth} ETH`);
+                
+                // Calculate maximum amount to send (considering gas)
+                const maxAmountWei = BigInt(freshWeb3.utils.toWei(highestBalanceAddr.ethBalance, 'ether')) - gasCostWei;
+                const requestedAmountWei = BigInt(freshWeb3.utils.toWei(amount, 'ether'));
+                
+                // Ensure we're not trying to send more than available after gas
+                if (requestedAmountWei > maxAmountWei) {
+                    console.log(`Requested amount plus gas exceeds available balance`);
+                    console.log(`Max sendable amount: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`);
+                    
+                    return res.status(400).json({
+                        success: false,
+                        error: `Insufficient balance after gas fees. Available to send: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`
+                    });
+                }
+                
+                // Prepare transaction data
+                const txData = {
+                    from: highestBalanceAddr.address,
+                    to: merchantAddress,
+                    value: freshWeb3.utils.toHex(requestedAmountWei.toString()),
+                    gas: gasLimit,
+                    gasPrice: gasPrice,
+                    nonce: nonce
+                };
+                
+                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
+                
+                // Sign transaction
+                console.log('Signing transaction...');
+                const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, senderWallet.privateKey);
+                console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                
+                // Send transaction with retry mechanism
+                console.log('Sending transaction with retry...');
+                const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                console.log('Transaction successfully sent and confirmed!');
+                console.log(`Transaction hash: ${receipt.transactionHash}`);
+                console.log(`Block number: ${receipt.blockNumber}`);
+                console.log(`Gas used: ${receipt.gasUsed}`);
+                
+                // Record the transaction
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const txLogEntry = {
+                    txId: txId,
+                    txHash: signedTx.transactionHash,
+                    from: highestBalanceAddr.address,
+                    to: merchantAddress,
+                    amount: amount,
+                    amountWei: requestedAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: receipt.status,
+                    blockNumber: receipt.blockNumber,
+                    gasUsed: receipt.gasUsed,
+                    type: 'release'
+                };
+                
+                // Save transaction to log
+                saveTxLog(txLogEntry);
+                
+                // Return success response
+                return res.json({
+                    success: true,
+                    txHash: signedTx.transactionHash,
+                    amount: amount,
+                    timestamp: new Date().toISOString(),
+                    blockNumber: receipt.blockNumber
+                });
+                
+            } catch (txError) {
+                console.error('Error sending transaction from highest balance address:', txError);
+                console.error('Stack trace:', txError.stack);
+                
+                // Log the detailed error for debugging
+                logBlockchain('TX_ERROR', {
+                    address: highestBalanceAddr.address,
+                    error: txError.message,
+                    stack: txError.stack
+                });
+                
+                // Record the failed transaction attempt in our logs
+                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const failedTxEntry = {
+                    txId: txId,
+                    from: highestBalanceAddr.address,
+                    to: merchantAddress,
+                    amount: amount,
+                    amountWei: requestedAmountWei.toString(),
+                    timestamp: new Date().toISOString(),
+                    status: 'failed',
+                    error: txError.message,
+                    type: 'release',
+                    attemptedRelease: true,
+                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
+                };
+                
+                // Save failed transaction to log for tracking and debugging
+                saveTxLog(failedTxEntry);
+                
+                return res.status(500).json({
+                    success: false,
+                    error: `Failed to send transaction: ${txError.message}`
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error in release funds endpoint:', error);
+        console.error('Stack trace:', error.stack);
+        logToFile(`ERROR: Error in release funds endpoint: ${error.message}`);
+        console.log('===========================================================');
+        
+        res.status(500).json({
+            success: false,
+            error: 'Failed to process release funds request: ' + error.message
+        });
+    }
+});
+
+// Endpoint to record detected payments from client side
+app.post('/api/record-payment', async (req, res) => {
+    try {
+        const { address, amount, cryptoType } = req.body;
+        console.log(`[DEBUG] /api/record-payment called: address=${address}, amount=${amount}, cryptoType=${cryptoType}`);
+        
+        if (!address || !amount) {
+            console.log('[DEBUG] Missing address or amount in /api/record-payment');
+            return res.status(400).json({
+                success: false,
+                error: 'Address and amount are required'
+            });
+        }
+        
+        // Format amount to standard decimal format
+        const formattedAmount = parseFloat(amount).toFixed(6);
+        
+        // Get stored keys
+        const keys = getStoredKeys();
+        
+        // Check if the address exists in active addresses
+        if (!keys.activeAddresses) {
+            keys.activeAddresses = {};
+        }
+        
+        // Get address info if it exists
+        const addrInfo = keys.activeAddresses[address] || {};
+        
+        // Check if address is expired due to a previous wrong payment
+        if (addrInfo.isExpired === true) {
+            console.log(`[DEBUG] Rejecting payment to expired address ${address}`);
+            return res.status(400).json({
+                success: false,
+                isExpired: true,
+                message: 'This payment address has expired',
+                reason: addrInfo.expiredReason || 'Address expired due to previous wrong payment',
+                expiredAt: addrInfo.expiredAt || new Date().toISOString()
+            });
+        }
+        
+        // Check if this is a wrong payment (amount doesn't match expected amount)
+        let isWrong = false;
+        let ethAmount = addrInfo.ethAmount || addrInfo.expectedAmount;
+        let wrongReason = '';
+        
+        if (ethAmount) {
+            // Create a payment object for validation
+            const paymentObj = {
+                address,
+                amount: formattedAmount,
+                addrInfo: {
+                    ethAmount: ethAmount,
+                    expectedAmount: ethAmount
+                }
+            };
+            console.log(`[DEBUG] Checking payment amount: expected=${ethAmount}, actual=${formattedAmount}`);
+            // Check if the payment amount is correct
+            const isCorrect = isPaymentAmountCorrect(paymentObj);
+            console.log(`[DEBUG] isPaymentAmountCorrect result: ${isCorrect}`);
+            // If not correct, it's a wrong payment
+            isWrong = !isCorrect;
+            // Set the reason for wrong payment
+            if (isWrong) {
+                wrongReason = `Please submit ${ethAmount} ETH. You sent ${formattedAmount} ETH which is incorrect.`;
+                console.log(`[DEBUG] Wrong payment detected: ${wrongReason}`);
+                console.log('[DEBUG] Full payment object:', JSON.stringify(paymentObj));
+            }
+        }
+        
+        // If this is a wrong payment, record it as such
+        if (isWrong) {
+            const wrongPayment = {
+                address,
+                amount: formattedAmount,
+                ethAmount: ethAmount,
+                expectedAmount: ethAmount,
+                timestamp: new Date().toISOString(),
+                cryptoType: cryptoType || 'ETH'
+            };
+            await recordWrongPayment(wrongPayment);
+            // Return a response but with wrong payment flag
+            return res.json({
+                success: true,
+                isWrongPayment: true,
+                message: 'Wrong payment recorded',
+                reason: wrongReason
+            });
+        }
+        // Add or update the address with a timestamp
+        keys.activeAddresses[address] = {
+            ...addrInfo,
+            amount: formattedAmount,
+            cryptoType: cryptoType || 'ETH',
+            timestamp: new Date().toISOString(),
+            status: 'confirmed',
+            amountVerified: true
+        };
+        // Save updated keys
+        updateStoredKeys(keys);
+        // Log the transaction
+        console.log(`[DEBUG] Payment accepted as correct for address=${address}, amount=${formattedAmount}`);
+        logBlockchain('PAYMENT_RECORDED', {
+            address,
+            amount: formattedAmount,
+            cryptoType: cryptoType || 'ETH',
+            timestamp: new Date().toISOString()
+        });
+        // Record in merchant transactions log
+        const txLog = {
+            txId: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            address: address,
+            amount: formattedAmount,
+            timestamp: new Date().toISOString(),
+            status: 'confirmed',
+            type: 'payment',
+            cryptoType: cryptoType || 'ETH',
+            amountVerified: true
+        };
+        
+        const txFile = 'merchant_transactions.json';
+        try {
+            let txLogs = [];
+            
+            // Read existing logs if file exists
+            if (fs.existsSync(txFile)) {
+                const fileContent = secureReadFile(txFile);
+                try {
+                    txLogs = JSON.parse(fileContent || '[]');
+                    
+                    // Ensure we have an array
+                    if (!Array.isArray(txLogs)) {
+                        console.warn('Transaction log was corrupted, resetting to empty array');
+                        txLogs = [];
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing transaction log:', parseError);
+                    txLogs = [];
+                }
+            }
+            
+            // Add new transaction
+            txLogs.push(txLog);
+            
+            // Write back to file
+            secureWriteFile(txFile, JSON.stringify(txLogs, null, 2));
+        } catch (fileError) {
+            console.error('Error saving transaction log:', fileError);
+            // Try to recover by creating fresh file with just this transaction
+            try {
+                secureWriteFile(txFile, JSON.stringify([txLog], null, 2));
+            } catch (recoveryError) {
+                console.error('Failed to recover transaction log:', recoveryError);
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Payment recorded successfully'
+        });
+    } catch (error) {
+        console.error('Error recording payment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to record payment'
+        });
+    }
+});
+
+// Configuration endpoint for frontend
+app.get('/api/config', (req, res) => {
+    res.json({
+        merchantAddress: MERCHANT_ADDRESS,
+        networkName: 'Sepolia Testnet',
+        chainId: 11155111
+    });
+});
+
+// Handle errors
+app.use((err, req, res, next) => {
+    logger.error('Unhandled error', { error: err });
+    res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+    });
+});
+
+// Test wrong payment page
+app.get('/test-wrong-payment', (req, res) => {
+    res.sendFile(__dirname + '/Public/test-wrong-payment.html');
+});
+
+// Get all wrong payments
+app.get('/api/wrong-payments', async (req, res) => {
+    try {
+        // Check rate limit for this endpoint
+        const rateLimitKey = `rateLimit:wrong-payments:${req.ip}`;
+        if (global[rateLimitKey] && global[rateLimitKey] > 10) {
+            return res.status(429).json({
+                success: false,
+                error: 'Too many requests. Please try again later.'
+            });
+        }
+        
+        // Increment rate limit counter
+        global[rateLimitKey] = (global[rateLimitKey] || 0) + 1;
+        setTimeout(() => {
+            global[rateLimitKey]--;
+        }, 60000); // Decrease counter after 1 minute
+        
+        // Use cache control headers for better client-side caching
+        res.set('Cache-Control', 'private, max-age=10'); // Cache for 10 seconds
+        
+        // Check if we have a cached result (server-side)
+        const cachedWrongPaymentsKey = 'wrong_payments_cache';
+        const cachedWrongPaymentsTimestampKey = 'wrong_payments_timestamp';
+        
+        // Only use cache if it's less than 10 seconds old (server-side cache)
+        const cachedTimestamp = global[cachedWrongPaymentsTimestampKey] || 0;
+        const forceRefresh = req.query.force === 'true';
+        
+        if (!forceRefresh && global[cachedWrongPaymentsKey] && (Date.now() - cachedTimestamp) < 10000) {
+            console.log('Returning cached wrong payments (< 10 seconds old)');
+            return res.json(global[cachedWrongPaymentsKey]);
+        }
+        
+        console.log('Fetching wrong payments');
+        
+        // Get transactions from file
+        const txFile = 'merchant_transactions.json';
+        let transactions = [];
+        
+        if (fs.existsSync(txFile)) {
+            try {
+                const fileContent = secureReadFile(txFile);
+                if (fileContent && fileContent.trim()) {
+                    transactions = JSON.parse(fileContent);
+                    
+                    // Ensure we have an array
+                    if (!Array.isArray(transactions)) {
+                        console.warn('Transaction log was corrupted, using empty array');
+                        transactions = [];
                     }
                 }
             } catch (error) {
@@ -2341,6 +3848,80 @@ app.get('/api/addresses', async (req, res) => {
     }
 });
 
+// API endpoint to clean up addresses
+app.post('/api/cleanup-addresses', async (req, res) => {
+    try {
+        const { type } = req.body;
+        
+        if (!type || (type !== 'expired' && type !== 'abandoned')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid cleanup type. Must be "expired" or "abandoned".'
+            });
+        }
+        
+        // Read the keys.json file
+        const keysData = JSON.parse(secureReadFile('Json/keys.json'));
+        
+        if (!keysData || !keysData.activeAddresses) {
+            return res.status(404).json({
+                success: false,
+                error: 'No addresses found or invalid keys.json format'
+            });
+        }
+        
+        const now = new Date();
+        const activeAddresses = keysData.activeAddresses;
+        const addressesToRemove = [];
+        
+        // Find addresses to remove
+        for (const [address, data] of Object.entries(activeAddresses)) {
+            const expiryDate = new Date(data.expiresAt);
+            const createdDate = new Date(data.createdAt);
+            
+            // Check criteria based on type
+            if (type === 'expired' && expiryDate < now) {
+                addressesToRemove.push(address);
+            } else if (type === 'abandoned') {
+                const ageInMinutes = (now - createdDate) / (1000 * 60);
+                if (ageInMinutes > 30 && data.status === 'pending') {
+                    addressesToRemove.push(address);
+                }
+            }
+        }
+        
+        if (addressesToRemove.length === 0) {
+            return res.json({
+                success: true,
+                message: `No ${type} addresses found to clean up.`,
+                count: 0
+            });
+        }
+        
+        // Remove addresses
+        addressesToRemove.forEach(address => {
+            delete activeAddresses[address];
+        });
+        
+        // Save updated keys
+        secureWriteFile('Json/keys.json', JSON.stringify(keysData, null, 2));
+        
+        logToFile(`Cleaned up ${addressesToRemove.length} ${type} addresses.`);
+        
+        return res.json({
+            success: true,
+            message: `Successfully cleaned up ${addressesToRemove.length} ${type} addresses.`,
+            count: addressesToRemove.length
+        });
+    } catch (error) {
+        console.error(`Error cleaning up addresses: ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            error: `Failed to clean up addresses: ${error.message}`
+        });
+    }
+});
+
 // API endpoint to delete a specific address
 app.post('/api/delete-address', async (req, res) => {
     try {
@@ -2488,7 +4069,58 @@ app.get('/api/admin/statistics', async (req, res) => {
     }
   });
   
+  // New endpoint to discard a payment address
+app.post('/api/discard-payment-address', async (req, res) => {
+    try {
+        const { address } = req.body;
+        logger.info('Discarding payment address', { address });
 
+        if (!address) {
+            logger.warn('Discard payment address request missing address');
+            return res.status(400).json({ success: false, error: 'Address is required' });
+        }
+
+        // Read the keys.json file
+        const keys = getStoredKeys();
+
+        if (!keys.activeAddresses || !keys.activeAddresses[address]) {
+            logger.warn('Discard payment address: Address not found or already inactive', { address });
+            return res.json({ success: true, message: 'Address not found or already inactive' });
+        }
+
+        // Remove the address from activeAddresses
+        delete keys.activeAddresses[address];
+        logger.info('Address removed from activeAddresses in memory', { address });
+
+        // Save the updated keys.json file with atomic write
+        try {
+            const tempFile = './Json/keys_temp.json';
+            const finalFile = './Json/keys.json';
+            
+            // Write to a temporary file first for atomicity
+            secureWriteFile(tempFile, JSON.stringify(keys, null, 2));
+            
+            // Verify the temporary file before renaming
+            const tempKeys = getStoredKeys(tempFile);  // Assume a variant of getStoredKeys for temp file
+            if (!tempKeys.activeAddresses || !tempKeys.activeAddresses[address]) {
+                // Temporary file is correct, rename it to the final file
+                fs.renameSync(tempFile, finalFile);
+                logger.info('Address successfully discarded and verified in keys.json');
+                res.json({ success: true, message: 'Payment address discarded successfully' });
+            } else {
+                logger.error('Verification failed after writing to temporary file');
+                fs.unlinkSync(tempFile);  // Clean up temp file
+                res.status(500).json({ success: false, error: 'Failed to discard payment address - verification failed' });
+            }
+        } catch (updateError) {
+            logger.error('Error updating keys.json', { error: updateError });
+            res.status(500).json({ success: false, error: 'Failed to discard payment address' });
+        }
+    } catch (error) {
+        logger.error('Error discarding payment address', { error });
+        res.status(500).json({ success: false, error: 'Failed to discard payment address' });
+    }
+});
 
 // New endpoint to verify if a payment address is still active
 app.post('/api/verify-payment-address', async (req, res) => {
@@ -2532,9 +4164,6 @@ app.post('/api/verify-payment-address', async (req, res) => {
     }
 });
 
-app.use('/api', paymentRoutes);
-app.use('/api', walletRoutes);
-app.use('/api', merchantRoutes);
 // Handle 404
 app.use((req, res) => {
     const message = `404 Not Found: ${req.method} ${req.url}`;
@@ -2941,7 +4570,111 @@ function saveTxLog(txLogEntry) {
 
 // Fix the issue with sending transactions from an address with the wrong nonce
 // This function gets a reliable nonce for a specific address
+async function getReliableNonce(web3, address) {
+    console.log(`Getting reliable nonce for address: ${address}`);
+    
+    try {
+        // First try getting the transaction count with 'pending' state
+        // This includes transactions in the mempool that haven't been mined yet
+        const pendingNonce = await web3.eth.getTransactionCount(address, 'pending');
+        console.log(`Pending nonce for ${address}: ${pendingNonce}`);
+        
+        // Also get the latest confirmed nonce
+        const confirmedNonce = await web3.eth.getTransactionCount(address, 'latest');
+        console.log(`Confirmed nonce for ${address}: ${confirmedNonce}`);
+        
+        // Use the higher nonce to be safe
+        const nonce = Math.max(pendingNonce, confirmedNonce);
+        console.log(`Using nonce: ${nonce} for address ${address}`);
+        return nonce;
+    } catch (error) {
+        console.error(`Error getting nonce for ${address}:`, error.message);
+        
+        // Try with a fresh provider
+        try {
+            const freshWeb3 = await getFreshProvider();
+            console.log('Using fresh provider to get nonce');
+            const nonce = await freshWeb3.eth.getTransactionCount(address, 'pending');
+            console.log(`Got nonce ${nonce} from fresh provider`);
+            return nonce;
+        } catch (fallbackError) {
+            console.error('Fallback provider also failed to get nonce:', fallbackError.message);
+            throw error; // Re-throw the original error
+        }
+    }
+}
 
+// Helper function to get balance with retry
+async function getBalanceWithRetry(web3, address, retryCount = 3) {
+    console.log(`Checking balance for ${address}...`);
+    while (retryCount > 0) {
+        try {
+            const balance = await web3.eth.getBalance(address);
+            const formattedBalance = web3.utils.fromWei(balance, 'ether');
+            console.log(`Balance for ${address}: ${formattedBalance} ETH`);
+            return formattedBalance;
+        } catch (error) {
+            console.error(`Error checking balance for ${address} (${retryCount} retries left):`, error);
+            retryCount--;
+            if (retryCount === 0) throw error;
+            console.log(`Waiting before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    }
+    throw new Error(`Failed to get balance for ${address} after multiple attempts`);
+}
+
+// Function to get a reliable gas price to ensure transactions go through
+async function getReliableGasPrice(web3) {
+    try {
+        console.log("Getting reliable gas price...");
+        // Try to get the gas price from the network
+        const standardGasPrice = await web3.eth.getGasPrice();
+        
+        // For Sepolia testnet, ensure a minimum gas price of 1 gwei
+        // This is critical as miners may ignore transactions with very low gas prices
+        const minGasPrice = web3.utils.toWei('1', 'gwei');
+        
+        // Use the higher of the current gas price or our minimum
+        let gasPrice = BigInt(standardGasPrice) > BigInt(minGasPrice) ? 
+            standardGasPrice : minGasPrice;
+        
+        // Increase by 20% to prioritize our transaction
+        const increasedGasPrice = BigInt(gasPrice) * BigInt(120) / BigInt(100);
+        
+        console.log(`Standard gas price: ${web3.utils.fromWei(standardGasPrice, 'gwei')} gwei`);
+        console.log(`Using gas price: ${web3.utils.fromWei(increasedGasPrice.toString(), 'gwei')} gwei`);
+        
+        return increasedGasPrice.toString();
+    } catch (error) {
+        console.error("Error getting standard gas price:", error);
+        
+        try {
+            // Try with a fresh provider if the first attempt fails
+            const freshWeb3 = await getFreshProvider();
+            const backupGasPrice = await freshWeb3.eth.getGasPrice();
+            
+            // Apply the same minimum gas price logic
+            const minGasPrice = freshWeb3.utils.toWei('1', 'gwei');
+            let gasPrice = BigInt(backupGasPrice) > BigInt(minGasPrice) ? 
+                backupGasPrice : minGasPrice;
+                
+            // Increase by 20%
+            const increasedGasPrice = BigInt(gasPrice) * BigInt(120) / BigInt(100);
+            
+            console.log(`Backup gas price: ${freshWeb3.utils.fromWei(increasedGasPrice.toString(), 'gwei')} gwei`);
+            return increasedGasPrice.toString();
+        } catch (backupError) {
+            console.error("Error getting backup gas price:", backupError);
+            
+            // Default to 1.5 gwei if all else fails (much higher than previous 30 gwei)
+            // This is a reasonable default for Sepolia testnet that should get mined
+            const fallbackGasPrice = web3.utils.toWei('1.5', 'gwei');
+            console.log(`Using fallback gas price: 1.5 gwei`);
+            return fallbackGasPrice;
+        }
+    }
+}
 
 // Function to check if we have pending transactions for the same address
 async function checkPendingTransactions(fromAddress, toAddress) {
@@ -2994,6 +4727,45 @@ async function checkPendingTransactions(fromAddress, toAddress) {
         return null;
     }
 }
+
+// Create transaction file if it doesn't exist
+app.post('/api/create-transaction-file', async (req, res) => {
+    try {
+        console.log('Create transaction file request received');
+        
+        // Log headers for debugging
+        console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+        
+        const txFile = 'merchant_transactions.json';
+        
+        // Check if file already exists
+        if (fs.existsSync(txFile)) {
+            console.log('Transaction file already exists, no action needed');
+            return res.json({
+                success: true,
+                message: 'Transaction file already exists',
+                created: false
+            });
+        }
+        
+        // Create new empty transaction file
+        console.log('Creating new transaction file');
+        secureWriteFile(txFile, JSON.stringify([]));
+        
+        console.log('Created new transaction file successfully');
+        return res.json({
+            success: true,
+            message: 'Transaction file created successfully',
+            created: true
+        });
+    } catch (error) {
+        console.error('Error creating transaction file:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to create transaction file: ' + error.message
+        });
+    }
+});
 
 // Function to check if a payment amount is correct
 function isPaymentAmountCorrect(payment) {
@@ -3256,17 +5028,4 @@ async function recordWrongPayment(payment) {
 
 // Apply API key validation
 app.use(validateApiKey);
-
-
-
-// Print all registered routes for debugging
-app._router.stack
-  .filter(r => r.route)
-  .forEach(r => {
-    console.log(`${Object.keys(r.route.methods).join(',').toUpperCase()} ${r.route.path}`);
-  });
-
-// ... after initializing web3 ...
-
-// ... existing code ...
 

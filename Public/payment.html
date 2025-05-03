@@ -600,11 +600,17 @@
                     checkCount++;
                     const balance = await provider.getBalance(address);
                     const balanceInEth = ethers.utils.formatEther(balance);
-                    console.log(`Checking balance for ${address}: ${balanceInEth} ETH (Check ${checkCount}/${maxCheckCount})`);
+                    console.log(`[DEBUG] [${new Date().toISOString()}] [Check ${checkCount}] Balance for ${address}: ${balanceInEth} ETH`);
+                    logDebug(`[Check ${checkCount}] Balance for ${address}: ${balanceInEth} ETH`);
 
                     if (!balance.isZero()) {
                         clearInterval(transactionCheckInterval);
-                        console.log('Payment detected!');
+                        console.log(`[DEBUG] Payment detected! Sending to /api/record-payment:`, {
+                            address,
+                            amount: balanceInEth,
+                            cryptoType
+                        });
+                        logDebug(`Payment detected! Sending to /api/record-payment:`, { address, amount: balanceInEth, cryptoType });
                         
                         // Record payment with backend
                         let backendResponse;
@@ -615,9 +621,11 @@
                                 body: JSON.stringify({ address, amount: balanceInEth, cryptoType })
                             });
                             backendResponse = await response.json();
-                            console.log('Payment recorded with backend:', backendResponse);
+                            console.log(`[DEBUG] Backend response from /api/record-payment:`, backendResponse);
+                            logDebug(`Backend response from /api/record-payment:`, backendResponse);
                         } catch (recordError) {
-                            console.error('Failed to record payment with backend:', recordError);
+                            console.error('[DEBUG] Failed to record payment with backend:', recordError);
+                            logDebug('Failed to record payment with backend:', recordError);
                             // Continue with frontend confirmation even if backend fails
                         }
                         
@@ -838,7 +846,7 @@
                             amount: paymentSession.cryptoAmount,
                             fiatAmount: paymentSession.fiatAmount,
                             cryptoType: paymentSession.selectedCrypto,
-                            fiatCurrency: 'USD', // Assuming USD
+                            fiatCurrency: 'AUD', // Now using AUD
                             orderId: paymentSession.orderId
                         })
                     });

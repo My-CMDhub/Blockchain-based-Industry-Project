@@ -104,6 +104,18 @@
       "orderId": "ORD-MA7QYFE7",
       "fiatAmount": "27.97",
       "fiatCurrency": "AUD"
+    },
+    "0xEb9B4FAA4b073a8075f3f147e2151A86248E72E6": {
+      "index": 7,
+      "ethAmount": "0.00982535",
+      "expectedAmount": "0.00982535",
+      "cryptoType": "ETH",
+      "createdAt": "2025-05-03T05:34:04.098Z",
+      "expiresAt": "2025-05-03T06:04:04.098Z",
+      "status": "pending",
+      "orderId": "ORD-MA7SFCPB",
+      "fiatAmount": "27.97",
+      "fiatCurrency": "AUD"
     }
   }
 }

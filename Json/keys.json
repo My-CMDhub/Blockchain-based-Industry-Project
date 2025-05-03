@@ -92,6 +92,18 @@
       "status": "pending",
       "fiatAmount": 7.99,
       "fiatCurrency": "USD"
+    },
+    "0x40Bf9C28edee631788caE2e41a3cb43f353ebF61": {
+      "index": 6,
+      "ethAmount": "0.01271364",
+      "expectedAmount": "0.01271364",
+      "cryptoType": "ETH",
+      "createdAt": "2025-05-03T04:52:54.807Z",
+      "expiresAt": "2025-05-03T05:22:54.807Z",
+      "status": "pending",
+      "orderId": "ORD-MA7QYFE7",
+      "fiatAmount": "27.97",
+      "fiatCurrency": "AUD"
     }
   }
 }

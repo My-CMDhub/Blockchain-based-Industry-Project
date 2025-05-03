@@ -87,7 +87,7 @@
                 <div class="space-y-4">
                     <div class="flex justify-between items-center pb-4 border-b">
                         <span class="text-gray-600">Subtotal</span>
-                        <span class="text-xl font-bold text-gray-900">$<span id="total-price">0.00</span></span>
+                        <span class="text-xl font-bold text-gray-900">$<span id="total-price">0.00</span> <span style='font-size:0.8em;'>AUD</span></span>
                     </div>
                     <div class="crypto-price hidden">
                         <div class="flex justify-between items-center text-sm">
@@ -168,121 +168,6 @@
         </div>
     </div>
 
-    <!-- Payment Section Template -->
-    <template id="payment-template">
-        <div class="bg-white rounded-lg shadow-md p-6 my-6">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-semibold text-gray-800">Cryptocurrency Payment</h2>
-                <span class="text-gray-500 text-sm">Order ID: <span id="order-id" class="font-mono"></span></span>
-            </div>
-            
-            <div class="border-b border-gray-200 pb-4 mb-4">
-                <div class="flex justify-between mb-2">
-                    <span class="text-gray-600">Amount:</span>
-                    <span id="crypto-amount" class="font-medium"></span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Expires:</span>
-                    <span id="countdown" class="font-medium text-orange-600"></span>
-                </div>
-            </div>
-            
-            <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                <div class="flex flex-col items-center space-y-4">
-                    <h3 class="text-gray-700 font-medium">Scan QR Code or Copy Address</h3>
-                    <div id="qr-code" class="border border-gray-200 p-2 rounded bg-white"></div>
-                    <div class="flex flex-col items-center space-y-1 w-full">
-                        <p class="text-gray-500 text-sm">Payment Address:</p>
-                        <div class="flex items-center w-full">
-                            <code id="payment-address" class="bg-gray-100 px-3 py-2 rounded text-sm font-mono truncate flex-grow text-center"></code>
-                            <button onclick="copyPaymentAddress()" class="ml-2 p-2 text-blue-600 hover:text-blue-800 focus:outline-none">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="payment-instructions" class="mb-6">
-                <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                    <h3 class="text-lg font-semibold text-blue-900 mb-3">Payment Instructions</h3>
-                    <div class="space-y-3 text-blue-800">
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0 mt-1">
-                                <i class="fas fa-info-circle text-blue-500"></i>
-                            </div>
-                            <p class="ml-3 text-sm">Please send the exact amount shown above. Sending a different amount may result in payment processing issues.</p>
-                        </div>
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0 mt-1">
-                                <i class="fas fa-clock text-blue-500"></i>
-                            </div>
-                            <p class="ml-3 text-sm">The payment address will expire in 30 minutes. Please complete the payment before the countdown timer reaches zero.</p>
-                        </div>
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0 mt-1">
-                                <i class="fas fa-network-wired text-blue-500"></i>
-                            </div>
-                            <p class="ml-3 text-sm">Make sure you're sending the payment on the <strong>Sepolia Test Network</strong>. Transactions on other networks will not be detected.</p>
-                        </div>
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0 mt-1">
-                                <i class="fas fa-shield-alt text-blue-500"></i>
-                            </div>
-                            <p class="ml-3 text-sm">Double-check the payment address before sending. Cryptocurrency transactions cannot be reversed once confirmed.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-3">How to Pay</h3>
-                    <ol class="space-y-3 text-gray-700">
-                        <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">1</span>
-                            <p class="text-sm">Open your cryptocurrency wallet (e.g., MetaMask) and ensure you're connected to the Sepolia Test Network.</p>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">2</span>
-                            <p class="text-sm">Copy the payment address or scan the QR code with your wallet app.</p>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">3</span>
-                            <p class="text-sm">Enter the exact amount shown above and confirm the transaction in your wallet.</p>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">4</span>
-                            <p class="text-sm">Wait for the transaction to be confirmed. The status will update automatically once payment is detected.</p>
-                        </li>
-                    </ol>
-                </div>
-                <div class="mt-4 bg-yellow-50 border border-yellow-100 rounded-lg p-4">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-lightbulb text-yellow-500"></i>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-sm font-medium text-yellow-800">Need Test ETH?</h3>
-                            <p class="mt-1 text-sm text-yellow-700">
-                                This is a test environment using the Sepolia network. You can get test ETH from the 
-                                <a href="https://sepoliafaucet.com/" target="_blank" class="underline hover:text-yellow-900">Sepolia Faucet</a>.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="transaction-status" class="border border-yellow-100 rounded-lg p-4 bg-yellow-50 my-6 hidden"></div>
-            
-            <div class="flex justify-between mt-8">
-                <button onclick="goBackToCart()" class="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200 focus:outline-none transition-colors">
-                    <i class="fas fa-arrow-left mr-2"></i> Back to Cart
-                </button>
-                <a href="Product.html" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
-                    <i class="fas fa-shopping-bag mr-2"></i> Continue Shopping
-                </a>
-            </div>
-        </div>
-    </template>
-
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
 
@@ -293,6 +178,11 @@
         let networkCheckAttempts = 0;
         const MAX_RETRY_ATTEMPTS = 3;
         const cryptoPrices = {};
+
+        // Add these variables to track payment session
+        let paymentSession = null;
+        let countdownInterval = null;
+        let transactionCheckInterval = null;
 
         // Add network status check function
         async function checkNetworkStatus() {
@@ -384,7 +274,7 @@
                         </div>
                         <div class="ml-6">
                             <h3 class="text-lg font-medium text-gray-900">${item.name}</h3>
-                            <p class="text-gray-600">$${item.price.toFixed(2)}</p>
+                            <p class="text-gray-600">$${item.price.toFixed(2)} <span style='font-size:0.8em;'>AUD</span></p>
                         </div>
                     </div>
                     <button onclick="removeItem(${index})" class="ml-4 p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors">
@@ -431,9 +321,9 @@
 
                 // Check if we have valid data from the response
                 if (prices.ETH || prices.MATIC || prices.BNB) {
-                    cryptoPrices.ETH = prices.ETH;
-                    cryptoPrices.MATIC = prices.MATIC;
-                    cryptoPrices.BNB = prices.BNB;
+                cryptoPrices.ETH = prices.ETH;
+                cryptoPrices.MATIC = prices.MATIC;
+                cryptoPrices.BNB = prices.BNB;
                 } else {
                     throw new Error('Invalid price data format from API');
                 }
@@ -455,9 +345,9 @@
             const total = cart.reduce((sum, item) => sum + item.price, 0);
             
             // Use toFixed(2) for USD prices and handle null values
-            document.getElementById('ethPrice').textContent = cryptoPrices.ETH ? `1 ETH ≈ $${cryptoPrices.ETH.toFixed(2)}` : 'Price unavailable';
-            document.getElementById('maticPrice').textContent = cryptoPrices.MATIC ? `1 MATIC ≈ $${cryptoPrices.MATIC.toFixed(2)}` : 'Price unavailable';
-            document.getElementById('bnbPrice').textContent = cryptoPrices.BNB ? `1 BNB ≈ $${cryptoPrices.BNB.toFixed(2)}` : 'Price unavailable';
+            document.getElementById('ethPrice').textContent = cryptoPrices.ETH ? `1 ETH ≈ $${cryptoPrices.ETH.toFixed(2)} AUD` : 'Price unavailable';
+            document.getElementById('maticPrice').textContent = cryptoPrices.MATIC ? `1 MATIC ≈ $${cryptoPrices.MATIC.toFixed(2)} AUD` : 'Price unavailable';
+            document.getElementById('bnbPrice').textContent = cryptoPrices.BNB ? `1 BNB ≈ $${cryptoPrices.BNB.toFixed(2)} AUD` : 'Price unavailable';
 
             if (selectedCrypto && cryptoPrices[selectedCrypto]) {
                 const cryptoAmount = total / cryptoPrices[selectedCrypto];
@@ -496,6 +386,8 @@
             
             // Show loading spinner
             document.getElementById('price-loading').classList.remove('hidden');
+
+            document.getElementById('price-loading').classList.add('hidden');
             
             // Update price and start interval
             updateCryptoPrice(crypto);
@@ -558,7 +450,7 @@
             updateTotalDisplay(); // Initial total calculation
         });
 
-        // Handle payment
+        // Handle payment - UPDATED TO REDIRECT TO payment.html
         async function proceedToPayment() {
             if (!selectedCrypto) {
                 showToast('Please select a cryptocurrency for payment', 'warning');
@@ -571,223 +463,38 @@
                 return;
             }
 
-            // Pre-calculate values that don't need server response
-            const orderId = generateOrderId();
-            const cryptoAmount = (total / (cryptoPrices[selectedCrypto] || getDefaultPrice(selectedCrypto))).toFixed(8);
-            const expiryTime = new Date(Date.now() + 30 * 60000);
+            // Ensure we have a price for the selected crypto
+            if (!cryptoPrices[selectedCrypto]) {
+                showToast(`Price for ${selectedCrypto} is not available. Please wait or select another crypto.`, 'warning');
+                return;
+            }
 
-            // Show payment template immediately
-            const mainContent = document.getElementById('main-content');
-            const template = document.getElementById('payment-template');
-            mainContent.innerHTML = template.innerHTML;
+            // Calculate crypto amount
+            const cryptoAmount = (total / cryptoPrices[selectedCrypto]).toFixed(8);
 
-            // Update static information immediately
-            document.getElementById('order-id').textContent = orderId;
-            document.getElementById('crypto-amount').textContent = `${cryptoAmount} ${selectedCrypto}`;
-            startCountdown(expiryTime);
+            // Prepare data to pass to payment page
+            const paymentData = {
+                orderId: generateOrderId(),
+                selectedCrypto: selectedCrypto,
+                fiatAmount: total.toFixed(2),
+                    cryptoAmount: cryptoAmount,
+                cartItems: cart // Pass cart items for potential display or later use
+            };
 
-            // Show initial loading state in a non-blocking way
-            const transactionStatus = document.getElementById('transaction-status');
-            transactionStatus.classList.remove('hidden');
-            transactionStatus.innerHTML = `
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-spinner fa-spin text-blue-500 text-lg"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h3 class="text-sm font-medium text-blue-800">Generating Payment Address</h3>
-                        <p class="mt-1 text-sm text-blue-700">
-                            Please wait while we prepare your payment details...
-                        </p>
-                    </div>
-                </div>
-            `;
-
+            // Store data in sessionStorage for the payment page to retrieve
             try {
-                // Start address generation request immediately
-                const addressPromise = fetch('/api/generate-payment-address', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        amount: cryptoAmount,
-                        fiatAmount: total,
-                        fiatCurrency: 'USD',
-                        cryptoType: selectedCrypto
-                    })
-                });
-
-                // While waiting for the address, prepare the QR code container
-                const qrContainer = document.getElementById('qr-code');
-                if (qrContainer) {
-                    qrContainer.innerHTML = `
-                        <div class="animate-pulse bg-gray-200 w-32 h-32 rounded"></div>
-                    `;
-                }
-
-                // Wait for address generation
-                const response = await addressPromise;
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
-                }
-
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to generate payment address');
-                }
-
-                // Update payment address immediately when received
-                document.getElementById('payment-address').textContent = data.address;
-
-                // Generate QR code in parallel with other operations
-                if (qrContainer) {
-                    qrContainer.innerHTML = '';
-                    new QRCode(qrContainer, {
-                        text: data.address,
-                        width: 128,
-                        height: 128,
-                        colorDark: "#000000",
-                        colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.H
-                    });
-                }
-
-                // Update transaction status
-                transactionStatus.innerHTML = `
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-spinner fa-spin text-yellow-500 text-lg"></i>
-                        </div>
-                        <div class="ml-4">
-                            <h3 class="text-sm font-medium text-yellow-800">Waiting for Payment</h3>
-                            <p class="mt-1 text-sm text-yellow-700">
-                                Send ${cryptoAmount} ${selectedCrypto} to the address above
-                            </p>
-                        </div>
-                    </div>
-                `;
-
-                // Start transaction detection in parallel
-                startTransactionDetection(data.address, selectedCrypto);
-
+                sessionStorage.setItem('paymentData', JSON.stringify(paymentData));
+                // Redirect to the new payment page
+                window.location.href = 'payment.html';
             } catch (error) {
-                console.error('Payment processing error:', error);
-                showToast('Error processing payment: ' + error.message, 'error');
-                
-                transactionStatus.innerHTML = `
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                        </div>
-                        <div class="ml-4">
-                            <h3 class="text-sm font-medium text-red-800">Payment Error</h3>
-                            <p class="mt-1 text-sm text-red-700">
-                                ${error.message}. Please try again.
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        // Start countdown timer
-        function startCountdown(expiresAt) {
-            const timerElement = document.getElementById('countdown');
-            
-            // Validate expiry time
-            if (isNaN(expiresAt) || expiresAt <= Date.now()) {
-                // Default to 30 minutes if invalid
-                expiresAt = Date.now() + 30 * 60000;
-                console.warn('Invalid expiry time, defaulting to 30 minutes');
-            }
-            
-            const interval = setInterval(() => {
-                const now = Date.now();
-                const timeLeft = expiresAt - now;
-
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    timerElement.textContent = '<span class="text-red-600">Expired</span>';
-                    document.getElementById('transaction-status').innerHTML = `
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                            </div>
-                            <div class="ml-4">
-                                <h3 class="text-sm font-medium text-red-800">Payment Time Expired</h3>
-                                <p class="mt-1 text-sm text-red-700">
-                                    Please start a new payment session.
-                                </p>
-                            </div>
-                        </div>
-                    `;
-                    return;
+                console.error('Error storing payment data or redirecting:', error);
+                showToast('Error proceeding to payment. Please try again.', 'error');
+                    }
                 }
 
-                const minutes = Math.floor(timeLeft / 60000);
-                const seconds = Math.floor((timeLeft % 60000) / 1000);
-                timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            }, 1000);
-        }
-
-        // Generate order ID
+        // Generate order ID (Keep this here as it's generated before redirect)
         function generateOrderId() {
             return 'ORD-' + Date.now().toString(36).toUpperCase();
-        }
-
-        // Copy payment address function
-        function copyPaymentAddress() {
-            const address = document.getElementById('payment-address').textContent;
-            navigator.clipboard.writeText(address).then(() => {
-                showToast('Payment address copied to clipboard', 'success');
-            });
-        }
-
-        // Go back to cart function
-        function goBackToCart() {
-            showMainCart();
-            // Clear any intervals
-            if (window.transactionMonitorInterval) {
-                clearInterval(window.transactionMonitorInterval);
-            }
-            if (window.countdownInterval) {
-                clearInterval(window.countdownInterval);
-            }
-        }
-        
-        // Function to restart checkout process after wrong payment or expired address
-        function restartCheckout() {
-            // Clear any existing intervals
-            if (window.transactionMonitorInterval) {
-                clearInterval(window.transactionMonitorInterval);
-            }
-            if (window.countdownInterval) {
-                clearInterval(window.countdownInterval);
-            }
-            
-            // Show loading state
-            const transactionStatus = document.getElementById('transaction-status');
-            if (transactionStatus) {
-                transactionStatus.innerHTML = `
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-spinner fa-spin text-blue-500 text-lg"></i>
-                        </div>
-                        <div class="ml-4">
-                            <h3 class="text-sm font-medium text-blue-800">Restarting Checkout</h3>
-                            <p class="mt-1 text-sm text-blue-700">
-                                Please wait while we set up a new payment address...
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Simply reload the page to start fresh
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
         }
 
         // Show toast notification
@@ -851,272 +558,6 @@
                 'BNB': 300
             };
             return defaults[crypto] || 2200;
-        }
-
-        // Update the startTransactionDetection function to be more efficient
-        async function startTransactionDetection(address, cryptoType) {
-            console.log('Starting transaction detection for:', address);
-            
-            let provider;
-            const INFURA_URL = 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9';
-            const BACKUP_URL = 'https://rpc.sepolia.org';
-            
-            try {
-                // Try Infura first
-                provider = new ethers.providers.JsonRpcProvider(INFURA_URL);
-                const network = await provider.getNetwork();
-                console.log('Connected to Infura on network:', network.name);
-            } catch (error) {
-                console.warn('Infura connection failed, trying backup RPC');
-                try {
-                    provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
-                    await provider.getNetwork();
-                    console.log('Connected to backup RPC');
-                } catch (backupError) {
-                    console.error('All providers failed');
-                    const transactionStatus = document.getElementById('transaction-status');
-                    if (transactionStatus) {
-                        transactionStatus.innerHTML = `
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                                </div>
-                                <div class="ml-4">
-                                    <h3 class="text-sm font-medium text-red-800">Network Connection Error</h3>
-                                    <p class="mt-1 text-sm text-red-700">
-                                        Unable to monitor transactions. Please check your payment on the blockchain explorer.
-                                    </p>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    showToast('Network connection error', 'error');
-                    return;
-                }
-            }
-
-            // Set up transaction monitoring
-            let checkCount = 0;
-            let lastBalance = 0;
-            const interval = setInterval(async () => {
-                try {
-                    checkCount++;
-                    const balance = await provider.getBalance(address);
-                    const balanceInEth = ethers.utils.formatEther(balance);
-                    console.log(`Checking balance for ${address}: ${balanceInEth} ETH`);
-
-                    if (!balance.isZero()) {
-                        clearInterval(interval);
-                        console.log('Payment detected!');
-                        
-                        // Notify backend about the payment to update HD wallet records
-                        try {
-                            const response = await fetch('/api/record-payment', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    address,
-                                    amount: balanceInEth,
-                                    cryptoType
-                                })
-                            });
-                            
-                            const responseData = await response.json();
-                            console.log('Payment recorded with backend:', responseData);
-                            
-                            // Check if address is expired
-                            if (responseData.isExpired) {
-                                // Hide the QR code and payment address
-                                const qrContainer = document.getElementById('qr-code');
-                                if (qrContainer) {
-                                    qrContainer.innerHTML = `
-                                        <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
-                                            <i class="fas fa-ban text-red-500 text-3xl mb-2"></i>
-                                            <p class="text-red-700 font-medium">This payment address has expired</p>
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Disable copy button and gray out the address
-                                const addressElement = document.getElementById('payment-address');
-                                if (addressElement) {
-                                    addressElement.innerHTML = `<span class="text-gray-400 line-through">${address}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
-                                }
-                                
-                                // Hide payment instructions
-                                const instructionsElement = document.getElementById('payment-instructions');
-                                if (instructionsElement) {
-                                    instructionsElement.style.display = 'none';
-                                }
-                                
-                                // Change countdown to "EXPIRED"
-                                const countdownElement = document.getElementById('countdown');
-                                if (countdownElement) {
-                                    countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
-                                }
-                                
-                                const transactionStatus = document.getElementById('transaction-status');
-                                if (transactionStatus) {
-                                    transactionStatus.innerHTML = `
-                                        <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
-                                            <div class="flex-shrink-0">
-                                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                                            </div>
-                                            <div class="ml-4">
-                                                <h3 class="text-md font-medium text-red-800">Payment Address Has Expired!</h3>
-                                                <p class="mt-1 text-sm text-red-700">
-                                                    ${responseData.reason || 'This payment address has expired due to a wrong payment.'}
-                                                </p>
-                                                <div class="mt-3">
-                                                    <button onclick="restartCheckout()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
-                                                        <i class="fas fa-redo mr-2"></i> Generate New Payment Address
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                                
-                                showToast('Payment address has expired!', 'error');
-                                
-                                return; // Don't proceed with normal payment flow
-                            }
-                            // Check if this was flagged as a wrong payment
-                            else if (responseData.isWrongPayment) {
-                                // Hide the QR code and payment address
-                                const qrContainer = document.getElementById('qr-code');
-                                if (qrContainer) {
-                                    qrContainer.innerHTML = `
-                                        <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
-                                            <i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i>
-                                            <p class="text-red-700 font-medium">Wrong payment amount detected</p>
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Disable copy button and gray out the address
-                                const addressElement = document.getElementById('payment-address');
-                                if (addressElement) {
-                                    addressElement.innerHTML = `<span class="text-gray-400 line-through">${address}</span> <span class="text-red-500 ml-2">(Expired)</span>`;
-                                }
-                                
-                                // Hide payment instructions
-                                const instructionsElement = document.getElementById('payment-instructions');
-                                if (instructionsElement) {
-                                    instructionsElement.style.display = 'none';
-                                }
-                                
-                                // Change countdown to "EXPIRED"
-                                const countdownElement = document.getElementById('countdown');
-                                if (countdownElement) {
-                                    countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
-                                }
-
-                                const transactionStatus = document.getElementById('transaction-status');
-                                if (transactionStatus) {
-                                    transactionStatus.innerHTML = `
-                                        <div class="flex items-center bg-red-100 border border-red-200 rounded-lg p-4">
-                                            <div class="flex-shrink-0">
-                                                <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
-                                            </div>
-                                            <div class="ml-4">
-                                                <h3 class="text-md font-medium text-red-800">Wrong Payment Detected!</h3>
-                                                <p class="mt-1 text-sm text-red-700">
-                                                    ${balanceInEth} ETH received, but this doesn't match the expected amount.
-                                                    ${responseData.reason || 'The payment amount is incorrect.'}
-                                                </p>
-                                                <p class="mt-1 text-sm text-red-700">
-                                                    Your order will not be processed due to the wrong payment amount.
-                                                </p>
-                                                <div class="mt-3">
-                                                    <button onclick="restartCheckout()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
-                                                        <i class="fas fa-redo mr-2"></i> Generate New Payment Address
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                                
-                                showToast('Wrong payment amount detected!', 'error');
-                                
-                                return; // Don't proceed with normal payment flow
-                            }
-                            
-                        } catch (recordError) {
-                            console.error('Failed to record payment with backend:', recordError);
-                            // Continue anyway since we detected the payment
-                        }
-                        
-                        const transactionStatus = document.getElementById('transaction-status');
-                        if (transactionStatus) {
-                            transactionStatus.innerHTML = `
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check-circle text-green-500 text-lg"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <h3 class="text-sm font-medium text-green-800">Payment Received!</h3>
-                                        <p class="mt-1 text-sm text-green-700">
-                                            ${balanceInEth} ETH received. Transaction has been confirmed on the blockchain.
-                                        </p>
-                                        <p class="mt-1 text-sm text-green-700">
-                                            Redirecting to payment status page...
-                                        </p>
-                                    </div>
-                                </div>
-                            `;
-                        }
-                        
-                        // Clear cart after successful payment
-                        cart = [];
-                        localStorage.setItem('cart', JSON.stringify(cart));
-                        showToast('Payment received successfully!', 'success');
-                        
-                        // Redirect to payment-status page with success details
-                        setTimeout(() => {
-                            const statusParams = new URLSearchParams({
-                                id: orderId,
-                                status: 'confirmed',
-                                amount: balanceInEth,
-                                address: address
-                            });
-                            window.location.href = `/payment-status.html?${statusParams.toString()}`;
-                        }, 2000);
-                    } else if (checkCount >= 60) { // Check for 5 minutes max (60 * 5 seconds)
-                        clearInterval(interval);
-                        const transactionStatus = document.getElementById('transaction-status');
-                        if (transactionStatus) {
-                            transactionStatus.innerHTML = `
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-exclamation-triangle text-yellow-500 text-lg"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <h3 class="text-sm font-medium text-yellow-800">No Payment Detected</h3>
-                                        <p class="mt-1 text-sm text-yellow-700">
-                                            We haven't detected your payment yet. If you've already sent the funds, please check the transaction status on a blockchain explorer.
-                                        </p>
-                                    </div>
-                                </div>
-                            `;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error checking transaction:', error);
-                    // Try to reconnect if connection fails
-                    try {
-                        provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
-                    } catch (reconnectError) {
-                        console.warn('Failed to reconnect to backup provider');
-                    }
-                }
-            }, 5000); // Check every 5 seconds
-
-            // Store interval ID for cleanup
-            window.transactionMonitorInterval = interval;
         }
 
         // Initialize

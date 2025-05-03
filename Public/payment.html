@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Process Payment - Eco Store</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        /* Add necessary styles (e.g., spinner) */
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid #48bb78;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Blur and Blinking Loading Effect */
+        .loading-placeholder {
+            filter: blur(4px);
+            opacity: 0.6;
+            animation: blink 1.5s linear infinite;
+            background-color: #e2e8f0; /* Light gray background */
+            border-radius: 4px; /* Slightly rounded corners */
+            display: inline-block; /* Needed for background */
+            min-width: 50px; /* Ensure some width */
+            min-height: 1em; /* Ensure some height */
+            vertical-align: middle; /* Align nicely with text */
+        }
+
+        /* Specific placeholder styles */
+        #qr-code.loading-placeholder {
+            min-width: 128px; /* Match QR code size */
+            min-height: 128px;
+            display: flex; /* Keep centering for spinner */
+            align-items: center;
+            justify-content: center;
+            background-color: #f7fafc; /* Lighter background for QR area */
+            filter: none; /* Don't blur the spinner itself */
+            opacity: 1; /* Don't fade the spinner */
+            animation: none; /* No blinking for the QR container */
+        }
+        #payment-address.loading-placeholder {
+            min-width: 200px; /* Wider placeholder for address */
+        }
+
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+        }
+
+        /* Ensure content visibility once loaded */
+        .loading-placeholder.loaded {
+            filter: none;
+            opacity: 1;
+            animation: none;
+            background-color: transparent;
+            min-width: auto;
+            min-height: auto;
+            display: initial; /* Or inline, block depending on element */
+        }
+        #qr-code.loaded {
+             background-color: #ffffff; /* White background when loaded */
+             display: block; /* Or however QRCode.js renders it */
+        }
+         /* Style for blurred text when expired/wrong */
+        .blurred-text {
+            filter: blur(4px);
+            user-select: none;
+            background-color: #fecaca; /* Light red background */
+            padding: 2px 5px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg fixed w-full z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="Product.html" class="flex items-center hover:text-green-600 transition-colors">
+                        <i class="fas fa-leaf text-green-600 text-2xl mr-2"></i>
+                        <span class="text-xl font-bold text-gray-800">Eco Store</span>
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center px-3 py-1 rounded-full bg-green-50 text-sm text-green-700">
+                        <i class="fas fa-network-wired mr-2"></i>
+                        <span id="networkStatus">
+                            <span class="flex items-center">
+                                <span class="mr-2">Sepolia Network</span>
+                                <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="pt-20 pb-12">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8" id="payment-content">
+            <!-- Payment UI Structure -->
+            <div class="bg-white rounded-lg shadow-md p-6 my-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">Cryptocurrency Payment</h2>
+                    <span class="text-gray-500 text-sm">Order ID: <span id="order-id" class="font-mono loading-placeholder">&nbsp;</span></span>
+                </div>
+                
+                <div class="border-b border-gray-200 pb-4 mb-4">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-gray-600">Amount:</span>
+                        <span id="crypto-amount" class="font-medium loading-placeholder">&nbsp;</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Expires:</span>
+                        <span id="countdown" class="font-medium text-orange-600 loading-placeholder">&nbsp;</span>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div class="flex flex-col items-center space-y-4">
+                        <h3 class="text-gray-700 font-medium">Scan QR Code or Copy Address</h3>
+                        <div id="qr-code" class="border border-gray-200 p-2 rounded bg-white min-w-[128px] min-h-[128px] flex items-center justify-center loading-placeholder">
+                            <div class="spinner"></div>
+                        </div>
+                        <div class="flex flex-col items-center space-y-1 w-full">
+                            <p class="text-gray-500 text-sm">Payment Address:</p>
+                            <div class="flex items-center w-full">
+                                <code id="payment-address" class="bg-gray-100 px-3 py-2 rounded text-sm font-mono truncate flex-grow text-center loading-placeholder">&nbsp;</code>
+                                <button onclick="copyPaymentAddress()" class="ml-2 p-2 text-blue-600 hover:text-blue-800 focus:outline-none">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="payment-instructions" class="mb-6">
+                    <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-blue-900 mb-3">Payment Instructions</h3>
+                        <div class="space-y-3 text-blue-800">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 mt-1">
+                                    <i class="fas fa-info-circle text-blue-500"></i>
+                                </div>
+                                <p class="ml-3 text-sm">Please send the exact amount shown above. Sending a different amount may result in payment processing issues.</p>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 mt-1">
+                                    <i class="fas fa-clock text-blue-500"></i>
+                                </div>
+                                <p class="ml-3 text-sm">The payment address will expire in 1 minute. Please complete the payment before the countdown timer reaches zero.</p>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 mt-1">
+                                    <i class="fas fa-network-wired text-blue-500"></i>
+                                </div>
+                                <p class="ml-3 text-sm">Make sure you're sending the payment on the <strong>Sepolia Test Network</strong>. Transactions on other networks will not be detected.</p>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 mt-1">
+                                    <i class="fas fa-shield-alt text-blue-500"></i>
+                                </div>
+                                <p class="ml-3 text-sm">Double-check the payment address before sending. Cryptocurrency transactions cannot be reversed once confirmed.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">How to Pay</h3>
+                        <ol class="space-y-3 text-gray-700">
+                            <li class="flex items-start">
+                                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">1</span>
+                                <p class="text-sm">Open your cryptocurrency wallet (e.g., MetaMask) and ensure you're connected to the Sepolia Test Network.</p>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">2</span>
+                                <p class="text-sm">Copy the payment address or scan the QR code with your wallet app.</p>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">3</span>
+                                <p class="text-sm">Enter the exact amount shown above and confirm the transaction in your wallet.</p>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 mr-3">4</span>
+                                <p class="text-sm">Wait for the transaction to be confirmed. The status will update automatically once payment is detected.</p>
+                            </li>
+                        </ol>
+                    </div>
+                    <div class="mt-4 bg-yellow-50 border border-yellow-100 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-lightbulb text-yellow-500"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-yellow-800">Need Test ETH?</h3>
+                                <p class="mt-1 text-sm text-yellow-700">
+                                    This is a test environment using the Sepolia network. You can get test ETH from the 
+                                    <a href="https://sepoliafaucet.com/" target="_blank" class="underline hover:text-yellow-900">Sepolia Faucet</a>.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="transaction-status" class="border border-yellow-100 rounded-lg p-4 bg-yellow-50 my-6 hidden"></div>
+                
+                <div class="flex justify-between mt-8">
+                    <button onclick="goBackToCart()" class="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200 focus:outline-none transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i> Back to Cart
+                    </button>
+                    <a href="Product.html" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none transition-colors">
+                        <i class="fas fa-shopping-bag mr-2"></i> Continue Shopping
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
+
+    <script>
+        // Global variables
+        let paymentSession = null;
+        let countdownInterval = null;
+        let transactionCheckInterval = null;
+        let heartbeatInterval = null; // For session heartbeat/keep-alive
+
+        // Debug logging
+        function logDebug(msg, ...args) {
+            if (window.location.search.includes('debug')) {
+                console.log('[PaymentDebug]', msg, ...args);
+            }
+        }
+        logDebug('Payment page loaded:', new Date().toISOString());
+        logDebug('sessionStorage contents:', {...sessionStorage});
+
+        // Store last activity timestamp in localStorage to detect browser restarts vs reloads
+        // This helps distinguish between reload and revisit after browser/tab close
+        function updateLastActivity() {
+            localStorage.setItem('payment_last_activity', Date.now().toString());
+        }
+        updateLastActivity();
+
+        // Session heartbeat to detect tab closure
+        function startHeartbeat(address) {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            
+            // First heartbeat - check if the address is still active on the backend
+            checkAddressIsActive(address);
+            
+            // Periodic heartbeat to keep session alive and verify address still exists
+            heartbeatInterval = setInterval(() => {
+                checkAddressIsActive(address);
+            }, 30000); // Every 30 seconds
+        }
+
+        // Check if an address is still active in the backend
+        async function checkAddressIsActive(address) {
+            if (!address) return false;
+            
+            try {
+                const response = await fetch('/api/check-address-exists', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address })
+                });
+                
+                // If endpoint doesn't exist, also check keys.json directly 
+                if (response.status === 404) {
+                    const keysResponse = await fetch('/Json/keys.json');
+                    if (keysResponse.ok) {
+                        const keysData = await keysResponse.json();
+                        const exists = keysData?.activeAddresses?.[address] !== undefined;
+                        
+                        // If address doesn't exist in keys.json but we think it should,
+                        // consider it expired (tab was likely closed in another session)
+                        if (!exists && paymentSession && paymentSession.address === address) {
+                            logDebug('Address not found in keys.json:', address);
+                            showExpiredPaymentUI();
+                            clearSessionAndHeartbeat();
+                        }
+                        
+                        return exists;
+                    }
+                    return true; // Can't verify, assume still active
+                }
+                
+                // If response indicates address is expired/invalid
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!data.exists && paymentSession && paymentSession.address === address) {
+                        logDebug('Address no longer active:', address);
+                        showExpiredPaymentUI();
+                        clearSessionAndHeartbeat();
+                    }
+                    return data.exists;
+                }
+                
+                return true; // Can't verify, assume still active
+            } catch (err) {
+                logDebug('Error checking address:', err);
+                return true; // Can't verify, assume still active
+            }
+        }
+
+        // Clear session and heartbeat
+        function clearSessionAndHeartbeat() {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (transactionCheckInterval) clearInterval(transactionCheckInterval);
+            sessionStorage.removeItem('paymentData');
+            paymentSession = null;
+        }
+
+        // On beforeunload, try to properly discard the address
+        window.addEventListener('beforeunload', async (e) => {
+            if (paymentSession && paymentSession.address) {
+                logDebug('Page closing, discarding payment address');
+                // Store a close timestamp
+                localStorage.setItem('payment_page_closed', Date.now().toString());
+                
+                // Try to discard the address
+                try {
+                    navigator.sendBeacon('/api/discard-payment-address', 
+                        JSON.stringify({ address: paymentSession.address }));
+                } catch (err) {
+                    // Beacon not supported, try fetch with keepalive
+                    try {
+                        fetch('/api/discard-payment-address', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: paymentSession.address }),
+                            keepalive: true
+                        });
+                    } catch (fetchErr) {
+                        logDebug('Failed to discard address on close:', fetchErr);
+                    }
+                }
+            }
+        });
+
+        // On page show (when coming back to a page), check if we're returning after a close
+        window.addEventListener('pageshow', (e) => {
+            const lastActive = localStorage.getItem('payment_last_activity');
+            const closedTime = localStorage.getItem('payment_page_closed');
+            
+            // If we have a recorded close time more recent than last activity, 
+            // we're coming back after a close, not a reload
+            if (closedTime && lastActive && parseInt(closedTime) > parseInt(lastActive)) {
+                logDebug('Detected return after page close. Checking session validity...');
+                // We'll check the address validity during initialization
+            }
+            
+            updateLastActivity();
+        });
+
+        // Utility: Show toast notification
+        function showToast(message, type = 'info') {
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'fixed bottom-4 right-4 z-50 flex flex-col space-y-2';
+                document.body.appendChild(toastContainer);
+            }
+            const toast = document.createElement('div');
+            let iconClass = 'fa-info-circle text-blue-500';
+            let bgColor = 'bg-blue-50 border-blue-100';
+            let textColor = 'text-blue-800';
+            if (type === 'success') {
+                iconClass = 'fa-check-circle text-green-500';
+                bgColor = 'bg-green-50 border-green-100';
+                textColor = 'text-green-800';
+            } else if (type === 'error') {
+                iconClass = 'fa-exclamation-circle text-red-500';
+                bgColor = 'bg-red-50 border-red-100';
+                textColor = 'text-red-800';
+            } else if (type === 'warning') {
+                iconClass = 'fa-exclamation-triangle text-yellow-500';
+                bgColor = 'bg-yellow-50 border-yellow-100';
+                textColor = 'text-yellow-800';
+            }
+            toast.className = `${bgColor} border p-3 rounded-lg shadow-md flex items-center space-x-2 min-w-[250px] transform transition-all duration-500 ease-in-out translate-x-0`;
+            toast.innerHTML = `<i class="fas ${iconClass} text-lg"></i><p class="${textColor} text-sm">${message}</p>`;
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    if (toast.parentElement) toast.parentElement.removeChild(toast);
+                }, 500);
+            }, 3000);
+        }
+
+        // Go back to cart function - EXPLICITLY clear session
+        function goBackToCart() {
+            logDebug('User clicked "Back to Cart" - explicitly clearing session');
+            const paymentData = sessionStorage.getItem('paymentData');
+            if (paymentData) {
+                try {
+                    const parsed = JSON.parse(paymentData);
+                    if (parsed && parsed.address) {
+                        fetch('/api/discard-payment-address', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: parsed.address })
+                        }).catch(err => logDebug('Error discarding address:', err));
+                        logDebug('Called API to discard address:', parsed.address);
+                    }
+                } catch (err) {
+                    logDebug('Error parsing payment data:', err);
+                }
+            }
+            // Clear the session data before going back
+            sessionStorage.removeItem('paymentData');
+            window.location.href = 'Cart.html';
+        }
+
+        // Copy payment address function
+        function copyPaymentAddress() {
+            const addressElement = document.getElementById('payment-address');
+            // Check if it's still in loading state
+            if (!addressElement || addressElement.classList.contains('loading-placeholder') || addressElement.querySelector('.blurred-text')) return;
+            const address = addressElement.textContent;
+            navigator.clipboard.writeText(address).then(() => {
+                showToast('Payment address copied to clipboard', 'success');
+            });
+        }
+
+        // Start countdown timer
+        function startCountdown(expiresAt) {
+            const timerElement = document.getElementById('countdown');
+            if (!timerElement) return;
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            const expiryTime = new Date(expiresAt);
+            if (isNaN(expiryTime) || expiryTime <= Date.now()) {
+                 timerElement.innerHTML = '<span class="text-red-600 font-bold">EXPIRED</span>';
+                 timerElement.classList.remove('loading-placeholder');
+                 timerElement.classList.add('loaded');
+                 showExpiredPaymentUI(); // Handle expired UI immediately
+                 return;
+            }
+
+            // Remove loading state before starting the timer
+            timerElement.classList.remove('loading-placeholder');
+            timerElement.classList.add('loaded');
+            
+            countdownInterval = setInterval(() => {
+                const now = Date.now();
+                const timeLeft = expiryTime - now;
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    if (paymentSession) paymentSession.isExpired = true;
+                    timerElement.innerHTML = '<span class="text-red-600 font-bold">EXPIRED</span>'; // Update text on expiry
+                    showExpiredPaymentUI();
+                    return;
+                }
+
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        // Show wrong payment UI
+        function showWrongPaymentUI() {
+            if (paymentSession) paymentSession.isWrongPayment = true;
+
+            const qrContainer = document.getElementById('qr-code');
+            if (qrContainer) {
+                 qrContainer.classList.remove('loading-placeholder');
+                 qrContainer.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 text-center"><i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-2"></i><p class="text-red-700 font-medium">Wrong payment amount detected</p><p class="mt-2 text-red-700"><span class="blurred-text">Invalid Address</span></p></div>`;
+            }
+            
+            const addressElement = document.getElementById('payment-address');
+            if (addressElement) {
+                 addressElement.classList.remove('loading-placeholder');
+                 addressElement.innerHTML = `<span class="blurred-text">Invalid Address</span>`;
+            }
+            // Remove the copy button if present
+            const copyBtn = addressElement?.parentElement?.querySelector('button');
+            if (copyBtn) copyBtn.remove();
+
+            const countdownElement = document.getElementById('countdown');
+            if (countdownElement) {
+                 countdownElement.classList.remove('loading-placeholder');
+                 countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+            }
+            
+            const instructionsElement = document.getElementById('payment-instructions');
+            if (instructionsElement) instructionsElement.style.display = 'none';
+            
+            const transactionStatus = document.getElementById('transaction-status');
+            if (transactionStatus) {
+                 transactionStatus.classList.remove('hidden');
+                 transactionStatus.className = 'bg-red-100 border border-red-200 rounded-lg p-4 my-6';
+                 transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0"><i class="fas fa-exclamation-circle text-red-500 text-lg"></i></div>
+                        <div class="ml-4">
+                            <h3 class="text-md font-medium text-red-800">Wrong Payment Detected!</h3>
+                            <p class="mt-1 text-sm text-red-700">The payment amount received doesn't match the expected amount. Your order will not be processed. Please go back to cart and try again.</p>
+                        </div>
+                    </div>`;
+            }
+            if (transactionCheckInterval) clearInterval(transactionCheckInterval);
+            showWrongPaymentModal(); // Show popup modal
+        }
+
+        // Show wrong payment modal alert
+        function showWrongPaymentModal() {
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modalOverlay.id = 'wrong-payment-modal';
+            modalOverlay.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 transform transition-all">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">Wrong Payment Detected</h3>
+                        <p class="text-gray-700 mb-4">We detected a payment with an incorrect amount. Your payment address has been invalidated. Please go back to cart and generate a new payment request.</p>
+                        <button onclick="document.getElementById('wrong-payment-modal').remove()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Close</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modalOverlay);
+            setTimeout(() => {
+                const modal = document.getElementById('wrong-payment-modal');
+                if (modal) modal.remove();
+            }, 10000);
+        }
+
+        // Start transaction detection
+        async function startTransactionDetection(address, cryptoType, expectedAmount) {
+            console.log('Starting transaction detection for:', address);
+            if (transactionCheckInterval) clearInterval(transactionCheckInterval);
+            
+            let provider;
+            const INFURA_URL = 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9';
+            const BACKUP_URL = 'https://rpc.sepolia.org';
+
+            try {
+                provider = new ethers.providers.JsonRpcProvider(INFURA_URL);
+                const network = await provider.getNetwork();
+                console.log('Connected to Infura on network:', network.name);
+            } catch (error) {
+                console.warn('Infura connection failed, trying backup RPC');
+                try {
+                    provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
+                    await provider.getNetwork();
+                    console.log('Connected to backup RPC');
+                } catch (backupError) {
+                    console.error('All providers failed');
+                    // Display network error in transaction status box
+                    const transactionStatus = document.getElementById('transaction-status');
+                    if (transactionStatus) {
+                        transactionStatus.classList.remove('hidden');
+                        transactionStatus.className = 'bg-red-100 border border-red-200 rounded-lg p-4 my-6'; // Use red styling for error
+                        transactionStatus.innerHTML = `
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0"><i class="fas fa-exclamation-circle text-red-500 text-lg"></i></div>
+                                <div class="ml-4">
+                                    <h3 class="text-sm font-medium text-red-800">Network Connection Error</h3>
+                                    <p class="mt-1 text-sm text-red-700">Unable to monitor transactions. Please check your payment on a blockchain explorer.</p>
+                                </div>
+                            </div>`;
+                    }
+                    showToast('Network connection error', 'error');
+                    return;
+                }
+            }
+
+            let checkCount = 0;
+            const maxCheckCount = 60; // ~5 minutes (60 * 5 seconds)
+            const transactionStatus = document.getElementById('transaction-status');
+
+            transactionCheckInterval = setInterval(async () => {
+                try {
+                    if (paymentSession && (paymentSession.isExpired || paymentSession.isWrongPayment)) {
+                        clearInterval(transactionCheckInterval);
+                        return;
+                    }
+
+                    checkCount++;
+                    const balance = await provider.getBalance(address);
+                    const balanceInEth = ethers.utils.formatEther(balance);
+                    console.log(`[DEBUG] [${new Date().toISOString()}] [Check ${checkCount}] Balance for ${address}: ${balanceInEth} ETH`);
+                    logDebug(`[Check ${checkCount}] Balance for ${address}: ${balanceInEth} ETH`);
+
+                    if (!balance.isZero()) {
+                        clearInterval(transactionCheckInterval);
+                        console.log(`[DEBUG] Payment detected! Sending to /api/record-payment:`, {
+                            address,
+                            amount: balanceInEth,
+                            cryptoType
+                        });
+                        logDebug(`Payment detected! Sending to /api/record-payment:`, { address, amount: balanceInEth, cryptoType });
+                        
+                        // Record payment with backend
+                        let backendResponse;
+                        try {
+                            const response = await fetch('/api/record-payment', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ address, amount: balanceInEth, cryptoType })
+                            });
+                            backendResponse = await response.json();
+                            console.log(`[DEBUG] Backend response from /api/record-payment:`, backendResponse);
+                            logDebug(`Backend response from /api/record-payment:`, backendResponse);
+                        } catch (recordError) {
+                            console.error('[DEBUG] Failed to record payment with backend:', recordError);
+                            logDebug('Failed to record payment with backend:', recordError);
+                            // Continue with frontend confirmation even if backend fails
+                        }
+                        
+                        // Handle backend response for expiration or wrong payment
+                        if (backendResponse?.isExpired) {
+                            showExpiredPaymentUI();
+                            return;
+                        } else if (backendResponse?.isWrongPayment) {
+                            showWrongPaymentUI();
+                            return;
+                        } 
+                        // If backend didn't flag as wrong/expired, proceed with success UI
+                        else {
+                             if (transactionStatus) {
+                                transactionStatus.classList.remove('hidden');
+                                transactionStatus.className = 'bg-green-50 border border-green-100 rounded-lg p-4 my-6';
+                                transactionStatus.innerHTML = `
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0"><i class="fas fa-check-circle text-green-500 text-lg"></i></div>
+                                        <div class="ml-4">
+                                            <h3 class="text-sm font-medium text-green-800">Payment Received!</h3>
+                                            <p class="mt-1 text-sm text-green-700">${balanceInEth} ${cryptoType} received. Transaction confirmed.</p>
+                                            <p class="mt-1 text-sm text-green-700">Redirecting to order status page...</p>
+                                        </div>
+                                    </div>`;
+                             }
+                            
+                            // Clear cart and payment session data
+                            localStorage.removeItem('cart'); // Clear cart from local storage
+                            sessionStorage.removeItem('paymentData'); // Clear session data for this payment
+                            paymentSession = null;
+                            
+                            showToast('Payment received successfully!', 'success');
+                            
+                            // Redirect to payment status page
+                            setTimeout(() => {
+                                const statusParams = new URLSearchParams({
+                                    id: paymentSession?.orderId || 'UNKNOWN',
+                                    status: 'confirmed',
+                                    amount: balanceInEth,
+                                    address: address
+                                });
+                                window.location.href = `/payment-status.html?${statusParams.toString()}`;
+                            }, 2000);
+                        }
+                    } else if (checkCount >= maxCheckCount) {
+                        clearInterval(transactionCheckInterval);
+                         if (transactionStatus) {
+                            transactionStatus.classList.remove('hidden');
+                            transactionStatus.className = 'bg-yellow-100 border border-yellow-200 rounded-lg p-4 my-6';
+                            transactionStatus.innerHTML = `
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-yellow-500 text-lg"></i></div>
+                                    <div class="ml-4">
+                                        <h3 class="text-sm font-medium text-yellow-800">No Payment Detected</h3>
+                                        <p class="mt-1 text-sm text-yellow-700">We haven't detected your payment yet. If you sent funds, please check a blockchain explorer.</p>
+                                    </div>
+                                </div>`;
+                         }
+                    }
+                } catch (error) {
+                    console.error('Error checking transaction:', error);
+                    if (error.message.includes('CONNECTION ERROR')) {
+                         try {
+                            provider = new ethers.providers.JsonRpcProvider(BACKUP_URL);
+                         } catch (reconnectError) {
+                            console.warn('Failed to reconnect to backup provider');
+                         }
+                    }
+                }
+            }, 5000);
+        }
+
+        // Initialize payment page
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log("DOM fully loaded and parsed. Initializing payment page.");
+            const paymentDataString = sessionStorage.getItem('paymentData');
+            console.log("sessionStorage - paymentDataString:", paymentDataString);
+
+            let initialPaymentData = null;
+            let existingPaymentSession = null;
+
+            if (paymentDataString) {
+                try {
+                    const parsedData = JSON.parse(paymentDataString);
+                    console.log("sessionStorage - parsedData:", parsedData);
+
+                    // Check if this data represents an *existing* full session (has address and expiry)
+                    if (parsedData && parsedData.address && parsedData.expiresAt && !parsedData.isExpired && !parsedData.isWrongPayment) {
+                        existingPaymentSession = parsedData;
+                        console.log("Condition met: Existing payment session found.");
+                    } else if (parsedData) {
+                         // This is likely initial data from Cart.html
+                        initialPaymentData = parsedData;
+                         console.log("Condition met: Initial payment data found.");
+                    } else {
+                         // Handle corrupted data
+                         console.error("Corrupted payment data in sessionStorage.");
+                         sessionStorage.removeItem('paymentData'); // Clear corrupted data
+                         showToast('Corrupted payment data. Please try again from the cart.', 'error');
+                         setTimeout(() => { window.location.href = 'Cart.html'; }, 2000);
+                         return;
+                    }
+                } catch (error) {
+                    console.error('Error parsing payment data from sessionStorage:', error);
+                    sessionStorage.removeItem('paymentData'); // Clear invalid data
+                    showToast('Invalid payment data format. Please try again from the cart.', 'error');
+                    setTimeout(() => { window.location.href = 'Cart.html'; }, 2000);
+                    return;
+                }
+            }
+
+            console.log("existingPaymentSession status:", !!existingPaymentSession);
+            console.log("initialPaymentData status:", !!initialPaymentData);
+
+            if (existingPaymentSession) {
+                 console.log("Executing: Verify existing session block.");
+
+                 // Verify session with backend before resuming
+                 try {
+                     const verificationResponse = await fetch('/api/verify-payment-address', {
+                         method: 'POST',
+                         headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify({ address: existingPaymentSession.address })
+                     });
+
+                     // KEY FIX: Handle 404 Not Found as "endpoint not implemented yet" - assume address is valid
+                     if (verificationResponse.status === 404) {
+                         console.log("Verification endpoint not found (404). Assuming address is still valid and continuing session.");
+                         paymentSession = existingPaymentSession;
+                         resumeExistingSession(paymentSession);
+                         return;
+                     }
+
+                     // For other error codes, proceed with normal verification logic
+                     if (!verificationResponse.ok) {
+                         console.error("Backend verification failed with status:", verificationResponse.status);
+                         sessionStorage.removeItem('paymentData');
+                         showToast('Payment session expired or invalid. Please try again from the cart.', 'warning');
+                         setTimeout(() => { window.location.href = 'Cart.html'; }, 3000);
+                         return;
+                     }
+
+                     const verificationData = await verificationResponse.json();
+                     console.log("Verification response:", verificationData);
+
+                     if (verificationData.success && verificationData.active) {
+                         console.log("Backend verification successful. Resuming session.");
+                         // Resume existing session
+                         paymentSession = existingPaymentSession;
+                         resumeExistingSession(paymentSession);
+                     } else {
+                         console.log("Backend verification failed or address not active. Clearing session and redirecting.");
+                         // Backend says address is not active (expired, wrong, or discarded)
+                         sessionStorage.removeItem('paymentData');
+                         paymentSession = null;
+                         showToast(verificationData.message || 'Payment session expired or invalid. Please try again from the cart.', 'warning');
+                         // Display expired/invalid status message before redirect
+                          const transactionStatus = document.getElementById('transaction-status');
+                          if (transactionStatus) {
+                             transactionStatus.classList.remove('hidden');
+                             transactionStatus.className = 'bg-orange-100 border border-orange-200 rounded-lg p-4 my-6'; // Use orange for invalid status
+                             transactionStatus.innerHTML = `
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-orange-500 text-lg"></i></div>
+                                    <div class="ml-4">
+                                        <h3 class="text-sm font-medium text-orange-800">Payment Session Invalid</h3>
+                                        <p class="mt-1 text-sm text-orange-700">${verificationData.message || 'This payment session is no longer valid.'} Please go back to the cart.</p>
+                                    </div>
+                                </div>`;
+                          }
+                         setTimeout(() => { window.location.href = 'Cart.html'; }, 3000);
+                     }
+                 } catch (verifyError) {
+                     console.error('Error verifying payment address with backend:', verifyError);
+                     // If backend verification fails (e.g., server error), ASSUME SESSION IS STILL VALID
+                     console.log("Verification error. Assuming session is still valid due to possible network/API issues.");
+                     paymentSession = existingPaymentSession;
+                     resumeExistingSession(paymentSession);
+                 }
+
+            } else if (initialPaymentData) {
+                 console.log("Executing: Start a new session block.");
+                 // Start a new session using data from Cart.html
+                 paymentSession = initialPaymentData;
+                 console.log("Starting new payment session with data from Cart:", paymentSession);
+
+                // Display initial info (remove loading class when setting)
+                const orderIdElem = document.getElementById('order-id');
+                orderIdElem.textContent = paymentSession.orderId || 'N/A';
+                orderIdElem.classList.remove('loading-placeholder');
+                orderIdElem.classList.add('loaded');
+
+                const cryptoAmountElem = document.getElementById('crypto-amount');
+                cryptoAmountElem.textContent = `${paymentSession.cryptoAmount} ${paymentSession.selectedCrypto}`;
+                cryptoAmountElem.classList.remove('loading-placeholder');
+                cryptoAmountElem.classList.add('loaded');
+
+                // Show loading state for transaction status while generating address
+                 const transactionStatus = document.getElementById('transaction-status');
+                 transactionStatus.classList.remove('hidden');
+                 transactionStatus.className = 'bg-yellow-50 border border-yellow-100 rounded-lg p-4 my-6';
+                 transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0"><i class="fas fa-spinner fa-spin text-yellow-500 text-lg"></i></div>
+                        <div class="ml-4">
+                            <h3 class="text-sm font-medium text-yellow-800">Generating Payment Address & Waiting for Payment...</h3>
+                            <p class="mt-1 text-sm text-yellow-700">Send ${paymentSession.cryptoAmount} ${paymentSession.selectedCrypto} to the address once generated.</p>
+                        </div>
+                    </div>`;
+
+                // Generate payment address
+                try {
+                    const response = await fetch('/api/generate-payment-address', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            amount: paymentSession.cryptoAmount,
+                            fiatAmount: paymentSession.fiatAmount,
+                            cryptoType: paymentSession.selectedCrypto,
+                            fiatCurrency: 'AUD', // Now using AUD
+                            orderId: paymentSession.orderId
+                        })
+                    });
+
+                    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+                    const data = await response.json();
+                    if (!data.success || !data.address) throw new Error(data.error || 'Failed to generate payment address');
+
+                    // Update paymentSession with generated address and expiry
+                    paymentSession.address = data.address;
+                    paymentSession.expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes expiry
+                    // Store the complete session data in sessionStorage
+                    sessionStorage.setItem('paymentData', JSON.stringify(paymentSession));
+                    console.log("Saved complete paymentSession to sessionStorage:", paymentSession);
+
+                    // Update UI with generated address and start processes
+                    const paymentAddressElem = document.getElementById('payment-address');
+                    paymentAddressElem.textContent = data.address;
+                    paymentAddressElem.classList.remove('loading-placeholder');
+                    paymentAddressElem.classList.add('loaded');
+
+                    const qrContainer = document.getElementById('qr-code');
+                    if (qrContainer) {
+                         qrContainer.classList.remove('loading-placeholder'); // Remove placeholder class
+                         qrContainer.classList.add('loaded'); // Add loaded class
+                         qrContainer.innerHTML = ''; // Clear spinner
+                        new QRCode(qrContainer, {
+                            text: data.address,
+                            width: 128,
+                            height: 128,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
+                    }
+
+                    startCountdown(paymentSession.expiresAt); // This now also removes loading class from countdown
+                    startTransactionDetection(data.address, paymentSession.selectedCrypto, paymentSession.cryptoAmount);
+
+                } catch (error) {
+                    console.error('Error generating payment address:', error);
+                     // Display error in transaction status box before redirecting
+                     const transactionStatus = document.getElementById('transaction-status');
+                     if (transactionStatus) {
+                        transactionStatus.classList.remove('hidden');
+                        transactionStatus.className = 'bg-red-100 border border-red-200 rounded-lg p-4 my-6';
+                        transactionStatus.innerHTML = `
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0"><i class="fas fa-exclamation-circle text-red-500 text-lg"></i></div>
+                                <div class="ml-4">
+                                    <h3 class="text-sm font-medium text-red-800">Initialization Error</h3>
+                                    <p class="mt-1 text-sm text-red-700">${error.message}. Redirecting to cart...</p>
+                                </div>
+                            </div>`;
+                    }
+                    showToast(`Error: ${error.message}. Redirecting to cart.`, 'error');
+                    sessionStorage.removeItem('paymentData'); // Clear any incomplete data
+                    setTimeout(() => { window.location.href = 'Cart.html'; }, 3000);
+                }
+
+            } else {
+                console.log("Executing: No data at all block.");
+                // No payment data at all, shouldn't happen if flow is correct, but handle defensively
+                console.warn("No payment data found on payment page load. Redirecting to cart.");
+                showToast('No payment data found. Please start from the cart.', 'error');
+                setTimeout(() => { window.location.href = 'Cart.html'; }, 2000);
+            }
+        });
+
+        // Helper function to resume an existing session
+        function resumeExistingSession(session) {
+            console.log("Resuming payment session:", session);
+
+            // Start heartbeat to verify address is still active
+            startHeartbeat(session.address);
+
+            // Display existing info (remove loading classes)
+            const orderIdElem = document.getElementById('order-id');
+            orderIdElem.textContent = session.orderId || 'N/A';
+            orderIdElem.classList.remove('loading-placeholder');
+            orderIdElem.classList.add('loaded');
+
+            const cryptoAmountElem = document.getElementById('crypto-amount');
+            cryptoAmountElem.textContent = `${session.cryptoAmount} ${session.selectedCrypto}`;
+            cryptoAmountElem.classList.remove('loading-placeholder');
+            cryptoAmountElem.classList.add('loaded');
+
+            const paymentAddressElem = document.getElementById('payment-address');
+            paymentAddressElem.textContent = session.address;
+            paymentAddressElem.classList.remove('loading-placeholder');
+            paymentAddressElem.classList.add('loaded');
+
+            // Generate QR code from existing address
+            const qrContainer = document.getElementById('qr-code');
+            if (qrContainer) {
+                qrContainer.classList.remove('loading-placeholder'); // Remove placeholder class
+                qrContainer.classList.add('loaded'); // Add loaded class
+                qrContainer.innerHTML = ''; // Clear spinner
+                new QRCode(qrContainer, {
+                    text: session.address,
+                    width: 128,
+                    height: 128,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            }
+
+            // Resume countdown (this now also removes loading class)
+            startCountdown(session.expiresAt);
+
+            // Resume transaction detection
+            if (!session.isExpired && !session.isWrongPayment) {
+                startTransactionDetection(session.address, session.selectedCrypto, session.cryptoAmount);
+                // Update status message for resumed session
+                const transactionStatus = document.getElementById('transaction-status');
+                transactionStatus.classList.remove('hidden');
+                transactionStatus.className = 'bg-blue-50 border border-blue-100 rounded-lg p-4 my-6';
+                transactionStatus.innerHTML = `
+                   <div class="flex items-center">
+                       <div class="flex-shrink-0"><i class="fas fa-sync fa-spin text-blue-500 text-lg"></i></div>
+                       <div class="ml-4">
+                           <h3 class="text-sm font-medium text-blue-800">Resumed Session - Waiting for Payment...</h3>
+                           <p class="mt-1 text-sm text-blue-700">Send ${session.cryptoAmount} ${session.selectedCrypto} to the address shown above.</p>
+                       </div>
+                   </div>`;
+            } else if (session.isExpired) {
+                showExpiredPaymentUI();
+            } else if (session.isWrongPayment) {
+                showWrongPaymentUI();
+            }
+        }
+
+        // Show expired payment UI
+        function showExpiredPaymentUI() {
+            const qrContainer = document.getElementById('qr-code');
+            if (qrContainer) {
+                 qrContainer.classList.remove('loading-placeholder');
+                 qrContainer.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 text-center"><i class="fas fa-ban text-red-500 text-3xl mb-2"></i><p class="text-red-700 font-medium">This payment address has expired</p><p class="mt-2 text-red-700"><span class="blurred-text">Expired Address</span></p></div>`;
+            }
+            
+            const addressElement = document.getElementById('payment-address');
+            if (addressElement) {
+                addressElement.classList.remove('loading-placeholder');
+                addressElement.innerHTML = `<span class="blurred-text">Expired Address</span>`;
+            }
+            // Remove the copy button if present
+            const copyBtn = addressElement?.parentElement?.querySelector('button');
+            if (copyBtn) copyBtn.remove();
+
+            const countdownElement = document.getElementById('countdown');
+            if (countdownElement) {
+                countdownElement.classList.remove('loading-placeholder');
+                countdownElement.innerHTML = `<span class="text-red-600 font-bold">EXPIRED</span>`;
+            }
+            
+            const instructionsElement = document.getElementById('payment-instructions');
+            if (instructionsElement) instructionsElement.style.display = 'none';
+            
+            const transactionStatus = document.getElementById('transaction-status');
+            if (transactionStatus) {
+                transactionStatus.classList.remove('hidden');
+                transactionStatus.className = 'bg-red-100 border border-red-200 rounded-lg p-4 my-6';
+                transactionStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0"><i class="fas fa-exclamation-circle text-red-500 text-lg"></i></div>
+                        <div class="ml-4">
+                            <h3 class="text-md font-medium text-red-800">Payment Address Has Expired!</h3>
+                            <p class="mt-1 text-sm text-red-700">This payment address is no longer valid. Please go back to the cart and try again.</p>
+                            <button onclick="goBackToCart()" class="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
+                                Back to Cart
+                            </button>
+                        </div>
+                    </div>`;
+            }
+            
+            if (transactionCheckInterval) clearInterval(transactionCheckInterval);
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            
+            // If the session was active, try to discard the address
+            if (paymentSession && paymentSession.address) {
+                fetch('/api/discard-payment-address', {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: paymentSession.address })
+                }).catch(() => {});
+            }
+        }
+    </script>
+</body>
+</html> 

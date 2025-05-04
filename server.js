@@ -16,6 +16,9 @@ const { logBlockchain, logToFile } = require('./server/utils/logger');
 const paymentRoutes = require('./server/routes/paymentRoutes');
 const walletRoutes = require('./server/routes/walletRoutes');
 const merchantRoutes = require('./server/routes/merchantRoutes');
+const adminRoutes = require('./server/routes/adminRoutes');
+const { initDatabaseRecovery, startScheduledBackups, checkDatabaseStatus } = require('./server/utils/databaseMonitor');
+const { validateDatabaseOnStartup } = require('./server/utils/startupValidator');
 
 dotenv.config();
 
@@ -126,52 +129,6 @@ app.use((req, res, next) => {
 // Apply API key validation
 app.use(validateApiKey);
 
-// API endpoint to update keys.json for address management
-app.post('/api/update-keys', async (req, res) => {
-    try {
-        const updatedKeys = req.body;
-        
-        // Validate input data
-        if (!updatedKeys || !updatedKeys.activeAddresses) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid keys data. Must contain activeAddresses object.'
-            });
-        }
-        
-        // Basic format validation
-        if (typeof updatedKeys.activeAddresses !== 'object') {
-            return res.status(400).json({
-                success: false,
-                error: 'activeAddresses must be an object'
-            });
-        }
-        
-        // If mnemonic or masterKey is missing, get the existing data
-        if (!updatedKeys.mnemonic || !updatedKeys.masterKey) {
-            const existingKeys = JSON.parse(secureReadFile('Json/keys.json'));
-            updatedKeys.mnemonic = existingKeys.mnemonic;
-            updatedKeys.masterKey = existingKeys.masterKey;
-        }
-        
-        // Save the updated keys to the file directly
-        try {
-            secureWriteFile('Json/keys.json', JSON.stringify(updatedKeys, null, 2));
-            logToFile(`Updated keys.json successfully. Address count: ${Object.keys(updatedKeys.activeAddresses).length}`);
-            return res.json({ success: true });
-        } catch (writeError) {
-            throw new Error(`Failed to write keys.json: ${writeError.message}`);
-        }
-    } catch (error) {
-        console.error('Error updating keys.json:', error);
-        logToFile(`Error updating keys.json: ${error.message}`);
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to update keys: ' + error.message
-        });
-    }
-});
-
 // Basic input validation for release funds endpoint
 app.use((req, res, next) => {
     // Only validate specific endpoints
@@ -199,611 +156,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// #############################################################################
-// ## Define /api/release-all-funds EARLY to avoid potential middleware issues ##
-// #############################################################################
-app.post('/api/release-all-funds', async (req, res) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] POST /api/release-all-funds`);
-    
-    try {
-        // Get merchant address
-        const merchantAddress = process.env.MERCHANT_ADDRESS || DEFAULT_MERCHANT_ADDRESS;
-        
-        // Normalize and validate merchant address
-        const normalizedMerchantAddress = normalizeAddress(merchantAddress);
-        if (!normalizedMerchantAddress) {
-            console.error(`Invalid merchant address format: ${merchantAddress}`);
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid merchant address format. Please check your .env configuration.'
-            });
-        }
-        
-        console.log('====================', 'FULL BALANCE RELEASE REQUEST', '====================');
-        console.log(`Merchant address verified: ${normalizedMerchantAddress}`);
-        
-        logBlockchain('FULL_FUNDS_RELEASE_REQUESTED', { merchantAddress: normalizedMerchantAddress });
-        
-        // Initialize web3 provider for transaction
-        console.log('Initializing fresh Web3 provider...');
-        let freshWeb3;
-        try {
-          freshWeb3 = await getFreshProvider();
-        } catch (err) {
-          console.error('Failed to get a fresh Web3 provider:', err);
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to connect to any Ethereum RPC provider. Please try again later.'
-          });
-        }
-        if (!freshWeb3 || !freshWeb3.utils) {
-          return res.status(500).json({
-            success: false,
-            error: 'Web3 provider is not available or invalid. Please try again later.'
-          });
-        }
-        console.log('Web3 provider initialized successfully');
-        
-        // Get wallet keys from storage
-        console.log('Retrieving wallet keys...');
-        const keys = getStoredKeys();
-        console.log('Keys retrieved successfully');
-        
-        // Decrypt the mnemonic
-        console.log('Decrypting mnemonic...');
-        const mnemonic = decrypt(keys.mnemonic);
-        console.log('Mnemonic decrypted successfully');
-        
-        // Recover the root wallet from mnemonic
-        console.log('Recovering root wallet...');
-        const rootAddress = await recoverWallet(mnemonic, 0);
-        const rootAddr = rootAddress.address;
-        console.log(`Root address: ${rootAddr}`);
-        
-        // Get active HD wallet addresses
-        const activeAddresses = keys.activeAddresses || {};
-        console.log(`Found ${Object.keys(activeAddresses).length} active addresses`);
-        
-        // Calculate total balance across all addresses
-        console.log('Calculating total available balance...');
-        
-        // Check root address balance
-        console.log('Checking root address balance...');
-        const rootBalance = await getBalanceWithRetry(freshWeb3, rootAddr);
-        console.log(`Root address balance: ${rootBalance} ETH`);
-        
-        // Check all active address balances to find one with sufficient funds
-        console.log(`Checking balances of ${Object.keys(activeAddresses).length} active addresses...`);
-        const addressBalances = [];
-        
-        for (const addr in activeAddresses) {
-            const addrInfo = activeAddresses[addr];
-            console.log(`Checking balance for ${addr}...`);
-            const balance = await getBalanceWithRetry(freshWeb3, addr);
-            console.log(`Address ${addr} balance: ${balance} ETH`);
-            
-            addressBalances.push({
-                address,
-                balance,
-                ethBalance: balance,
-                index: addrInfo.index
-            });
-        }
-        
-        // Scan for additional addresses that may not be in activeAddresses
-        // This helps when the system has generated addresses but not properly saved them
-        console.log('Scanning for additional addresses...');
-        const addressIndexMap = await scanForAddressIndices(mnemonic, 50); // Scan first 50 indices
-        console.log(`Found ${Object.keys(addressIndexMap).length} addresses in scan`);
-        
-        // Add any addresses found with positive balances to our list
-        for (const [addr, index] of Object.entries(addressIndexMap)) {
-            // Skip addresses we already checked
-            if (addr.toLowerCase() === rootAddr.toLowerCase() || 
-                addressBalances.some(item => item.address.toLowerCase() === addr.toLowerCase())) {
-                continue;
-            }
-            
-            // Check balance for this address
-            console.log(`Checking balance for additional address ${addr}...`);
-            try {
-                const balance = await getBalanceWithRetry(freshWeb3, addr);
-                console.log(`Additional address ${addr} balance: ${balance} ETH`);
-                
-                // Add to address balances if it has funds
-                if (parseFloat(balance) > 0) {
-                    addressBalances.push({
-                        address: addr,
-                        balance: parseFloat(balance),
-                        ethBalance: balance,
-                        index: index
-                    });
-                    
-                    // Also add to activeAddresses for future use
-                    if (!activeAddresses[addr]) {
-                        activeAddresses[addr] = { index };
-                        console.log(`Added address ${addr} with index ${index} to active addresses`);
-                    }
-                }
-            } catch (error) {
-                console.error(`Error checking balance for ${addr}:`, error.message);
-            }
-        }
-        
-        // Calculate total balance
-        const totalBalanceEth = addressBalances.reduce((sum, addr) => sum + addr.balance, 0) + parseFloat(rootBalance);
-        console.log(`Total available balance across all addresses: ${totalBalanceEth} ETH`);
-        
-        if (totalBalanceEth <= 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'No funds available to transfer'
-            });
-        }
-        
-        // First try to use root address if it has sufficient balance
-        if (parseFloat(rootBalance) > 0) {
-            // Root address has funds, proceed with transaction
-            console.log(`Root address has balance (${rootBalance} ETH). Using it for the transfer.`);
-            
-            // Check for existing pending transactions from root address to merchant
-            const pendingTx = await checkPendingTransactions(rootAddr, normalizedMerchantAddress);
-            
-            // If we found a pending transaction, check if it's truly still pending
-            if (pendingTx && pendingTx.txHash) {
-                console.log(`Found existing pending transaction ${pendingTx.txHash}, checking status...`);
-                
-                // Check if transaction is actually still pending by checking for a receipt
-                const receipt = await checkTransactionReceipt(freshWeb3, pendingTx.txHash);
-                if (receipt) {
-                    console.log(`Found receipt for pending transaction: ${JSON.stringify(receipt)}`);
-                    
-                    // Update transaction status in our log based on receipt info
-                    updateTransactionLog(pendingTx.txHash, {
-                        status: receipt.status,
-                        blockNumber: receipt.blockNumber,
-                        confirmations: 1, // At least 1 confirmation since it's mined
-                    });
-                    
-                    if (receipt.status === true) {
-                        // Transaction was successful, so no need to send a new one
-                        console.log(`Found receipt for pending transaction, not sending a new one`);
-                        return res.json({
-                            success: true,
-                            message: `Found existing transaction in progress: ${pendingTx.txHash}`,
-                            txHash: pendingTx.txHash,
-                            amount: pendingTx.amount,
-                            timestamp: pendingTx.timestamp,
-                            existingTransaction: true
-                        });
-                    }
-                } else {
-                    // No receipt found, transaction is still pending
-                    console.log(`No receipt found, existing transaction is still pending`);
-                    return res.json({
-                        success: true,
-                        message: `Found existing transaction in progress: ${pendingTx.txHash}`,
-                        txHash: pendingTx.txHash,
-                        amount: pendingTx.amount,
-                        timestamp: pendingTx.timestamp,
-                        existingTransaction: true
-                    });
-                }
-            }
-            
-            // Proceed with sending a new transaction from root address
-            console.log('Preparing transaction from root address...');
-            
-            try {
-                // Get reliable nonce for root address
-                const nonce = await getReliableNonce(freshWeb3, rootAddr);
-                console.log(`Using nonce: ${nonce} for root address`);
-                
-                // Get reliable gas price
-                const gasPrice = await getReliableGasPrice(freshWeb3);
-                console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
-                
-                // Standard gas limit for ETH transfer
-                const gasLimit = 21000;
-                console.log(`Using gas limit: ${gasLimit}`);
-                
-                // Calculate gas cost
-                const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
-                const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
-                console.log(`Estimated gas cost: ${gasCostEth} ETH`);
-                
-                // Get balance in Wei
-                const balanceWei = freshWeb3.utils.toWei(rootBalance, 'ether');
-                
-                // Calculate maximum amount to send (balance - gas cost)
-                const maxAmountWei = BigInt(balanceWei) - gasCostWei;
-                
-                // Ensure we have enough to cover gas
-                if (maxAmountWei <= BigInt(0)) {
-                    return res.status(400).json({
-                        success: false,
-                        error: `Insufficient balance to cover gas fees. Available: ${rootBalance} ETH, Gas cost: ${gasCostEth} ETH`
-                    });
-                }
-                
-                // Prepare transaction data
-                const txData = {
-                    from: rootAddr,
-                    to: normalizedMerchantAddress,
-                    value: maxAmountWei.toString(),
-                    gas: gasLimit,
-                    gasPrice: gasPrice,
-                    nonce: nonce
-                };
-                
-                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
-                
-                // Sign transaction
-                console.log('Signing transaction...');
-                const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
-                console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
-                
-                // Send transaction with retry mechanism
-                console.log('Sending transaction with retry...');
-                const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
-                console.log('Transaction successfully sent and confirmed!');
-                console.log(`Transaction hash: ${receipt.transactionHash}`);
-                console.log(`Block number: ${receipt.blockNumber}`);
-                console.log(`Gas used: ${receipt.gasUsed}`);
-                
-                // Format amount to ETH for display
-                const amountEth = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
-                
-                // Record the transaction
-                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                const txLogEntry = {
-                    txId: txId,
-                    txHash: signedTx.transactionHash,
-                    from: rootAddr,
-                    to: normalizedMerchantAddress,
-                    amount: amountEth,
-                    amountWei: maxAmountWei.toString(),
-                    timestamp: new Date().toISOString(),
-                    status: receipt.status,
-                    blockNumber: receipt.blockNumber,
-                    gasUsed: receipt.gasUsed,
-                    type: 'release',
-                    fullBalance: true
-                };
-                
-                // Save transaction to log
-                saveTxLog(txLogEntry);
-                
-                // Return success response
-                return res.json({
-                    success: true,
-                    txHash: signedTx.transactionHash,
-                    amount: amountEth,
-                    senderAddress: rootAddr,
-                    timestamp: new Date().toISOString(),
-                    blockNumber: receipt.blockNumber
-                });
-                
-            } catch (txError) {
-                console.error('Error sending transaction from root address:', txError);
-                console.error('Stack trace:', txError.stack);
-                
-                // Log the detailed error for debugging
-                logBlockchain('TX_ERROR', {
-                    address: rootAddr,
-                    error: txError.message,
-                    stack: txError.stack
-                });
-                
-                // Record the failed transaction attempt in our logs
-                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                const failedTxEntry = {
-                    txId: txId,
-                    from: rootAddr,
-                    to: normalizedMerchantAddress,
-                    amount: amountEth,
-                    amountWei: maxAmountWei.toString(),
-                    timestamp: new Date().toISOString(),
-                    status: 'failed',
-                    error: txError.message,
-                    type: 'release',
-                    attemptedRelease: true,
-                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
-                };
-                
-                // Save failed transaction to log for tracking and debugging
-                saveTxLog(failedTxEntry);
-                
-                return res.status(500).json({
-                    success: false,
-                    error: `Failed to send transaction: ${txError.message}`
-                });
-            }
-        } else {
-            console.log(`Root address has no balance. Looking for addresses with funds...`);
-            
-            // Find addresses with positive balances
-            const fundedAddresses = addressBalances.filter(addr => addr.balance > 0);
-            console.log(`Found ${fundedAddresses.length} addresses with positive balances`);
-            
-            if (fundedAddresses.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'No wallet addresses have any funds to transfer'
-                });
-            }
-            
-            // Find address with highest balance
-            const highestBalanceAddr = fundedAddresses.reduce((max, addr) => 
-                addr.balance > max.balance ? addr : max, fundedAddresses[0]);
-                
-            console.log(`Highest balance address: ${highestBalanceAddr.address} with ${highestBalanceAddr.ethBalance} ETH`);
-            
-            // Check for existing pending transactions
-            const pendingTx = await checkPendingTransactions(highestBalanceAddr.address, normalizedMerchantAddress);
-            
-            // If we found a pending transaction, check if it's truly still pending
-            if (pendingTx && pendingTx.txHash) {
-                console.log(`Found existing pending transaction ${pendingTx.txHash}, checking status...`);
-                
-                // Check if transaction is actually still pending by checking for a receipt
-                const receipt = await checkTransactionReceipt(freshWeb3, pendingTx.txHash);
-                if (receipt) {
-                    console.log(`Found receipt for pending transaction: ${JSON.stringify(receipt)}`);
-                    
-                    // Update transaction status in our log based on receipt info
-                    updateTransactionLog(pendingTx.txHash, {
-                        status: receipt.status,
-                        blockNumber: receipt.blockNumber,
-                        confirmations: 1,
-                    });
-                    
-                    if (receipt.status === true) {
-                        // Transaction was successful, no need to send a new one
-                        return res.json({
-                            success: true,
-                            message: `Found existing transaction in progress: ${pendingTx.txHash}`,
-                            txHash: pendingTx.txHash,
-                            amount: pendingTx.amount,
-                            timestamp: pendingTx.timestamp,
-                            existingTransaction: true
-                        });
-                    }
-                } else {
-                    // Transaction is still pending
-                    return res.json({
-                        success: true,
-                        message: `Found existing transaction in progress: ${pendingTx.txHash}`,
-                        txHash: pendingTx.txHash,
-                        amount: pendingTx.amount,
-                        timestamp: pendingTx.timestamp,
-                        existingTransaction: true
-                    });
-                }
-            }
-            
-            // Proceed with sending transaction from highest balance address
-            try {
-                // Ensure we have a valid index before recovering the wallet
-                let senderIndex = highestBalanceAddr.index;
-                if (senderIndex === undefined || senderIndex === null) {
-                    console.warn(`Index for address ${highestBalanceAddr.address} was undefined. Attempting to retrieve from keys.activeAddresses...`);
-                    const addrInfo = keys.activeAddresses[highestBalanceAddr.address];
-                    if (addrInfo && addrInfo.index !== undefined) {
-                        senderIndex = addrInfo.index;
-                        console.log(`Successfully retrieved index: ${senderIndex}`);
-                    } else {
-                        console.warn(`Could not find index in activeAddresses. Checking address index map...`);
-                        // Try to find the index in our scanned map
-                        const normalizedAddr = highestBalanceAddr.address.toLowerCase();
-                        if (addressIndexMap[normalizedAddr]) {
-                            senderIndex = addressIndexMap[normalizedAddr];
-                            console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in scanned map`);
-                        } else {
-                            // If we still can't find it, do a deeper scan with more addresses
-                            console.log(`Performing deep scan for address ${highestBalanceAddr.address}...`);
-                            const deepScanMap = await scanForAddressIndices(mnemonic, 200); // Scan 200 indices
-                            if (deepScanMap[normalizedAddr]) {
-                                senderIndex = deepScanMap[normalizedAddr];
-                                console.log(`Found index ${senderIndex} for address ${highestBalanceAddr.address} in deep scan`);
-                            } else {
-                                throw new Error(`Could not determine derivation index for address ${highestBalanceAddr.address}`);
-                            }
-                        }
-                    }
-                }
-
-                // Recover the private key for this address using the validated index
-                console.log(`Recovering wallet for index ${senderIndex}...`);
-                const senderWallet = await recoverWallet(mnemonic, senderIndex);
-                
-                // Verify address matches (case-insensitive compare)
-                if (senderWallet.address.toLowerCase() !== highestBalanceAddr.address.toLowerCase()) {
-                    console.error(`Address mismatch! Expected: ${highestBalanceAddr.address}, Got: ${senderWallet.address}`);
-                    
-                    // Try a different approach - search through more indices to find the matching wallet
-                    console.log(`Searching for wallet matching address ${highestBalanceAddr.address}...`);
-                    const foundWallet = await findWalletForAddress(mnemonic, highestBalanceAddr.address);
-                    
-                    if (!foundWallet) {
-                        throw new Error('Address derivation mismatch - could not find matching wallet');
-                    }
-                    
-                    console.log(`Found wallet with matching address at index ${foundWallet.index}`);
-                    senderWallet = foundWallet.wallet;
-                    senderIndex = foundWallet.index;
-                    
-                    // Update our records for future use
-                    if (!activeAddresses[highestBalanceAddr.address]) {
-                        activeAddresses[highestBalanceAddr.address] = { index: senderIndex };
-                        
-                        // Try to save the updated address list
-                        try {
-                            updateAddressIndex(highestBalanceAddr.address, senderIndex);
-                            console.log(`Updated address index map with ${highestBalanceAddr.address} -> ${senderIndex}`);
-                        } catch (updateError) {
-                            console.error(`Failed to update address index map:`, updateError);
-                        }
-                    }
-                }
-                
-                // Get reliable nonce for sender address
-                const nonce = await getReliableNonce(freshWeb3, highestBalanceAddr.address);
-                console.log(`Using nonce: ${nonce} for address ${highestBalanceAddr.address}`);
-                
-                // Get reliable gas price
-                const gasPrice = await getReliableGasPrice(freshWeb3);
-                console.log(`Using gas price: ${freshWeb3.utils.fromWei(gasPrice, 'gwei')} gwei`);
-                
-                // Standard gas limit for ETH transfer
-                const gasLimit = 21000;
-                console.log(`Using gas limit: ${gasLimit}`);
-                
-                // Calculate gas cost
-                const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
-                const gasCostEth = freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether');
-                console.log(`Estimated gas cost: ${gasCostEth} ETH`);
-                
-                // Get balance in Wei
-                const balanceWei = freshWeb3.utils.toWei(highestBalanceAddr.ethBalance, 'ether');
-                
-                // Calculate maximum amount to send (balance - gas cost)
-                const maxAmountWei = BigInt(balanceWei) - gasCostWei;
-                
-                // Ensure we have enough to cover gas
-                if (maxAmountWei <= BigInt(0)) {
-                    return res.status(400).json({
-                        success: false,
-                        error: `Insufficient balance to cover gas fees. Available: ${highestBalanceAddr.ethBalance} ETH, Gas cost: ${gasCostEth} ETH`
-                    });
-                }
-                
-                // Format amount to ETH for display
-                const amountToSend = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
-                console.log(`Sending maximum amount: ${amountToSend} ETH`);
-                
-                // Check if this is a wrong payment address that should be skipped
-                const isWrongPaymentAddress = addrInfo => {
-                    return addrInfo && 
-                           (addrInfo.isWrongPayment === true || 
-                            addrInfo.wrongPayment === true || 
-                            addrInfo.status === 'wrong');
-                };
-                
-                // If this is a wrong payment address, warn the user but proceed
-                if (keys.activeAddresses[highestBalanceAddr.address] && 
-                    isWrongPaymentAddress(keys.activeAddresses[highestBalanceAddr.address])) {
-                    console.warn(`⚠️ WARNING: Releasing funds from address ${highestBalanceAddr.address} which was marked as a wrong payment`);
-                    console.warn(`This may be funds that were incorrectly sent. Proceeding with caution.`);
-                    
-                    // Add a log entry about this
-                    logBlockchain('WRONG_PAYMENT_RELEASE_WARNING', {
-                        address: highestBalanceAddr.address,
-                        amount: amountToSend,
-                        wrongReason: keys.activeAddresses[highestBalanceAddr.address].wrongReason || 'Unknown'
-                    });
-                }
-                
-                // Prepare transaction data
-                const txData = {
-                    from: highestBalanceAddr.address,
-                    to: normalizedMerchantAddress,
-                    value: maxAmountWei.toString(),
-                    gas: gasLimit,
-                    gasPrice: gasPrice,
-                    nonce: nonce
-                };
-                
-                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
-                
-                // Sign transaction
-                console.log('Signing transaction...');
-                const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, senderWallet.privateKey);
-                console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
-                
-                // Send transaction with retry mechanism
-                console.log('Sending transaction with retry...');
-                const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
-                console.log('Transaction successfully sent and confirmed!');
-                console.log(`Transaction hash: ${receipt.transactionHash}`);
-                console.log(`Block number: ${receipt.blockNumber}`);
-                console.log(`Gas used: ${receipt.gasUsed}`);
-                
-                // Record the transaction
-                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                const txLogEntry = {
-                    txId: txId,
-                    txHash: signedTx.transactionHash,
-                    from: highestBalanceAddr.address,
-                    to: normalizedMerchantAddress,
-                    amount: amountToSend,
-                    amountWei: maxAmountWei.toString(),
-                    timestamp: new Date().toISOString(),
-                    status: receipt.status,
-                    blockNumber: receipt.blockNumber,
-                    gasUsed: receipt.gasUsed,
-                    type: 'release'
-                };
-                
-                // Save transaction to log
-                saveTxLog(txLogEntry);
-                
-                // Return success response
-                return res.json({
-                    success: true,
-                    txHash: signedTx.transactionHash,
-                    amount: amountToSend,
-                    timestamp: new Date().toISOString(),
-                    blockNumber: receipt.blockNumber
-                });
-                
-            } catch (txError) {
-                console.error('Error sending transaction from highest balance address:', txError);
-                console.error('Stack trace:', txError.stack);
-                
-                // Log the detailed error for debugging
-                logBlockchain('TX_ERROR', {
-                    address: highestBalanceAddr.address,
-                    error: txError.message,
-                    stack: txError.stack
-                });
-                
-                // Record the failed transaction attempt in our logs
-                const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                const failedTxEntry = {
-                    txId: txId,
-                    from: highestBalanceAddr.address,
-                    to: normalizedMerchantAddress,
-                    amount: amountToSend,
-                    amountWei: maxAmountWei.toString(),
-                    timestamp: new Date().toISOString(),
-                    status: 'failed',
-                    error: txError.message,
-                    type: 'release',
-                    attemptedRelease: true,
-                    errorDetails: txError.stack ? txError.stack.split('\n')[0] : 'Unknown error'
-                };
-                
-                // Save failed transaction to log for tracking and debugging
-                saveTxLog(failedTxEntry);
-                
-                return res.status(500).json({
-                    success: false,
-                    error: `Failed to send transaction: ${txError.message}`
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Error in release-all-funds endpoint:', error);
-        console.error('Stack trace:', error.stack);
-        
-        return res.status(500).json({
-            success: false,
-            error: `Internal server error: ${error.message}`
-        });
-    }
-});
 
 // Helper function to normalize Ethereum addresses
 function normalizeAddress(address) {
@@ -1326,15 +678,19 @@ app.get('/merchant', (req, res) => {
 
 
 
-// Get HD Wallet Balance
-app.get('/api/wallet-balance', async (req, res) => {
+// Update the Alchemy endpoint and add backup providers
+
+const PROVIDERS = {
+   
+    INFURA: 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9',
+    BACKUP: 'https://rpc.sepolia.org'
+};
+
+
+app.get('/api/wrong-payments', async (req, res) => {
     try {
-        console.log('DEBUG: process.env.INFURA_URL in /api/wallet-balance:', process.env.INFURA_URL);
-        // Log the provider URL that will be used
-        const providerUrl = process.env.INFURA_URL || MERCHANT_ADDRESS;
-        console.log('DEBUG: Provider URL to be used:', providerUrl);
         // Check rate limit for this endpoint
-        const rateLimitKey = `rateLimit:wallet-balance:${req.ip}`;
+        const rateLimitKey = `rateLimit:wrong-payments:${req.ip}`;
         if (global[rateLimitKey] && global[rateLimitKey] > 10) {
             return res.status(429).json({
                 success: false,
@@ -1352,123 +708,21 @@ app.get('/api/wallet-balance', async (req, res) => {
         res.set('Cache-Control', 'private, max-age=10'); // Cache for 10 seconds
         
         // Check if we have a cached result (server-side)
-        const cachedBalanceKey = 'wallet_balance_cache';
-        const cachedBalanceTimestampKey = 'wallet_balance_timestamp';
+        const cachedWrongPaymentsKey = 'wrong_payments_cache';
+        const cachedWrongPaymentsTimestampKey = 'wrong_payments_timestamp';
         
         // Only use cache if it's less than 10 seconds old (server-side cache)
-        const cachedTimestamp = global[cachedBalanceTimestampKey] || 0;
+        const cachedTimestamp = global[cachedWrongPaymentsTimestampKey] || 0;
         const forceRefresh = req.query.force === 'true';
         
-        if (!forceRefresh && global[cachedBalanceKey] && (Date.now() - cachedTimestamp) < 10000) {
-            console.log('Returning cached wallet balance (< 10 seconds old)');
-            return res.json(global[cachedBalanceKey]);
+        if (!forceRefresh && global[cachedWrongPaymentsKey] && (Date.now() - cachedTimestamp) < 10000) {
+            console.log('Returning cached wrong payments (< 10 seconds old)');
+            return res.json(global[cachedWrongPaymentsKey]);
         }
         
-        console.log('Fetching fresh wallet balances');
-        const startTime = Date.now();
+        console.log('Fetching wrong payments');
         
-        // Get the active payment addresses (HD wallet addresses)
-        const keys = getStoredKeys();
-        const merchantAddress = process.env.MERCHANT_ADDRESS || MERCHANT_ADDRESS;
-        const activeAddresses = keys.activeAddresses || {};
-        
-        // Initialize Web3 provider
-        let freshWeb3;
-        try {
-          freshWeb3 = await getFreshProvider();
-          console.log('DEBUG: freshWeb3 returned from getFreshProvider:', !!freshWeb3);
-          console.log('DEBUG: freshWeb3.utils exists:', !!(freshWeb3 && freshWeb3.utils));
-        } catch (err) {
-          console.error('Failed to get a fresh Web3 provider:', err);
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to connect to any Ethereum RPC provider. Please try again later.'
-          });
-        }
-        if (!freshWeb3 || !freshWeb3.utils) {
-          return res.status(500).json({
-            success: false,
-            error: 'Web3 provider is not available or invalid. Please try again later.'
-          });
-        }
-        
-        // Create a map to store balances by address
-        const balances = new Map();
-        
-        // Get all active payment address balances - this might take time
-        const checkAddressPromises = [];
-        
-        // Helper function for getting address balance with timeout
-        async function getAddressBalanceWithTimeout(address, info, timeoutMs) {
-            try {
-                // Use Promise.race to implement timeout
-                const balancePromise = getBalanceWithRetry(freshWeb3, address, 2);
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Balance check timed out')), timeoutMs)
-                );
-                
-                const balance = await Promise.race([balancePromise, timeoutPromise]);
-                return { address, balance, info };
-            } catch (error) {
-                console.warn(`Balance check for ${address} failed or timed out:`, error.message);
-                return { address, balance: '0', info, error: error.message };
-            }
-        }
-        
-        // Check balances for all HD wallet addresses (excluding wrong payments)
-        let hdWalletTotal = 0;
-        for (const [address, info] of Object.entries(activeAddresses)) {
-            // Skip wrong payment addresses when counting HD wallet funds
-            if (info.isWrongPayment === true || info.wrongPayment === true) {
-                // Still get the balance but mark it as wrong payment
-                checkAddressPromises.push(getAddressBalanceWithTimeout(address, {...info, isWrongPayment: true}, 3000));
-            } else {
-                // Regular HD wallet address
-                checkAddressPromises.push(getAddressBalanceWithTimeout(address, info, 3000));
-            }
-        }
-        
-        // Wait for all address checks to complete (or timeout)
-        const addressResults = await Promise.allSettled(checkAddressPromises);
-        
-        // Process the results - add all balances to the map and calculate totals
-        const hdWalletAddresses = [];
-        let totalHdWalletBalance = 0;
-        let wrongPaymentsBalanceTotal = 0;
-        
-        for (const result of addressResults) {
-            if (result.status === 'fulfilled' && result.value) {
-                const { address, balance, info } = result.value;
-                
-                // Store the address data
-                const addressData = {
-                    address,
-                    balance,
-                    rawBalance: balance,
-                    ...info
-                };
-                
-                // Add to the addresses array
-                hdWalletAddresses.push(addressData);
-                
-                // Calculate balance values based on wrong payment status
-                try {
-                    const addrBalance = parseFloat(balance) || 0;
-                    
-                    // For regular HD addresses, add to the total HD wallet balance
-                    if (info.isWrongPayment !== true && info.wrongPayment !== true) {
-                        totalHdWalletBalance += addrBalance;
-                    } else {
-                        // For wrong payments, track separately
-                        wrongPaymentsBalanceTotal += addrBalance;
-                    }
-                } catch (error) {
-                    console.error(`Error processing balance for ${address}:`, error);
-                }
-            }
-        }
-        
-        // Get transaction history to calculate pending and verified balances
+        // Get transactions from file
         const txFile = 'merchant_transactions.json';
         let transactions = [];
         
@@ -1482,544 +736,6 @@ app.get('/api/wallet-balance', async (req, res) => {
                     if (!Array.isArray(transactions)) {
                         console.warn('Transaction log was corrupted, using empty array');
                         transactions = [];
-                    }
-                }
-            } catch (error) {
-                console.error('Error parsing transaction file:', error);
-                transactions = [];
-            }
-        }
-        
-        // Calculate pending and verified amounts from transactions
-        let pendingBalanceWei = BigInt(0);
-        let verifiedBalanceWei = BigInt(0);
-        
-        for (const tx of transactions) {
-            // Skip transactions that aren't payments or don't have an amount
-            if (tx.type !== 'payment' || !tx.amount) continue;
-            
-            // Skip wrong payments from balance calculations
-            if (tx.amountVerified === false) continue;
-            
-            try {
-                let amountWei;
-                
-                // Handle different amount formats (decimal ETH vs Wei)
-                if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
-                    // Amount is already in ETH format, convert to wei
-                    amountWei = freshWeb3.utils.toWei(tx.amount, 'ether');
-                } else {
-                    // Amount is already in Wei
-                    amountWei = tx.amount.toString();
-                }
-                
-                // Convert to BigInt for calculations
-                const amountBigInt = BigInt(amountWei);
-                
-                // Categorize by verification status
-                if (tx.status === 'confirmed' || tx.status === 'verified') {
-                    verifiedBalanceWei += amountBigInt;
-                } else if (tx.status === 'pending' || tx.status === 'processing') {
-                    pendingBalanceWei += amountBigInt;
-                }
-            } catch (error) {
-                console.error('Error processing transaction amount:', error, tx);
-                // Continue with other transactions
-            }
-        }
-        
-        // Count wrong payments
-        let wrongPaymentsCount = 0;
-        let wrongPaymentsAmount = "0";
-        
-        try {
-            const wrongPayments = transactions.filter(tx => 
-                tx.type === 'payment' && 
-                (
-                    tx.amountVerified === false || 
-                    tx.isWrongPayment === true || 
-                    tx.wrongPayment === true || 
-                    tx.status === 'wrong'
-                )
-            );
-            
-            wrongPaymentsCount = wrongPayments.length;
-            
-            // Calculate total wrong payment amount
-            if (wrongPaymentsCount > 0) {
-                const totalWei = wrongPayments.reduce((totalBigInt, tx) => {
-                    try {
-                        let amountWei;
-                        
-                        if (typeof tx.amount === 'string' && tx.amount.includes('.')) {
-                            // Amount is already in ETH format, convert to wei
-                            amountWei = freshWeb3.utils.toWei(tx.amount, 'ether');
-                        } else {
-                            // Amount is already in Wei
-                            amountWei = tx.amount.toString();
-                        }
-                        
-                        return totalBigInt + BigInt(amountWei);
-                    } catch (e) {
-                        console.error('Error processing wrong payment amount:', e, tx);
-                        return totalBigInt;
-                    }
-                }, BigInt(0));
-                
-                wrongPaymentsAmount = freshWeb3.utils.fromWei(totalWei.toString(), 'ether');
-            }
-        } catch (countError) {
-            console.error('Error counting wrong payments:', countError);
-        }
-        
-        // Format the results
-        const pendingBalance = freshWeb3.utils.fromWei(pendingBalanceWei.toString(), 'ether');
-        const verifiedBalance = freshWeb3.utils.fromWei(verifiedBalanceWei.toString(), 'ether');
-        
-        // Create the response with only HD wallet balance
-        const response = {
-            success: true,
-            addresses: hdWalletAddresses,
-            totalBalance: totalHdWalletBalance.toString(),
-            pendingBalance: pendingBalance,
-            verifiedBalance: verifiedBalance,
-            wrongPayments: wrongPaymentsCount,
-            wrongPaymentsAmount: wrongPaymentsAmount,
-            wrongPaymentsBalance: wrongPaymentsBalanceTotal.toString(),
-            timestamp: Date.now(),
-            processingTime: Date.now() - startTime
-        };
-        
-        // Update cache
-        global[cachedBalanceKey] = response;
-        global[cachedBalanceTimestampKey] = Date.now();
-        
-        return res.json(response);
-    } catch (error) {
-        console.error('Error fetching wallet balances:', error);
-        
-        // If we have a cached version, return that with a warning
-        const cachedBalanceKey = 'wallet_balance_cache';
-        if (global[cachedBalanceKey]) {
-            console.log('Returning stale cached wallet balance due to error');
-            // Clone the cached data and mark it as stale
-            const staleData = {
-                ...global[cachedBalanceKey],
-                stale: true,
-                warning: 'Using cached data due to error'
-            };
-            return res.json(staleData);
-        }
-        
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch wallet balances: ' + error.message
-        });
-    }
-});
-
-// Update the Alchemy endpoint and add backup providers
-
-const PROVIDERS = {
-   
-    INFURA: 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9',
-    BACKUP: 'https://rpc.sepolia.org'
-};
-
-// Generate new payment address
-app.post('/api/generate-payment-address', async (req, res) => {
-    try {
-        logger.info('Generating payment address', { body: req.body });
-        
-        const { amount, cryptoType, fiatAmount, fiatCurrency, orderId } = req.body; // <-- Accept orderId
-        if (!amount || !cryptoType) {
-            logger.error('Missing required parameters', { amount, cryptoType });
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Missing required parameters' 
-            });
-        }
-
-        // Validate and properly format the ETH amount to ensure consistency
-        // This will convert values like "1" or "0.0036" to a consistent format
-        let formattedAmount;
-        try {
-            // Parse as float first to handle any string representation
-            const floatAmount = parseFloat(amount);
-            if (isNaN(floatAmount)) {
-                throw new Error('Invalid amount format');
-            }
-            
-            // Format to 8 decimal places to ensure consistency
-            formattedAmount = floatAmount.toFixed(8);
-            
-            // Log the conversion for debugging
-            logger.info('Formatted payment amount', { 
-                original: amount,
-                formatted: formattedAmount,
-                fiatAmount: fiatAmount
-            });
-        } catch (parseError) {
-            logger.error('Failed to parse amount', { amount, error: parseError.message });
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid amount format'
-            });
-        }
-
-        // Get keys to derive address from HD wallet
-        const keys = getStoredKeys();
-        const mnemonic = decrypt(keys.mnemonic);
-        
-        // Find the next available index
-        let nextIndex = 1; // Start from 1 as 0 is the root
-        
-        if (!keys.activeAddresses) {
-            keys.activeAddresses = {};
-        } else {
-            // Find the highest index used so far
-            const usedIndices = Object.values(keys.activeAddresses)
-                .map(addr => addr.index || 0)
-                .filter(index => index > 0);
-            
-            if (usedIndices.length > 0) {
-                nextIndex = Math.max(...usedIndices) + 1;
-            }
-        }
-        
-        // Try multiple providers in sequence to check network
-        let provider;
-        let networkInfo;
-        
-        for (const [name, url] of Object.entries(PROVIDERS)) {
-            try {
-                provider = new ethers.providers.JsonRpcProvider(url);
-                logger.info(`Trying provider: ${name}`);
-                
-                // Test the connection with a timeout
-                const networkPromise = provider.getNetwork();
-                networkInfo = await Promise.race([
-                    networkPromise,
-                    new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Provider timeout')), 5000)
-                    )
-                ]);
-                
-                logger.info(`Successfully connected to ${name}`, { network: networkInfo });
-                break; // If successful, exit the loop
-                
-            } catch (error) {
-                logger.warn(`Provider ${name} failed`, { error: error.message });
-                continue; // Try next provider
-            }
-        }
-
-        // Scan ahead for a zero-balance address (up to 1000 indices)
-        const scanLimit = 1000;
-        let found = false;
-        let scanIndex = nextIndex;
-        let zeroBalanceAddress = null;
-        let zeroBalanceIndex = null;
-        let zeroBalancePrivateKey = null;
-        for (let i = 0; i < scanLimit; i++) {
-            const candidateIndex = nextIndex + i;
-            const { address: candidateAddress, privateKey: candidatePrivateKey } = await recoverWallet(mnemonic, candidateIndex);
-            // Check on-chain balance
-            let candidateBalance = '0';
-            try {
-                candidateBalance = await provider.getBalance(candidateAddress);
-            } catch (err) {
-                logger.warn(`Failed to get balance for ${candidateAddress} at index ${candidateIndex}: ${err.message}`);
-                continue;
-            }
-            if (BigNumber.from(candidateBalance).isZero()) {
-                found = true;
-                zeroBalanceAddress = candidateAddress;
-                zeroBalanceIndex = candidateIndex;
-                zeroBalancePrivateKey = candidatePrivateKey;
-                logger.info(`Found zero-balance address: ${candidateAddress} at index ${candidateIndex}`);
-                break;
-            } else {
-                logger.info(`Address ${candidateAddress} at index ${candidateIndex} has nonzero balance, skipping.`);
-            }
-        }
-        if (!found) {
-            logger.error('No zero-balance address found in scan-ahead range (1000 indices).');
-            return res.status(500).json({
-                success: false,
-                error: 'No zero-balance address available in the first 1000 indices. Please clean up used addresses or increase the scan limit.'
-            });
-        }
-        // Use the found zero-balance address and index
-        const address = zeroBalanceAddress;
-        const privateKey = zeroBalancePrivateKey;
-        logger.info('Generated HD wallet address (zero-balance)', { address, index: zeroBalanceIndex });
-        // Store address in active addresses
-        keys.activeAddresses[address] = {
-            index: zeroBalanceIndex,
-            ethAmount: formattedAmount,         // The ETH amount to be paid (what's shown to users)
-            expectedAmount: formattedAmount,    // Keep for backward compatibility
-            cryptoType: cryptoType,
-            createdAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
-            status: 'pending',
-            orderId: orderId || null // <-- Store orderId if provided
-        };
-        // If fiat amount is provided, store it separately
-        if (fiatAmount) {
-            keys.activeAddresses[address].fiatAmount = fiatAmount;
-            keys.activeAddresses[address].fiatCurrency = fiatCurrency || 'AUD';
-        }
-        // Save updated keys
-        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
-        // Prepare response
-        const response = {
-            success: true,
-            address: address,
-            amount: formattedAmount,
-            networkId: networkInfo ? networkInfo.chainId : 11155111, // Sepolia
-            networkType: networkInfo ? networkInfo.name : 'sepolia',
-            expiresAt: new Date(Date.now() + 30 * 60000).toISOString()
-        };
-        logger.info('Sending response', { response });
-        res.json(response);
-
-    } catch (error) {
-        logger.error('Error generating payment address', { error });
-        
-        // Try to recover by generating a random wallet as backup
-        try {
-            // Get keys
-            const keys = getStoredKeys();
-            const mnemonic = decrypt(keys.mnemonic);
-            
-            // Use last index + 1 or 999 as emergency
-            const emergencyIndex = 999;
-            const { address } = await recoverWallet(mnemonic, emergencyIndex);
-            
-            // Format amount correctly
-            const formattedAmount = parseFloat(req.body.amount || '0').toFixed(8);
-            
-            // Still save this emergency address
-            if (!keys.activeAddresses) {
-                keys.activeAddresses = {};
-            }
-            
-            keys.activeAddresses[address] = {
-                index: emergencyIndex,
-                ethAmount: formattedAmount,
-                expectedAmount: formattedAmount,
-                cryptoType: req.body.cryptoType || 'ETH',
-                createdAt: new Date().toISOString(),
-                expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
-                status: 'emergency',
-                error: error.message
-            };
-            
-            // If fiat amount is provided, store it separately
-            if (req.body.fiatAmount) {
-                keys.activeAddresses[address].fiatAmount = req.body.fiatAmount;
-                keys.activeAddresses[address].fiatCurrency = req.body.fiatCurrency || 'AUD';
-            }
-            
-            // Save updated keys
-            secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
-            
-            res.json({
-                success: true,
-                address: address,
-                networkId: 11155111, // Sepolia
-                networkType: 'sepolia',
-                expiresAt: new Date(Date.now() + 30 * 60000).toISOString(),
-                note: 'Emergency address generated'
-            });
-        } catch (recoveryError) {
-            logger.error('Failed to recover with HD wallet, falling back to random wallet', { error: recoveryError });
-            
-            // Last resort fallback - generate completely random wallet
-        const wallet = ethers.Wallet.createRandom();
-        res.status(500).json({
-            success: false,
-            error: 'Failed to generate payment address and emergency fallback failed.' + recoveryError.message
-        });
-        }
-    }
-});
-
-// New endpoint to verify transaction status
-app.post('/api/verify-transaction', async (req, res) => {
-    const { txHash, cryptoType } = req.body;
-    
-    if (!txHash) {
-        return res.status(400).json({
-            success: false,
-            error: 'Transaction hash is required'
-        });
-    }
-    
-    logBlockchain('TRANSACTION_VERIFICATION_REQUESTED', {
-        txHash,
-        cryptoType
-    });
-    
-    try {
-        // First try with our main provider
-        let txReceipt, txDetails;
-        
-        try {
-            // Get transaction receipt
-            txReceipt = await web3.eth.getTransactionReceipt(txHash);
-            
-            // If no receipt, try with a fresh provider
-            if (!txReceipt) {
-                console.log('Transaction receipt not found with primary provider, trying alternative');
-                const altWeb3 = await getFreshProvider();
-                txReceipt = await altWeb3.eth.getTransactionReceipt(txHash);
-            }
-            
-            // Get full transaction details if we have a receipt
-            if (txReceipt) {
-                txDetails = await web3.eth.getTransaction(txHash);
-                
-                // If no details, try with a fresh provider
-                if (!txDetails) {
-                    const altWeb3 = await getFreshProvider();
-                    txDetails = await altWeb3.eth.getTransaction(txHash);
-                }
-            }
-        } catch (providerError) {
-            console.error('Error with primary provider, trying alternative:', providerError);
-            const altWeb3 = await getFreshProvider();
-            txReceipt = await altWeb3.eth.getTransactionReceipt(txHash);
-            
-            if (txReceipt) {
-                txDetails = await altWeb3.eth.getTransaction(txHash);
-            }
-        }
-        
-        if (!txReceipt) {
-            logBlockchain('TRANSACTION_PENDING', { txHash });
-            return res.json({
-                success: true,
-                status: 'pending',
-                message: 'Transaction is still pending or not found'
-            });
-        }
-        
-        // Log detailed transaction information if we have it
-        if (txDetails) {
-            logBlockchain('TRANSACTION_DETAILS', {
-                receipt: {
-                    blockNumber: txReceipt.blockNumber,
-                    status: txReceipt.status,
-                    gasUsed: txReceipt.gasUsed
-                },
-                transaction: {
-                    hash: txDetails.hash,
-                    from: txDetails.from,
-                    to: txDetails.to,
-                    value: txDetails.value ? web3.utils.fromWei(txDetails.value, 'ether') + ' ETH' : '0 ETH',
-                    gasPrice: txDetails.gasPrice ? web3.utils.fromWei(txDetails.gasPrice, 'gwei') + ' gwei' : 'unknown',
-                    gas: txDetails.gas,
-                    blockNumber: txDetails.blockNumber
-                }
-            });
-        } else {
-            logBlockchain('TRANSACTION_RECEIPT_ONLY', {
-                blockNumber: txReceipt.blockNumber,
-                status: txReceipt.status,
-                gasUsed: txReceipt.gasUsed
-            });
-        }
-        
-        // Determine if transaction was successful based on receipt
-        const isSuccess = txReceipt.status;
-        
-        if (isSuccess) {
-            // Get current block for confirmations count
-            const currentBlock = await web3.eth.getBlockNumber();
-            const confirmations = txReceipt.blockNumber ? (currentBlock - txReceipt.blockNumber) + 1 : 0;
-            
-            // For successful transaction
-            return res.json({
-                success: true,
-                status: 'confirmed',
-                confirmations: confirmations,
-                blockNumber: txReceipt.blockNumber,
-                message: 'Transaction confirmed successfully!',
-                receipt: {
-                    blockNumber: txReceipt.blockNumber,
-                    status: txReceipt.status,
-                    gasUsed: txReceipt.gasUsed,
-                    from: txReceipt.from,
-                    to: txReceipt.to
-                }
-            });
-        } else {
-            // For failed transaction
-            return res.json({
-                success: true,
-                status: 'failed',
-                blockNumber: txReceipt.blockNumber,
-                message: 'Transaction failed on the blockchain',
-                receipt: {
-                    blockNumber: txReceipt.blockNumber,
-                    status: txReceipt.status,
-                    gasUsed: txReceipt.gasUsed,
-                    from: txReceipt.from,
-                    to: txReceipt.to
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Error verifying transaction:', error);
-        logBlockchain('TRANSACTION_VERIFICATION_ERROR', {
-            txHash,
-            error: error.message
-        });
-        
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to verify transaction: ' + error.message
-        });
-    }
-});
-
-// Get merchant transaction history
-app.get('/api/merchant-transactions', async (req, res) => {
-    // Ensure these are defined at the top of the handler
-    const cachedWrongPaymentsKey = 'wrong_payments_cache';
-    const cachedWrongPaymentsTimestampKey = 'wrong_payments_timestamp';
-    try {
-        // Use cache control headers for better client-side caching
-        res.set('Cache-Control', 'private, max-age=30'); // Cache for 30 seconds on client
-        
-        // Check if we have a cached result (server-side)
-        const cachedTxKey = 'tx_history_cache';
-        const cachedTxTimestampKey = 'tx_history_timestamp';
-        
-        // Only use cache if it's less than 30 seconds old
-        const cachedTimestamp = global[cachedTxTimestampKey] || 0;
-        if (global[cachedTxKey] && (Date.now() - cachedTimestamp) < 30000) {
-            console.log('Returning cached transaction history (< 30 seconds old)');
-            return res.json(global[cachedTxKey]);
-        }
-        
-        console.log('Reading transaction history from file');
-        const txFile = 'merchant_transactions.json';
-        let transactions = [];
-        
-        if (fs.existsSync(txFile)) {
-            try {
-                const fileContent = secureReadFile(txFile);
-                if (fileContent && fileContent.trim()) {
-                    transactions = JSON.parse(fileContent);
-            
-                    // Ensure we have an array
-                    if (!Array.isArray(transactions)) {
-                        console.warn('Transaction log was corrupted, using empty array');
-                        transactions = [];
-                        
                     }
                 }
             } catch (error) {
@@ -2107,88 +823,8 @@ app.get('/api/merchant-transactions', async (req, res) => {
     }
 });
 
-// TESTING ENDPOINT: Generate a payment address with expected amount
-app.get('/api/generate-test-payment', async (req, res) => {
-    try {
-        // Get expected amount from query parameter
-        const expectedAmount = req.query.amount || '0.01';
-        
-        // Generate a unique payment ID
-        const paymentId = `payment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        
-        // Get wallet keys from storage
-        const keys = getStoredKeys();
-        
-        // Decrypt the mnemonic
-        const mnemonic = decrypt(keys.mnemonic);
-        
-        // Get next available index
-        const nextIndex = keys.lastIndex + 1 || 0;
-        
-        // Generate a new HD wallet address
-        const wallet = await recoverWallet(mnemonic, nextIndex);
-        const address = wallet.address;
-        
-        // Update the keys
-        keys.lastIndex = nextIndex;
-        if (!keys.activeAddresses) {
-            keys.activeAddresses = {};
-        }
-        
-        // Add the new address with expected amount
-        keys.activeAddresses[address] = {
-            index: nextIndex,
-            createdAt: new Date().toISOString(),
-            orderId: paymentId,
-            expectedAmount: expectedAmount,
-            cryptoType: 'ETH',
-            status: 'pending'
-        };
-        
-        // Save the updated keys
-        updateStoredKeys(keys);
-        
-        // Log the payment request
-        console.log(`Generated test payment address: ${address} with expected amount: ${expectedAmount} ETH`);
-        
-        // Add to payment sessions table
-        if (!keys.paymentSessions) {
-            keys.paymentSessions = {};
-        }
-        
-        // Create expiry time (20 minutes from now)
-        const expiryTime = new Date();
-        expiryTime.setMinutes(expiryTime.getMinutes() + 20);
-        
-        // Add payment session
-        keys.paymentSessions[paymentId] = {
-            id: paymentId,
-            address: address,
-            amount: expectedAmount,
-            expiresAt: expiryTime.toISOString(),
-            status: 'pending',
-            createdAt: new Date().toISOString()
-        };
-        
-        // Save updated keys again
-        updateStoredKeys(keys);
-        
-        // Return the payment details
-        res.json({
-            success: true,
-            address: address,
-            id: paymentId,
-            expectedAmount: expectedAmount,
-            expiresAt: expiryTime.toISOString()
-        });
-    } catch (error) {
-        console.error('Error generating test payment:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to generate test payment: ' + error.message
-        });
-    }
-});
+
+// });
 
 // Initialize crypto price cache
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
@@ -2197,344 +833,72 @@ let cryptoPriceCache = {
     timestamp: 0
 };
 
-// Crypto prices API endpoint
-app.get('/api/crypto-prices', async (req, res) => {
-    console.log('[DEBUG] /api/crypto-prices endpoint HIT');
 
-    // Check cache first
-    const now = Date.now();
-    if (cryptoPriceCache.data && (now - cryptoPriceCache.timestamp < CACHE_DURATION_MS)) {
-        console.log('[DEBUG] Returning cached crypto prices');
-        return res.json(cryptoPriceCache.data);
+
+
+// Database monitoring middleware for admin dashboard
+app.use((req, res, next) => {
+    // Check if request is for admin dashboard page
+    if (req.path === '/admin' || req.path === '/admin-dashboard') {
+        // We don't set headers or check status here - the dashboard will fetch it
+        res.locals.checkDatabaseStatus = true;
+    } else if (req.path.startsWith('/api/')) {
+        // For API endpoints, include database status in responses
+        // But don't force a check (use cached status) to minimize performance impact
+        const dbStatus = checkDatabaseStatus();
+        if (!dbStatus.isHealthy) {
+            // Add database status to res.locals for API endpoints
+            res.locals.dbStatus = {
+                isHealthy: dbStatus.isHealthy,
+                issues: dbStatus.issues,
+                corruptedFiles: dbStatus.corruptedFiles,
+                missingFiles: dbStatus.missingFiles
+            };
+        }
     }
-
-    console.log('[DEBUG] Cache stale or empty, fetching fresh prices (ETH, MATIC, BNB) by ID...');
-    try {
-        const apiKey = process.env.CMC_API_KEY;
-        if (!apiKey) {
-            console.log('[DEBUG] CMC_API_KEY missing in .env');
-            return res.status(500).json({ error: 'CoinMarketCap API key not set in .env (CMC_API_KEY)' });
-        }
-        // Fetch ETH, MATIC, BNB by ID from CoinMarketCap in AUD
-        const cmcUrl = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?id=1027,3890,1839&convert=AUD';
-        const cmcResponse = await fetch(cmcUrl, {
-            headers: {
-                'X-CMC_PRO_API_KEY': apiKey,
-                'Accept': 'application/json'
-            }
-        });
-        if (!cmcResponse.ok) {
-            console.log('[DEBUG] CoinMarketCap API response not ok:', cmcResponse.status);
-            if (cryptoPriceCache.data) {
-                console.warn('[DEBUG] API fetch failed, returning stale cache data');
-                return res.json(cryptoPriceCache.data); 
-            }
-            return res.status(502).json({ error: 'Failed to fetch prices from CoinMarketCap' });
-        }
-        const cmcData = await cmcResponse.json();
-        console.log('[DEBUG] CoinMarketCap API data received:', cmcData);
-
-        // Extract prices by ID (AUD)
-        let maticPrice = cmcData.data['3890']?.quote?.AUD?.price || null;
-        // Fallback to CoinGecko if MATIC is null
-        if (!maticPrice) {
-            try {
-                const cgkUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=aud';
-                console.log('[DEBUG] MATIC price not available from CMC, trying CoinGecko fallback...');
-                const cgkResponse = await fetch(cgkUrl);
-                if (cgkResponse.ok) {
-                    const cgkData = await cgkResponse.json();
-                    console.log('[DEBUG] CoinGecko API data received for MATIC fallback:', cgkData);
-                    maticPrice = cgkData['matic-network']?.aud || null;
-                    // If still null, try alternative ID
-                    if (!maticPrice) {
-                        const altCgkUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=polygon&vs_currencies=aud';
-                        const altCgkResponse = await fetch(altCgkUrl);
-                        if (altCgkResponse.ok) {
-                            const altCgkData = await altCgkResponse.json();
-                            console.log('[DEBUG] CoinGecko API data received for alternative MATIC fallback:', altCgkData);
-                            maticPrice = altCgkData['polygon']?.aud || null;
-                        }
-                    }
-                } else {
-                    console.log('[DEBUG] CoinGecko API response not ok for MATIC fallback:', cgkResponse.status);
-                }
-            } catch (maticError) {
-                console.error('[DEBUG] Error fetching MATIC price from fallback:', maticError);
-            }
-        }
-
-        const freshPrices = {
-            ETH: cmcData.data['1027']?.quote?.AUD?.price || null,
-            MATIC: maticPrice,
-            BNB: cmcData.data['1839']?.quote?.AUD?.price || null
-        };
-
-        // Update cache
-        cryptoPriceCache = {
-            data: freshPrices,
-            timestamp: now
-        };
-        return res.json(freshPrices);
-    } catch (err) {
-        console.error('[DEBUG] Error fetching crypto prices:', err);
-        return res.status(500).json({ error: 'Failed to fetch crypto prices' });
-    }
+    next();
 });
 
-// API endpoint to fetch addresses from keys.json
-app.get('/api/addresses', async (req, res) => {
-    try {
-        // Read the keys.json file
-        const keysData = JSON.parse(secureReadFile('Json/keys.json'));
-        
-        if (!keysData || !keysData.activeAddresses) {
-            return res.status(404).json({
-                success: false,
-                error: 'No addresses found or invalid keys.json format'
-            });
+// API response middleware to include database status
+app.use((req, res, next) => {
+    // Store original res.json method
+    const originalJson = res.json;
+    
+    // Override res.json method to include database status
+    res.json = function(obj) {
+        // Add database status if it exists in res.locals and isn't already in the response
+        if (res.locals.dbStatus && !obj.dbStatus) {
+            obj.dbStatus = res.locals.dbStatus;
         }
         
-        const now = new Date();
-        const addresses = [];
-        
-        // Process each address
-        for (const [address, data] of Object.entries(keysData.activeAddresses)) {
-            const expiryDate = new Date(data.expiresAt);
-            const createdDate = new Date(data.createdAt);
-            
-            // Check if expired
-            const isExpired = expiryDate < now;
-            
-            // Consider addresses abandoned if they're older than 30 minutes and still pending
-            const ageInMinutes = (now - createdDate) / (1000 * 60);
-            const isAbandoned = ageInMinutes > 30 && data.status === 'pending';
-            
-            // Determine status
-            let status = 'active';
-            if (isExpired) status = 'expired';
-            else if (isAbandoned) status = 'abandoned';
-            
-            // Add to addresses array
-            addresses.push({
-                address,
-                data,
-                status,
-                isExpired,
-                isAbandoned,
-                createdAt: data.createdAt,
-                expiresAt: data.expiresAt
-            });
-        }
-        
-        // Return the addresses
-        return res.json({
-            success: true,
-            addresses: addresses
-        });
-    } catch (error) {
-        console.error('Error fetching addresses:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to fetch addresses: ' + error.message
-        });
-    }
+        // Call original method
+        return originalJson.call(this, obj);
+    };
+    
+    next();
 });
 
-// API endpoint to delete a specific address
-app.post('/api/delete-address', async (req, res) => {
-    try {
-        const { address } = req.body;
-        
-        if (!address) {
-            return res.status(400).json({
-                success: false,
-                error: 'Address is required'
-            });
-        }
-        
-        // Read the keys.json file
-        const keysData = JSON.parse(secureReadFile('Json/keys.json'));
-        
-        if (!keysData || !keysData.activeAddresses) {
-            return res.status(404).json({
-                success: false,
-                error: 'No addresses found or invalid keys.json format'
-            });
-        }
-        
-        if (!keysData.activeAddresses[address]) {
-            return res.status(404).json({
-                success: false,
-                error: `Address ${address} not found`
-            });
-        }
-        
-        // Delete the address
-        delete keysData.activeAddresses[address];
-        
-        // Save updated keys
-        secureWriteFile('Json/keys.json', JSON.stringify(keysData, null, 2));
-        
-        logToFile(`Deleted address ${address}.`);
-        
-        return res.json({
-            success: true,
-            message: `Successfully deleted address ${address}.`
-        });
-    } catch (error) {
-        console.error(`Error deleting address: ${error.message}`);
-        return res.status(500).json({
-            success: false,
-            error: `Failed to delete address: ${error.message}`
-        });
-    }
-});
-
-// --- HD Wallet Balance Endpoint ---
-const fetch = require('node-fetch');
-app.get('/api/hd-wallet-balance', async (req, res) => {
-    try {
-        // Load and parse keys.json
-        const keys = JSON.parse(await secureReadFile(path.join(__dirname, 'Json/keys.json')));
-        if (!keys || !keys.mnemonic) {
-            return res.status(500).json({ success: false, error: 'Mnemonic not found in keys.json' });
-        }
-        if (!keys.masterKey) {
-            return res.status(500).json({ success: false, error: 'MasterKey not found in keys.json' });
-        }
-        let mnemonic;
-        try {
-            mnemonic = decrypt(keys.mnemonic);
-            if (!mnemonic) throw new Error('Decryption returned empty mnemonic');
-        } catch (e) {
-            return res.status(500).json({ success: false, error: 'Failed to decrypt mnemonic: ' + e.message });
-        }
-        // Derive root address (m/44'/60'/0'/0/0)
-        const hdNode = ethers.utils.HDNode.fromMnemonic(mnemonic);
-        const rootNode = hdNode.derivePath("m/44'/60'/0'/0/0");
-        const address = rootNode.address;
-        // Get ETH balance
-        const provider = new ethers.providers.JsonRpcProvider(process.env.INFURA_URL || 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9');
-        const balanceWei = await provider.getBalance(address);
-        const ethBalance = ethers.utils.formatEther(balanceWei);
-        // Get AUD price
-        let audBalance = null;
-        try {
-            const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=aud');
-            const priceData = await priceRes.json();
-            const ethAud = priceData.ethereum.aud;
-            audBalance = (parseFloat(ethBalance) * ethAud).toFixed(2);
-        } catch (e) {
-            audBalance = null;
-        }
-        res.json({
-            success: true,
-            address,
-            ethBalance,
-            audBalance,
-            lastUpdated: new Date().toISOString()
-        });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-app.get('/api/admin/statistics', async (req, res) => {
-    try {
-      const view = req.query.view;
-      let stats = {};
-      if (view === 'user') {
-        // Read keys.json
-        let keysPath = path.join(__dirname, 'Json', 'keys.json');
-        let keysData = {};
-        try {
-          keysData = JSON.parse(fs.readFileSync(keysPath, 'utf8'));
-        } catch (e) {
-          // File missing or invalid
-          keysData = {};
-        }
-        const addresses = keysData.activeAddresses ? Object.values(keysData.activeAddresses) : [];
-        stats = {
-          totalUserActivities: addresses.length,
-          pending: addresses.filter(a => a.status === 'pending').length,
-          confirmed: addresses.filter(a => a.status === 'confirmed').length,
-          wrongPayment: addresses.filter(a => a.status === 'wrong' || a.isWrongPayment).length,
-          releaseFund: addresses.filter(a => a.status === 'release').length
-        };
-      } else if (view === 'merchant') {
-        // Read merchant_transactions.json
-        let merchantPath = path.join(__dirname, 'merchant_transactions.json');
-        let merchantData = [];
-        try {
-          merchantData = JSON.parse(fs.readFileSync(merchantPath, 'utf8'));
-        } catch (e) {
-          merchantData = [];
-        }
-        stats = {
-          totalMerchantActivities: merchantData.length,
-          pending: merchantData.filter(a => a.status === 'pending').length,
-          confirmed: merchantData.filter(a => a.status === 'confirmed').length,
-          wrongPayment: merchantData.filter(a => a.status === 'wrong' || a.isWrongPayment).length,
-          releaseFund: merchantData.filter(a => a.status === 'release').length
-        };
-      } else {
-        return res.status(400).json({ error: 'Invalid view parameter' });
-      }
-      return res.json({ stats });
-    } catch (err) {
-      console.error('Error in /api/admin/statistics:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-  });
-  
-
-
-// New endpoint to verify if a payment address is still active
-app.post('/api/verify-payment-address', async (req, res) => {
-    try {
-        const { address } = req.body;
-        logger.info('Verifying payment address status', { address });
-
-        if (!address) {
-            logger.warn('Verify payment address request missing address');
-            return res.status(400).json({ success: false, error: 'Address is required' });
-        }
-
-        const keys = getStoredKeys();
-        const addrInfo = keys.activeAddresses && keys.activeAddresses[address];
-
-        if (addrInfo && !addrInfo.isExpired && !addrInfo.isWrongPayment && addrInfo.status !== 'wrong') {
-            const expiresAt = new Date(addrInfo.expiresAt);
-            if (!isNaN(expiresAt) && expiresAt > Date.now()) {
-                logger.info('Payment address verified as active', { address });
-                return res.json({ success: true, active: true, message: 'Address is active' });
-            } else {
-                logger.warn('Payment address expired based on timestamp', { address, expiresAt: addrInfo.expiresAt });
-                if (!addrInfo.isExpired) {
-                    addrInfo.isExpired = true;
-                    addrInfo.expiredAt = new Date().toISOString();
-                    addrInfo.expiredReason = 'Expired based on timestamp check';
-                    updateStoredKeys(keys);
-                }
-                return res.json({ success: true, active: false, message: 'Address expired' });
-            }
-        } else if (addrInfo) {
-            logger.warn('Payment address found but is expired or wrong', { address });
-            return res.json({ success: true, active: false, message: 'Address expired or marked as wrong payment' });
-        } else {
-            logger.info('Payment address not found', { address });
-            return res.json({ success: true, active: false, message: 'Address not found' });
-        }
-    } catch (error) {
-        logger.error('Error verifying payment address', { error });
-        res.status(500).json({ success: false, error: 'Failed to verify payment address' });
-    }
-});
-
+// Apply routes after middlewares
 app.use('/api', paymentRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', merchantRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Admin dashboard
+app.get('/admin', (req, res) => {
+    res.sendFile(__dirname + '/Public/admin-dashboard.html');
+});
+
+// Add this after the app.get('/admin') endpoint
+app.get('/api/health/database', (req, res) => {
+    const status = checkDatabaseStatus();
+    res.json({
+        success: true,
+        isHealthy: status.isHealthy,
+        status
+    });
+});
+
 // Handle 404
 app.use((req, res) => {
     const message = `404 Not Found: ${req.method} ${req.url}`;
@@ -2566,6 +930,7 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Access e-commerce store at http://localhost:${PORT}`);
     console.log(`Access merchant dashboard at http://localhost:${PORT}/merchant`);
+    console.log(`Access admin dashboard at http://localhost:${PORT}/admin`);
     console.log('='.repeat(50));
     
     logToFile('='.repeat(50));
@@ -2574,171 +939,31 @@ app.listen(PORT, () => {
     logToFile(`Server running on port ${PORT}`);
     logToFile(`Access e-commerce store at http://localhost:${PORT}`);
     logToFile(`Access merchant dashboard at http://localhost:${PORT}/merchant`);
+    logToFile(`Access admin dashboard at http://localhost:${PORT}/admin`);
     logToFile('='.repeat(50));
+    
+    // Validate database on startup
+    const validationResult = validateDatabaseOnStartup();
+    
+    if (!validationResult.success) {
+        console.error('⚠️ DATABASE VALIDATION FAILED:');
+        validationResult.criticalErrors.forEach(error => console.error(`- ${error}`));
+        console.error('Please check the admin dashboard for details and recovery options.');
+    } else if (validationResult.issues.length > 0) {
+        console.warn('⚠️ DATABASE VALIDATION ISSUES:');
+        console.warn(`Found ${validationResult.issues.length} issues.`);
+        console.warn(`Fixed ${validationResult.fixedIssues.length} issues automatically.`);
+        console.warn('Check the admin dashboard for details.');
+    } else {
+        console.log('✅ Database validation completed successfully.');
+    }
+    
+    // Initialize database recovery system AFTER validation
+    initDatabaseRecovery();
+    startScheduledBackups();
 });
 
-// Get release transaction status
-app.get('/api/release-status/:txHash', async (req, res) => {
-    const { txHash } = req.params;
-    
-    if (!txHash || typeof txHash !== 'string' || txHash.length !== 66) {
-        return res.status(400).json({ 
-            success: false,
-            error: 'Invalid transaction hash format' 
-        });
-    }
-    
-    try {
-        // Get fresh provider for reliable RPC connection
-        const freshWeb3 = await getFreshProvider();
-        
-        // Log the request
-        logBlockchain('CHECK_TX_STATUS', { txHash });
-        
-        // First check if transaction exists in our transaction log
-        const txLogPath = 'merchant_transactions.json';
-        let txLog = [];
-        let foundTx = null;
-        
-        try {
-            if (fs.existsSync(txLogPath)) {
-                const fileContent = secureReadFile(txLogPath);
-                try {
-                    txLog = JSON.parse(fileContent || '[]');
-                    
-                    // Find transaction in our logs (if it exists)
-                    foundTx = txLog.find(tx => tx.txHash === txHash);
-                    
-                    if (foundTx) {
-                        console.log(`Found transaction in local log:`, JSON.stringify(foundTx, null, 2));
-                    } else {
-                        console.log(`Transaction ${txHash} not found in local log`);
-                    }
-                } catch (parseError) {
-                    console.error('Error parsing transaction log:', parseError);
-                    // Continue anyway to check the blockchain
-                }
-            } else {
-                console.log('Transaction log file does not exist');
-            }
-        } catch (readError) {
-            console.error('Error reading transaction log:', readError);
-            // Continue anyway to check the blockchain
-        }
-        
-        // Get the transaction receipt from the blockchain
-        console.log(`Checking blockchain for transaction receipt: ${txHash}`);
-        let receipt = null;
-        let currentBlock = null;
-        
-        try {
-            receipt = await freshWeb3.eth.getTransactionReceipt(txHash);
-            currentBlock = await freshWeb3.eth.getBlockNumber();
-            
-            console.log(`Current block: ${currentBlock}, Receipt:`, receipt ? 
-                `Found in block ${receipt.blockNumber}` : 'Not found');
-        } catch (blockchainError) {
-            console.error('Error checking blockchain:', blockchainError);
-            // Continue with what we have from our logs
-        }
-        
-        // If we have a receipt, transaction was submitted to the network
-        if (receipt) {
-            const confirmations = (currentBlock && receipt.blockNumber) ? 
-                (currentBlock - receipt.blockNumber) + 1 : 0;
-            const success = receipt.status;
-            
-            // Update our transaction log if the transaction exists in our records
-            if (foundTx) {
-                console.log(`Updating transaction log for ${txHash}`);
-                updateTransactionLog(txHash, { 
-                    status: success, 
-                    confirmations,
-                    receiptChecked: true,
-                    lastChecked: new Date().toISOString()
-                });
-            } else if (receipt.from && receipt.to && success !== undefined) {
-                // We don't have this transaction in our logs, but we have a receipt
-                // Let's add it to our transaction log for future reference
-                console.log(`Adding transaction to log: ${txHash}`);
-                
-                // Get transaction details to get value information
-                let txDetails = null;
-                try {
-                    txDetails = await freshWeb3.eth.getTransaction(txHash);
-                } catch (txError) {
-                    console.error(`Error getting transaction details:`, txError.message);
-                }
-                
-                const isMerchantAddressRecipient = receipt.to?.toLowerCase() === 
-                    (process.env.MERCHANT_ADDRESS || '0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b').toLowerCase();
-                
-                const transactionType = isMerchantAddressRecipient ? 'release' : 'unknown';
-                
-                const txLogEntry = {
-                    txHash,
-                    from: receipt.from,
-                    to: receipt.to,
-                    amount: txDetails ? freshWeb3.utils.fromWei(txDetails.value, 'ether') : '0',
-                    timestamp: new Date().toISOString(),
-                    status: success,
-                    confirmations,
-                    blockNumber: receipt.blockNumber,
-                    type: transactionType,
-                    gasUsed: receipt.gasUsed,
-                    addedFromStatusCheck: true
-                };
-                
-                saveTxLog(txLogEntry);
-            }
-            
-            return res.json({
-                success: true,
-                txHash,
-                status: success,
-                confirmations,
-                blockNumber: receipt.blockNumber,
-                gasUsed: receipt.gasUsed,
-                from: receipt.from,
-                to: receipt.to
-            });
-        } 
-        
-        // If we don't have a receipt but have the transaction in our logs
-        if (foundTx) {
-            return res.json({
-                success: true,
-                txHash,
-                status: foundTx.status !== undefined ? foundTx.status : null,
-                confirmations: foundTx.confirmations || 0,
-                pending: true,
-                from: foundTx.from,
-                to: foundTx.to,
-                amount: foundTx.amount,
-                timestamp: foundTx.timestamp
-            });
-        }
-        
-        // If nothing found - send a proper JSON response instead of 404
-        return res.json({
-            success: false,
-            txHash,
-            found: false,
-            status: null,
-            message: 'Transaction not found in our system or on the blockchain',
-            pending: false
-        });
-    } catch (error) {
-        console.error(`Error checking transaction status for ${txHash}:`, error);
-        logBlockchain('TX_STATUS_ERROR', { txHash, error: error.message });
-        
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to check transaction status',
-            details: error.message
-        });
-    }
-});
+
 
 // Helper function to update transaction log entries with robust error handling
 function updateTransactionLog(txHash, updates) {
@@ -3254,11 +1479,6 @@ async function recordWrongPayment(payment) {
 
 
 
-// Apply API key validation
-app.use(validateApiKey);
-
-
-
 // Print all registered routes for debugging
 app._router.stack
   .filter(r => r.route)
@@ -3269,4 +1489,8 @@ app._router.stack
 // ... after initializing web3 ...
 
 // ... existing code ...
+
+// Initialize database recovery system
+initDatabaseRecovery();
+startScheduledBackups();
 

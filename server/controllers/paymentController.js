@@ -414,12 +414,17 @@ exports.recordPayment = async (req, res) => {
                 cryptoType: cryptoType || 'ETH'
             };
             await recordWrongPayment(wrongPayment);
-            // Return a response but with wrong payment flag
+            // After this, the address is marked as wrong/expired and will:
+            // - Not be included in HD wallet balance queries
+            // - Only appear in the wrong payments monitor and transaction history
+            // This is handled by the flags set in recordWrongPayment
             return res.json({
                 success: true,
                 isWrongPayment: true,
-                message: 'Wrong payment recorded',
-                reason: wrongReason
+                message: `Wrong Payment Detected! The payment amount received doesn't match the expected amount. You sent ${formattedAmount} ETH, but the expected amount was ${ethAmount} ETH. Your order will not be processed. Please go back to cart and try again.`,
+                reason: wrongReason,
+                expectedAmount: ethAmount,
+                actualAmount: formattedAmount
             });
         }
         // Add or update the address with a timestamp
@@ -616,6 +621,71 @@ exports.verifyTransaction = async (req, res) => {
         return res.status(500).json({
             success: false,
             error: 'Failed to verify transaction: ' + error.message
+        });
+    }
+};
+
+exports.generateTestPayment = async (req, res) => {
+    try {
+        // Get expected amount from query parameter
+        const expectedAmount = req.query.amount || '0.01';
+        // Generate a unique payment ID
+        const paymentId = `payment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        // Get wallet keys from storage
+        const keys = getStoredKeys();
+        // Decrypt the mnemonic
+        const mnemonic = decrypt(keys.mnemonic);
+        // Get next available index
+        const nextIndex = keys.lastIndex + 1 || 0;
+        // Generate a new HD wallet address
+        const wallet = await recoverWallet(mnemonic, nextIndex);
+        const address = wallet.address;
+        // Update the keys
+        keys.lastIndex = nextIndex;
+        if (!keys.activeAddresses) {
+            keys.activeAddresses = {};
+        }
+        // Add the new address with expected amount
+        keys.activeAddresses[address] = {
+            index: nextIndex,
+            createdAt: new Date().toISOString(),
+            orderId: paymentId,
+            expectedAmount: expectedAmount,
+            cryptoType: 'ETH',
+            status: 'pending'
+        };
+        // Save the updated keys
+        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
+        // Add to payment sessions table
+        if (!keys.paymentSessions) {
+            keys.paymentSessions = {};
+        }
+        // Create expiry time (20 minutes from now)
+        const expiryTime = new Date();
+        expiryTime.setMinutes(expiryTime.getMinutes() + 20);
+        // Add payment session
+        keys.paymentSessions[paymentId] = {
+            id: paymentId,
+            address: address,
+            amount: expectedAmount,
+            expiresAt: expiryTime.toISOString(),
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        };
+        // Save updated keys again
+        secureWriteFile('./Json/keys.json', JSON.stringify(keys, null, 2));
+        // Return the payment details
+        res.json({
+            success: true,
+            address: address,
+            id: paymentId,
+            expectedAmount: expectedAmount,
+            expiresAt: expiryTime.toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to generate test payment: ' + error.message
         });
     }
 }; 

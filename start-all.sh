@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set ports
-NODE_PORT=3001
+NODE_PORT=3000
 REACT_PORT=5001
 
 # Start Node.js backend on port 3001

@@ -3991,14 +3991,45 @@ app.get('/api/hd-wallet-balance', async (req, res) => {
         } catch (e) {
             return res.status(500).json({ success: false, error: 'Failed to decrypt mnemonic: ' + e.message });
         }
-        // Derive root address (m/44'/60'/0'/0/0)
+        
+        // Setup provider
+        const provider = new ethers.providers.JsonRpcProvider(process.env.INFURA_URL || 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9');
+        
+        // Derive root address (m/44'/60'/0'/0/0) for display purposes
         const hdNode = ethers.utils.HDNode.fromMnemonic(mnemonic);
         const rootNode = hdNode.derivePath("m/44'/60'/0'/0/0");
-        const address = rootNode.address;
-        // Get ETH balance
-        const provider = new ethers.providers.JsonRpcProvider(process.env.INFURA_URL || 'https://sepolia.infura.io/v3/d9e866f4ac7a495f9534eb1e8fbffbb9');
-        const balanceWei = await provider.getBalance(address);
-        const ethBalance = ethers.utils.formatEther(balanceWei);
+        const rootAddress = rootNode.address;
+        
+        // Check balances for first 20 addresses (like in getHdWalletTotalBalance.js)
+        let totalWei = ethers.BigNumber.from(0);
+        let addressBalances = [];
+        
+        // Check multiple addresses in parallel to speed up the request
+        const promises = [];
+        for (let i = 0; i < 20; i++) {
+            const derivedNode = hdNode.derivePath(`m/44'/60'/0'/0/${i}`);
+            const address = derivedNode.address;
+            
+            // Create a promise for each address balance check
+            const promise = provider.getBalance(address).then(balance => {
+                totalWei = totalWei.add(balance);
+                addressBalances.push({
+                    address,
+                    balance: ethers.utils.formatEther(balance),
+                    index: i
+                });
+                return { address, balance: ethers.utils.formatEther(balance), index: i };
+            });
+            
+            promises.push(promise);
+        }
+        
+        // Wait for all balance checks to complete
+        await Promise.all(promises);
+        
+        // Format the total balance
+        const ethBalance = ethers.utils.formatEther(totalWei);
+        
         // Get AUD price
         let audBalance = null;
         try {
@@ -4009,14 +4040,21 @@ app.get('/api/hd-wallet-balance', async (req, res) => {
         } catch (e) {
             audBalance = null;
         }
+        
+        // Sort addresses by balance (descending)
+        addressBalances.sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance));
+        
+        // Return the response with complete information
         res.json({
             success: true,
-            address,
+            address: rootAddress,
             ethBalance,
             audBalance,
+            addresses: addressBalances,
             lastUpdated: new Date().toISOString()
         });
     } catch (err) {
+        console.error('HD wallet balance error:', err);
         res.status(500).json({ success: false, error: err.message });
     }
 });

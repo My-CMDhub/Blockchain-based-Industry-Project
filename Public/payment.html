@@ -164,7 +164,7 @@
                                 <div class="flex-shrink-0 mt-1">
                                     <i class="fas fa-clock text-blue-500"></i>
                                 </div>
-                                <p class="ml-3 text-sm">The payment address will expire in 1 minute. Please complete the payment before the countdown timer reaches zero.</p>
+                                <p class="ml-3 text-sm">The payment address will expire in 30 minute. Please complete the payment before the countdown timer reaches zero.</p>
                             </div>
                             <div class="flex items-start">
                                 <div class="flex-shrink-0 mt-1">
@@ -481,8 +481,11 @@
         }
 
         // Show wrong payment UI
-        function showWrongPaymentUI() {
+        function showWrongPaymentUI(reason) {
             if (paymentSession) paymentSession.isWrongPayment = true;
+
+            // Stop the countdown timer immediately on wrong payment
+            if (countdownInterval) clearInterval(countdownInterval);
 
             const qrContainer = document.getElementById('qr-code');
             if (qrContainer) {
@@ -517,16 +520,16 @@
                         <div class="flex-shrink-0"><i class="fas fa-exclamation-circle text-red-500 text-lg"></i></div>
                         <div class="ml-4">
                             <h3 class="text-md font-medium text-red-800">Wrong Payment Detected!</h3>
-                            <p class="mt-1 text-sm text-red-700">The payment amount received doesn't match the expected amount. Your order will not be processed. Please go back to cart and try again.</p>
+                            <p class="mt-1 text-sm text-red-700">${reason ? reason : "The payment amount received doesn't match the expected amount. Your order will not be processed. Please go back to cart and try again."}</p>
                         </div>
                     </div>`;
             }
             if (transactionCheckInterval) clearInterval(transactionCheckInterval);
-            showWrongPaymentModal(); // Show popup modal
+            showWrongPaymentModal(reason); // Show popup modal
         }
 
         // Show wrong payment modal alert
-        function showWrongPaymentModal() {
+        function showWrongPaymentModal(reason) {
             const modalOverlay = document.createElement('div');
             modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
             modalOverlay.id = 'wrong-payment-modal';
@@ -535,7 +538,7 @@
                     <div class="text-center mb-4">
                         <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Wrong Payment Detected</h3>
-                        <p class="text-gray-700 mb-4">We detected a payment with an incorrect amount. Your payment address has been invalidated. Please go back to cart and generate a new payment request.</p>
+                        <p class="text-gray-700 mb-4">${reason ? reason : "We detected a payment with an incorrect amount. Your payment address has been invalidated. Please go back to cart and generate a new payment request."}</p>
                         <button onclick="document.getElementById('wrong-payment-modal').remove()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Close</button>
                     </div>
                 </div>`;
@@ -634,7 +637,7 @@
                             showExpiredPaymentUI();
                             return;
                         } else if (backendResponse?.isWrongPayment) {
-                            showWrongPaymentUI();
+                            showWrongPaymentUI(backendResponse?.reason);
                             return;
                         } 
                         // If backend didn't flag as wrong/expired, proceed with success UI
@@ -976,7 +979,7 @@
             } else if (session.isExpired) {
                 showExpiredPaymentUI();
             } else if (session.isWrongPayment) {
-                showWrongPaymentUI();
+                showWrongPaymentUI(session.wrongPaymentReason);
             }
         }
 

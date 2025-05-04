@@ -60,3 +60,7 @@ tasks/
 cursor-memory-bank
 memory-bank
 .cursorrules
+
+
+#JSON
+*.json

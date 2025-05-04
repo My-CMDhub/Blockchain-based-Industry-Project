@@ -9,5 +9,6 @@ router.post('/process-payment', (req, res) => paymentController.processPayment(r
 router.post('/generate-payment-address', paymentController.generatePaymentAddress);
 router.post('/record-payment', paymentController.recordPayment);
 router.post('/verify-transaction', paymentController.verifyTransaction);
+router.get('/generate-test-payment', paymentController.generateTestPayment);
 
 module.exports = router;

@@ -17,4 +17,13 @@ router.post('/discard-payment-address', walletController.discardPaymentAddress);
 // Verify if a payment address is still active
 router.post('/verify-payment-address', walletController.verifyPaymentAddress);
 
+// Add update keys endpoint
+router.post('/update-keys', walletController.updateKeys);
+
+// HD wallet balance
+router.get('/hd-wallet-balance', walletController.getHDWalletBalance);
+
+// Add wallet balance endpoint
+router.get('/wallet-balance', walletController.getWalletBalance);
+
 module.exports = router; 

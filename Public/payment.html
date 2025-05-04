@@ -656,6 +656,9 @@
                                     </div>`;
                              }
                             
+                            // Save orderId before clearing session
+                            const orderId = paymentSession?.orderId || 'UNKNOWN';
+
                             // Clear cart and payment session data
                             localStorage.removeItem('cart'); // Clear cart from local storage
                             sessionStorage.removeItem('paymentData'); // Clear session data for this payment
@@ -666,7 +669,7 @@
                             // Redirect to payment status page
                             setTimeout(() => {
                                 const statusParams = new URLSearchParams({
-                                    id: paymentSession?.orderId || 'UNKNOWN',
+                                    id: orderId,
                                     status: 'confirmed',
                                     amount: balanceInEth,
                                     address: address
@@ -1040,4 +1043,4 @@
         }
     </script>
 </body>
-</html> 
+</html>

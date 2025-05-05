@@ -176,6 +176,16 @@ chmod +x setup.sh start-all.sh
 - Release funds to your MetaMask wallet with one click.
 - Monitor all payment activity in real time.
 
+### As an Administrator
+- Access the admin dashboard [http://localhost:3001/admin-dashboard.html](http://localhost:3001/admin-dashboard.html) to manage system settings and maintenance.
+- Use the **Address Management** tab to:
+  - View all cryptocurrency addresses in the system
+  - Filter addresses by status (active, expired, or abandoned)
+  - Clean up expired or abandoned addresses to maintain database efficiency
+  - Delete individual addresses as needed
+  - Monitor address statistics and system health
+- Address cleanup helps prevent database bloat from unused payment addresses, improving system performance.
+
 ---
 
 ## 11. Troubleshooting & Support

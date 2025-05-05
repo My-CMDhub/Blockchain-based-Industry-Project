@@ -217,40 +217,40 @@
             {
                 id: 1,
                 name: "Bamboo Toothbrush",
-                price: 5.99,
-                image: "https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
-                category: "bathroom",
+                price: 4.99,
+                image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
+                category: "personal care",
                 rating: 4.5,
-                stock: 45,
+                stock: 100,
                 badge: "eco",
-                description: "Sustainable bamboo toothbrush with soft bristles"
+                description: "Eco-friendly bamboo toothbrush"
             },
             {
                 id: 2,
                 name: "Reusable Water Bottle",
-                price: 15.99,
-                image: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
+                price: 19.99,
+                image: "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
                 category: "kitchen",
                 rating: 4.8,
-                stock: 30,
-                badge: "new",
-                description: "Double-walled insulated water bottle"
+                stock: 60,
+                badge: "eco",
+                description: "Stainless steel reusable bottle"
             },
             {
                 id: 3,
-                name: "Organic Cotton T-shirt",
-                price: 24.99,
-                image: "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
-                category: "clothing",
-                rating: 4.2,
-                stock: 15,
-                badge: "sale",
-                description: "100% organic cotton, ethically made t-shirt"
+                name: "Organic Cotton Tote Bag",
+                price: 7.49,
+                image: "https://images.unsplash.com/photo-1464983953574-0892a716854b?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
+                category: "fashion",
+                rating: 4.3,
+                stock: 80,
+                badge: "eco",
+                description: "Reusable organic cotton tote bag"
             },
             {
                 id: 4,
                 name: "Recycled Paper Notebook",
-                price: 7.99,
+                price: 5.99,
                 image: "https://images.unsplash.com/photo-1531346878377-a5be20888e57?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=300&q=80",
                 category: "office",
                 rating: 4.0,
@@ -307,7 +307,7 @@
                         <h2 class="text-lg font-semibold text-gray-900">${product.name}</h2>
                         <p class="text-sm text-gray-600 mt-1">${product.description}</p>
                         <div class="mt-2">
-                            <span class="text-xl font-bold text-gray-900">$${product.price.toFixed(2)}</span>
+                            <span class="text-xl font-bold text-gray-900">$${product.price.toFixed(2)} <span style='font-size:0.8em;'>AUD</span></span>
                             <div class="crypto-price" id="crypto-${product.id}"></div>
                         </div>
                         <div class="rating">
@@ -399,9 +399,9 @@
                 };
                 updateCryptoPrices();
                 // Update modal price displays
-                document.getElementById('ethPrice').textContent = cryptoPrices.ETH ? `1 ETH ≈ $${cryptoPrices.ETH.toFixed(2)}` : 'N/A';
-                document.getElementById('btcPrice').textContent = cryptoPrices.BTC ? `1 BTC ≈ $${cryptoPrices.BTC.toFixed(2)}` : 'N/A';
-                document.getElementById('usdtPrice').textContent = cryptoPrices.USDT ? `1 USDT ≈ $${cryptoPrices.USDT.toFixed(2)}` : 'N/A';
+                document.getElementById('ethPrice').textContent = cryptoPrices.ETH ? `1 ETH ≈ $${cryptoPrices.ETH.toFixed(2)} AUD` : 'N/A';
+                document.getElementById('btcPrice').textContent = cryptoPrices.BTC ? `1 BTC ≈ $${cryptoPrices.BTC.toFixed(2)} AUD` : 'N/A';
+                document.getElementById('usdtPrice').textContent = cryptoPrices.USDT ? `1 USDT ≈ $${cryptoPrices.USDT.toFixed(2)} AUD` : 'N/A';
             } catch (error) {
                 console.error('Error fetching crypto prices:', error);
                 document.getElementById('ethPrice').textContent = 'N/A';
@@ -415,10 +415,9 @@
             products.forEach(product => {
                 const cryptoElement = document.getElementById(`crypto-${product.id}`);
                 if (cryptoElement) {
+                    const ethPrice = (cryptoPrices.ETH && !isNaN(cryptoPrices.ETH)) ? (product.price / cryptoPrices.ETH).toFixed(6) : 'N/A';
                     cryptoElement.innerHTML = `
-                        <span>≈ ${(product.price / cryptoPrices.ETH).toFixed(6)} ETH</span>
-                        <span class="mx-1">|</span>
-                        <span>${(product.price / cryptoPrices.BTC).toFixed(8)} BTC</span>
+                        <span>≈ ${ethPrice} ETH</span>
                     `;
                 }
             });

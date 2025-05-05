@@ -410,6 +410,7 @@
                 <div id="paymentAlerts" class="mb-4">
                     <div id="wrongPaymentsNotice" style="display: none;"></div>
                     <div id="unverifiedPaymentsNotice" style="display: none;"></div>
+                    <div id="databaseCorruptionNotice" style="display: none;"></div>
                 </div>
         <div class="card">
             <div class="card-body">
@@ -437,33 +438,7 @@
             </div>
         </div>
 
-        <!-- Unverified Payments Card -->
-        <div class="col-xl-3 col-md-6">
-            <div class="card balance-card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Unverified Payments</h5>
-                    <div class="d-flex align-items-center mb-2">
-                        <i class='bx bx-time-five me-2 balance-icon'></i>
-                        <span id="unverifiedCount" class="balance-value">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </span>
-                    </div>
-                    <h6 class="text-muted">Amount</h6>
-                    <div class="d-flex align-items-center">
-                        <i class='bx bx-money me-2 balance-icon'></i>
-                        <span id="unverifiedAmount" class="balance-value">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </span>
-                    </div>
-                    <small class="text-muted mt-2 d-block">Last updated: <span class="last-updated">-</span></small>
-                </div>
-            </div>
-        </div>
-    </div>
+        
 
     <div class="toast" id="toast">
         <div class="toast-content"></div>
@@ -1055,95 +1030,37 @@
             const now = Date.now();
             if (!forceRefresh && transactionCache && (now - transactionCacheTime < TRANSACTION_CACHE_DURATION)) {
                 console.log('Using cached transaction data');
-                displayTransactionHistory(transactionCache.transactions);
+                displayTransactionHistory(transactionCache);
                 return;
             }
-            
+
             try {
-                console.log('Fetching transaction history...');
+                showLoader();
+                const response = await fetch('/api/merchant-transactions');
+                const data = await response.json();
                 
-                // Show loading state
-                document.getElementById('transactionHistory').innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <div class="d-flex justify-content-center align-items-center">
-                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                Loading transactions...
-                                </div>
-                        </td>
-                    </tr>
-                `;
-                
-                const response = await fetchWithAuth('/api/merchant-transactions');
-                
-                // Handle response status first
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        console.log('Transaction history file not found, creating it...');
-                        // Create the transaction file if it doesn't exist
-                        await createTransactionFileIfNeeded();
-                        throw new Error('Transaction history not found - initializing new history');
-                    }
-                    
-                    // Try to get error details from response
-                    let errorDetails = '';
-                    try {
-                        const errorResponse = await response.json();
-                        errorDetails = errorResponse.error || '';
-                    } catch (e) {
-                        // Ignore errors parsing the error response
-                    }
-                    
-                    throw new Error(`Server responded with status: ${response.status}${errorDetails ? ' - ' + errorDetails : ''}`);
+                if (data && data.dbStatus) {
+                    // Track the last known database status
+                    lastDbStatus = data.dbStatus;
+                    updateDatabaseStatus(data.dbStatus);
+                } else {
+                    // No database status in response, assume it's okay
+                    updateDatabaseStatus(null);
                 }
                 
-                // Parse the response
-                let data;
-                try {
-                    data = await response.json();
-                } catch (parseError) {
-                    console.error('Error parsing JSON response:', parseError);
-                    throw new Error('Invalid response from server: not valid JSON');
-                }
-                
-                // Log the full transaction data for debugging
-                console.log('Received transaction data:', JSON.stringify(data, null, 2));
-                
-                // Validate data structure
-                if (!data || typeof data !== 'object') {
-                    throw new Error('Invalid transaction data structure');
-                }
-                
-                // If transactions not present, create an empty array for display
-                if (!data.transactions) {
-                    console.warn('No transactions array in response, creating empty array');
-                    data.transactions = [];
-                }
-                
-                // Cache the data for future use
-                transactionCache = data;
+                const transactions = data.transactions || [];
+                transactionCache = transactions;
                 transactionCacheTime = now;
-                
-                // Display transaction history and update notices
-                displayTransactionHistory(data.transactions);
-                updatePaymentNotices(data);
-                
+                updateTransactionDisplay(data);
+                hideLoader();
             } catch (error) {
-                console.error('Failed to fetch transactions:', error);
-                
-                // Show error in transaction table
-                document.getElementById('transactionHistory').innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center text-danger">
-                            <i class="bx bx-error-circle me-2"></i>
-                            ${error.message || 'Unknown error loading transactions'}
-                        </td>
-                    </tr>
-                `;
-                
-                showToast('Failed to refresh transaction history: ' + error.message, 'error');
+                console.error('Error fetching transactions:', error);
+                hideLoader();
+                showToast('Failed to load transactions. Please try again.', 'error');
+                updateDatabaseStatus({
+                    isCorrupted: true,
+                    errorDetails: `Network error: ${error.message}`
+                });
             }
         }
 
@@ -1398,6 +1315,9 @@
             
             // Update payment notices
             updatePaymentNotices(data);
+            
+            // Check for database corruption
+            updateDatabaseStatus(data.dbStatus);
         }
 
         // Get status badge class
@@ -2304,6 +2224,208 @@
             // Initialize and show the modal
             const wrongPaymentsModal = new bootstrap.Modal(document.getElementById('wrongPaymentsModal'));
             wrongPaymentsModal.show();
+        }
+
+        // Display database corruption notice if detected
+        function updateDatabaseStatus(dbStatus) {
+            const noticeContainer = document.getElementById('databaseCorruptionNotice');
+            if (!noticeContainer) return;
+
+            // If no dbStatus or not corrupted, hide the notice
+            if (!dbStatus || !dbStatus.isCorrupted) {
+                noticeContainer.style.display = 'none';
+                return;
+            }
+
+            // Database is corrupted, show a prominent alert
+            let alertContent = '';
+            
+            if (dbStatus.isMissing) {
+                // This is missing database scenario
+                alertContent = `
+                    <div class="d-flex align-items-center">
+                        <i class="bx bx-error-circle me-3" style="font-size: 2rem;"></i>
+                        <div>
+                            <h4 class="alert-heading">Database File Missing</h4>
+                            <p>The transaction database file appears to be missing unexpectedly. Your balance and transaction history have been reset.</p>
+                            <hr>
+                            <p class="mb-0">Error details: ${dbStatus.errorDetails || 'Database file not found'}</p>
+                            ${dbStatus.recoveryPossible ? 
+                                `<p class="mb-0 text-success">Recovery is possible from backup: ${dbStatus.lastBackup || 'backup available'}</p>` : 
+                                '<p class="mb-0 text-warning">No backups were found. Data recovery may not be possible.</p>'}
+                            <div class="mt-3">
+                                <p class="fw-bold">Steps to resolve this issue:</p>
+                                <ol>
+                                    <li>Contact your system administrator immediately</li>
+                                    <li>Do not initiate new transactions until this is resolved</li>
+                                    <li>The administrator may be able to restore from backup</li>
+                                </ol>
+                            </div>
+                            <div class="d-flex mt-3">
+                                <button class="btn btn-outline-light me-2" onclick="refreshTransactionHistory(true)">
+                                    <i class="bx bx-refresh me-1"></i> Retry
+                                </button>
+                                <button class="btn btn-outline-light" onclick="contactAdmin()">
+                                    <i class="bx bx-envelope me-1"></i> Contact Admin
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (dbStatus.dataLoss) {
+                // This is data loss scenario where file exists but has been emptied
+                alertContent = `
+                    <div class="d-flex align-items-center">
+                        <i class="bx bx-error-circle me-3" style="font-size: 2rem;"></i>
+                        <div>
+                            <h4 class="alert-heading">Transaction Data Lost</h4>
+                            <p>Your transaction database file exists but all transaction data has been unexpectedly removed.</p>
+                            <hr>
+                            <p class="mb-0">Error details: ${dbStatus.errorDetails || 'Transaction data has been lost'}</p>
+                            ${dbStatus.recoveryPossible ? 
+                                `<p class="mb-0 text-success">Recovery is possible from backup: ${dbStatus.lastBackup || 'backup available'}</p>` : 
+                                '<p class="mb-0 text-warning">No backups were found. Data recovery may not be possible.</p>'}
+                            <div class="mt-3">
+                                <p class="fw-bold">Steps to resolve this issue:</p>
+                                <ol>
+                                    <li>Contact your system administrator immediately</li>
+                                    <li>Do not initiate new transactions until this is resolved</li>
+                                    <li>This may indicate unauthorized data deletion or a system error</li>
+                                </ol>
+                            </div>
+                            <div class="d-flex mt-3">
+                                <button class="btn btn-outline-light me-2" onclick="refreshTransactionHistory(true)">
+                                    <i class="bx bx-refresh me-1"></i> Retry
+                                </button>
+                                <button class="btn btn-outline-light" onclick="contactAdmin()">
+                                    <i class="bx bx-envelope me-1"></i> Contact Admin
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Regular corruption scenario
+                alertContent = `
+                    <div class="d-flex align-items-center">
+                        <i class="bx bx-error-circle me-3" style="font-size: 2rem;"></i>
+                        <div>
+                            <h4 class="alert-heading">Database Issue Detected</h4>
+                            <p>Our system has detected an issue with the transaction database. Your balance and transaction history may be affected.</p>
+                            <hr>
+                            <p class="mb-0">Error details: ${dbStatus.errorDetails || 'Unknown error'}</p>
+                            ${dbStatus.backupCreated ? `<p class="mb-0 text-success">A backup of the corrupted data has been created for recovery.</p>` : ''}
+                            <div class="mt-3">
+                                <p class="fw-bold">Steps to resolve this issue:</p>
+                                <ol>
+                                    <li>Contact your system administrator immediately</li>
+                                    <li>Provide the error details shown above</li>
+                                    <li>Do not initiate new transactions until this is resolved</li>
+                                </ol>
+                            </div>
+                            <div class="d-flex mt-3">
+                                <button class="btn btn-outline-light me-2" onclick="refreshTransactionHistory(true)">
+                                    <i class="bx bx-refresh me-1"></i> Retry
+                                </button>
+                                <button class="btn btn-outline-light" onclick="contactAdmin()">
+                                    <i class="bx bx-envelope me-1"></i> Contact Admin
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            noticeContainer.innerHTML = `<div class="alert alert-danger" role="alert">${alertContent}</div>`;
+            noticeContainer.style.display = 'block';
+            
+            // Also show a toast notification to ensure the user notices the issue
+            if (dbStatus.isMissing) {
+                showToast('Database file missing! Please contact your system administrator immediately.', 'error');
+            } else if (dbStatus.dataLoss) {
+                showToast('Transaction data has been emptied! Please contact your system administrator immediately.', 'error');
+            } else {
+                showToast('Database issue detected. Please contact your system administrator.', 'error');
+            }
+        }
+
+        // Function to help contact admin
+        function contactAdmin() {
+            // In a real implementation, this might open a support ticket or send an email
+            // For now, just show a modal with instructions
+            
+            const modalHTML = `
+                <div class="modal fade" id="contactAdminModal" tabindex="-1" aria-labelledby="contactAdminModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="contactAdminModalLabel">Contact Administrator</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Please contact your system administrator with the following information:</p>
+                                <div class="alert alert-secondary">
+                                    <p><strong>Subject:</strong> Payment Gateway Database Issue</p>
+                                    <p><strong>Error Details:</strong> <span id="errorDetailsForEmail"></span></p>
+                                    <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+                                </div>
+                                <p>Contact methods:</p>
+                                <ul>
+                                    <li>Email: <a href="mailto:admin@example.com">admin@example.com</a></li>
+                                    <li>Phone: +1-555-123-4567</li>
+                                </ul>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to the document if it doesn't exist
+            if (!document.getElementById('contactAdminModal')) {
+                const modalContainer = document.createElement('div');
+                modalContainer.innerHTML = modalHTML;
+                document.body.appendChild(modalContainer.firstChild);
+            }
+            
+            // Update error details
+            const errorDetails = document.getElementById('errorDetailsForEmail');
+            if (errorDetails) {
+                errorDetails.textContent = lastDbStatus ? (lastDbStatus.errorDetails || 'Unknown database issue') : 'Unknown database issue';
+            }
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('contactAdminModal'));
+            modal.show();
+        }
+        
+        // Track the last known database status
+        let lastDbStatus = null;
+
+        // Show loader for transaction history
+        function showLoader() {
+            const tbody = document.getElementById('transactionHistory');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center">
+                            <div class="d-flex justify-content-center align-items-center p-3">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                Loading transactions...
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        // Hide loader
+        function hideLoader() {
+            // This is handled by the display functions that replace the content
         }
     </script>
 </body>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.0.7/css/boxicons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6772e5;
+            --secondary-color: #32325d;
+            --success-color: #3ecf8e;
+            --danger-color: #de4c4a;
+            --warning-color: #f5be58;
+            --info-color: #6b7c93;
+            --background-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-color: #e5e7eb;
+        }
+        
+        body {
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .dashboard-container {
+            padding: 2rem;
+        }
+
+        .stats-card {
+            background: var(--card-bg);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
+            border: 1px solid var(--border-color);
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stats-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .stats-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem; 
+            margin-top: 0.5rem;
+        }
+
+        .transaction-table {
+            background: var(--card-bg);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .transaction-table th {
+            background: var(--background-color);
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            padding: 1rem;
+        }
+
+        .transaction-table td {
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .status-completed {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-failed {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .action-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .action-button-primary {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+        
+        .action-button-primary:hover {
+            background: var(--secondary-color);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            background: var(--card-bg);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .toast.warning {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        /* Stripe Brand colors */
+        .stripe-header {
+            background: linear-gradient(45deg, #6772e5, #7795f8);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 0 0 1rem 1rem;
+        }
+        
+        .stripe-title {
+            font-weight: 700;
+            font-size: 1.8rem;
+        }
+        
+        /* Stripe logo colors for stats cards */
+        .stats-card-revenue {
+            border-top: 4px solid #6772e5;
+        }
+        
+        .stats-card-payments {
+            border-top: 4px solid #3ecf8e;
+        }
+        
+        .stats-card-pending {
+            border-top: 4px solid #f5be58;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 1rem;
+            }
+
+            .stats-card {
+                margin-bottom: 1rem;
+            }
+
+            .transaction-table {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="stripe-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="stripe-title">Stripe Payments Dashboard</h1>
+                <a href="merchant-dashboard.html" class="btn btn-outline-light">
+                    <i class="bx bx-arrow-back me-1"></i> Back to Main Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="dashboard-container">
+        <div class="container">
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3">
+                    <div class="stats-card stats-card-revenue">
+                        <div class="stats-value" id="totalRevenue">$0.00</div>
+                        <div class="stats-label">Total Revenue</div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="stats-card stats-card-payments">
+                        <div class="stats-value" id="completedPayments">0</div>
+                        <div class="stats-label">Completed Payments</div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="stats-card stats-card-pending">
+                        <div class="stats-value" id="pendingPayments">0</div>
+                        <div class="stats-label">Pending Payments</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h5 class="card-title">Payment History</h5>
+                                <button type="button" class="action-button action-button-primary" onclick="refreshPayments()">
+                                    <i class="bx bx-refresh me-1"></i> Refresh
+                                </button>
+                            </div>
+                            <div class="table-responsive transaction-table">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Order ID</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paymentHistory">
+                                        <tr>
+                                            <td colspan="5" class="text-center">Loading payments...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Detail Modal -->
+    <div class="modal fade" id="paymentDetailModal" tabindex="-1" aria-labelledby="paymentDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title" id="paymentDetailModalLabel">Payment Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="paymentDetailContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading payment details...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <div class="toast-content"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPayments();
+        });
+
+        // Load Stripe payments
+        async function loadPayments() {
+            try {
+                showLoading();
+                
+                const response = await fetch('/api/stripe/payments');
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load payments');
+                }
+                
+                // Update stats
+                updateStats(data.stats);
+                
+                // Display payments
+                displayPayments(data.payments);
+                
+                hideLoading();
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                showToast('Failed to load payments: ' + error.message, 'error');
+                hideLoading();
+                
+                // Show error message in table
+                document.getElementById('paymentHistory').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-danger">
+                            <i class="bx bx-error-circle me-2"></i> ${error.message || 'Failed to load payments'}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Update dashboard statistics
+        function updateStats(stats) {
+            if (!stats) return;
+            
+            // Format currency
+            const revenue = parseFloat(stats.revenue).toFixed(2);
+            
+            // Update DOM
+            document.getElementById('totalRevenue').textContent = `$${revenue}`;
+            document.getElementById('completedPayments').textContent = stats.completed || 0;
+            document.getElementById('pendingPayments').textContent = stats.pending || 0;
+        }
+
+        // Display payments in the table
+        function displayPayments(payments) {
+            const tbody = document.getElementById('paymentHistory');
+            
+            if (!payments || !payments.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center">No payments found</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Sort payments by date (newest first)
+            payments.sort((a, b) => {
+                const dateA = new Date(a.createdAt || a.timestamp);
+                const dateB = new Date(b.createdAt || b.timestamp);
+                return dateB - dateA;
+            });
+            
+            // Generate table rows
+            const rows = payments.map(payment => {
+                // Format date
+                const date = new Date(payment.createdAt || payment.timestamp);
+                const dateString = date.toLocaleString();
+                
+                // Format amount
+                const amount = parseFloat(payment.amount).toFixed(2);
+                
+                // Format status badge
+                let statusClass = 'status-pending';
+                if (payment.status === 'completed') {
+                    statusClass = 'status-completed';
+                } else if (payment.status === 'failed') {
+                    statusClass = 'status-failed';
+                }
+                
+                // Create row HTML
+                return `
+                    <tr>
+                        <td>${dateString}</td>
+                        <td>${payment.orderId || 'N/A'}</td>
+                        <td>$${amount} ${payment.currency?.toUpperCase() || 'AUD'}</td>
+                        <td>
+                            <span class="status-badge ${statusClass}">
+                                ${payment.status?.charAt(0).toUpperCase() + payment.status?.slice(1) || 'Unknown'}
+                            </span>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="viewPaymentDetails('${payment.id}')">
+                                <i class="bx bx-show-alt"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Update table
+            tbody.innerHTML = rows;
+        }
+
+        // Refresh payments data
+        async function refreshPayments() {
+            try {
+                // Show refresh icon
+                const refreshButton = document.querySelector('.action-button-primary');
+                const originalContent = refreshButton.innerHTML;
+                refreshButton.innerHTML = '<i class="bx bx-loader-alt bx-spin me-1"></i> Refreshing...';
+                refreshButton.disabled = true;
+                
+                // Reload payments
+                await loadPayments();
+                
+                // Show success message
+                showToast('Payments refreshed successfully', 'success');
+                
+                // Reset button
+                refreshButton.innerHTML = originalContent;
+                refreshButton.disabled = false;
+            } catch (error) {
+                console.error('Error refreshing payments:', error);
+                showToast('Failed to refresh payments: ' + error.message, 'error');
+                
+                // Reset button
+                const refreshButton = document.querySelector('.action-button-primary');
+                refreshButton.innerHTML = '<i class="bx bx-refresh me-1"></i> Refresh';
+                refreshButton.disabled = false;
+            }
+        }
+
+        // View payment details
+        async function viewPaymentDetails(sessionId) {
+            try {
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('paymentDetailModal'));
+                modal.show();
+                
+                // Reset content
+                document.getElementById('paymentDetailContent').innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading payment details...</p>
+                    </div>
+                `;
+                
+                // Fetch payment details
+                const response = await fetch(`/api/stripe/payment/${sessionId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load payment details');
+                }
+                
+                const payment = data.payment;
+                
+                if (!payment) {
+                    throw new Error('Payment not found');
+                }
+                
+                // Format payment data
+                const createdDate = new Date(payment.createdAt || payment.timestamp).toLocaleString();
+                const completedDate = payment.completedAt ? new Date(payment.completedAt).toLocaleString() : 'N/A';
+                const amount = parseFloat(payment.amount).toFixed(2);
+                
+                // Format status badge
+                let statusBadge = `<span class="badge bg-warning">Pending</span>`;
+                if (payment.status === 'completed') {
+                    statusBadge = `<span class="badge bg-success">Completed</span>`;
+                } else if (payment.status === 'failed') {
+                    statusBadge = `<span class="badge bg-danger">Failed</span>`;
+                }
+                
+                // Generate items list if available
+                let itemsHtml = '<p>No items data available</p>';
+                if (payment.items && payment.items.length > 0) {
+                    itemsHtml = `
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Price</th>
+                                        <th>Quantity</th>
+                                        <th>Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${payment.items.map(item => `
+                                        <tr>
+                                            <td>${item.name}</td>
+                                            <td>$${parseFloat(item.price).toFixed(2)}</td>
+                                            <td>${item.quantity || 1}</td>
+                                            <td>$${(parseFloat(item.price) * (item.quantity || 1)).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+                
+                // Display payment details
+                document.getElementById('paymentDetailContent').innerHTML = `
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">Payment Information</h6>
+                            <div class="mb-2"><strong>Order ID:</strong> ${payment.orderId || 'N/A'}</div>
+                            <div class="mb-2"><strong>Session ID:</strong> ${payment.id}</div>
+                            <div class="mb-2"><strong>Amount:</strong> $${amount} ${payment.currency?.toUpperCase() || 'AUD'}</div>
+                            <div class="mb-2"><strong>Status:</strong> ${statusBadge}</div>
+                            ${payment.paymentIntent ? `<div class="mb-2"><strong>Payment Intent:</strong> ${payment.paymentIntent}</div>` : ''}
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="mb-3">Dates</h6>
+                            <div class="mb-2"><strong>Created:</strong> ${createdDate}</div>
+                            <div class="mb-2"><strong>Completed:</strong> ${completedDate}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="mb-3">Items</h6>
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading payment details:', error);
+                
+                // Show error in modal
+                document.getElementById('paymentDetailContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bx bx-error-circle me-2"></i> ${error.message || 'Failed to load payment details'}
+                    </div>
+                `;
+            }
+        }
+
+        // Show loading state
+        function showLoading() {
+            document.getElementById('paymentHistory').innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="d-flex justify-content-center align-items-center p-3">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            Loading payments...
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Hide loading state (handled by displayPayments)
+        function hideLoading() {
+            // This is a placeholder - loading is hidden when displayPayments is called
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastContent = document.querySelector('.toast-content');
+            
+            // Set the message
+            toastContent.textContent = message;
+            
+            // Remove existing toast classes
+            toast.classList.remove('success', 'error', 'warning');
+            
+            // Add toast type class
+            toast.classList.add(type);
+            
+            // Show the toast
+            toast.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html> 

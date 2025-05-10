@@ -120,41 +120,75 @@
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-bold text-gray-900 mb-4">Select Payment Method</h2>
                 
+                <!-- Payment Method Tabs -->
+                <div class="mb-6">
+                    <div class="flex border-b">
+                        <button id="crypto-tab" onclick="switchPaymentTab('crypto')" class="px-4 py-2 font-medium text-sm focus:outline-none border-b-2 border-green-500 text-green-600">
+                            <i class="fab fa-ethereum mr-2"></i>Cryptocurrency
+                        </button>
+                        <button id="card-tab" onclick="switchPaymentTab('card')" class="px-4 py-2 font-medium text-sm focus:outline-none border-b-2 border-transparent hover:border-gray-300 text-gray-500 hover:text-gray-700">
+                            <i class="far fa-credit-card mr-2"></i>Credit Card
+                        </button>
+                    </div>
+                </div>
+                
                 <!-- Crypto Selection -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <label class="crypto-option relative">
-                        <input type="radio" name="crypto" value="ETH" class="hidden" onchange="selectCrypto('ETH')">
-                        <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
-                            <i class="fab fa-ethereum text-3xl mb-3 text-blue-600"></i>
-                            <span class="font-medium text-gray-900">Ethereum</span>
-                            <span class="text-sm text-gray-500 mt-1">ETH</span>
-                            <div class="mt-2 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full" id="ethPrice">
-                                Loading...
+                <div id="crypto-payment" class="payment-tab">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <label class="crypto-option relative">
+                            <input type="radio" name="crypto" value="ETH" class="hidden" onchange="selectCrypto('ETH')">
+                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                                <i class="fab fa-ethereum text-3xl mb-3 text-blue-600"></i>
+                                <span class="font-medium text-gray-900">Ethereum</span>
+                                <span class="text-sm text-gray-500 mt-1">ETH</span>
+                                <div class="mt-2 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full" id="ethPrice">
+                                    Loading...
+                                </div>
+                            </div>
+                        </label>
+                        <label class="crypto-option relative">
+                            <input type="radio" name="crypto" value="MATIC" class="hidden" onchange="selectCrypto('MATIC')">
+                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                                <i class="fas fa-gem text-3xl mb-3 text-purple-500"></i>
+                                <span class="font-medium text-gray-900">Polygon</span>
+                                <span class="text-sm text-gray-500 mt-1">MATIC</span>
+                                <div class="mt-2 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-full" id="maticPrice">
+                                    Loading...
+                                </div>
+                            </div>
+                        </label>
+                        <label class="crypto-option relative">
+                            <input type="radio" name="crypto" value="BNB" class="hidden" onchange="selectCrypto('BNB')">
+                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                                <i class="fas fa-coins text-3xl mb-3 text-yellow-600"></i>
+                                <span class="font-medium text-gray-900">Binance Coin</span>
+                                <span class="text-sm text-gray-500 mt-1">BNB</span>
+                                <div class="mt-2 text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full" id="bnbPrice">
+                                    Loading...
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Credit Card Payment -->
+                <div id="card-payment" class="payment-tab hidden">
+                    <div class="bg-gray-50 p-6 rounded-lg mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">Pay with Stripe</h3>
+                            <div class="flex items-center">
+                                <img src="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/svgs/brands/cc-visa.svg" alt="Visa" class="h-8 mr-2">
+                                <img src="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/svgs/brands/cc-mastercard.svg" alt="Mastercard" class="h-8 mr-2">
+                                <img src="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/svgs/brands/cc-amex.svg" alt="Amex" class="h-8">
                             </div>
                         </div>
-                    </label>
-                    <label class="crypto-option relative">
-                        <input type="radio" name="crypto" value="MATIC" class="hidden" onchange="selectCrypto('MATIC')">
-                        <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
-                            <i class="fas fa-gem text-3xl mb-3 text-purple-500"></i>
-                            <span class="font-medium text-gray-900">Polygon</span>
-                            <span class="text-sm text-gray-500 mt-1">MATIC</span>
-                            <div class="mt-2 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-full" id="maticPrice">
-                                Loading...
-                            </div>
-                        </div>
-                    </label>
-                    <label class="crypto-option relative">
-                        <input type="radio" name="crypto" value="BNB" class="hidden" onchange="selectCrypto('BNB')">
-                        <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
-                            <i class="fas fa-coins text-3xl mb-3 text-yellow-600"></i>
-                            <span class="font-medium text-gray-900">Binance Coin</span>
-                            <span class="text-sm text-gray-500 mt-1">BNB</span>
-                            <div class="mt-2 text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full" id="bnbPrice">
-                                Loading...
-                            </div>
-                        </div>
-                    </label>
+                        <p class="text-gray-600 mb-4">Secure payment processed by Stripe. Your card details are never stored on our servers.</p>
+                        <button id="stripe-button" onclick="proceedToStripePayment()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center">
+                            <i class="fas fa-lock mr-2"></i>
+                            Pay with Card
+                            <div id="stripe-loading" class="spinner ml-2 hidden"></div>
+                        </button>
+                    </div>
                 </div>
 
                 <button id="pay-button" onclick="proceedToPayment()" class="w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 hidden">
@@ -176,6 +210,7 @@
         let selectedCrypto = null;
         let priceUpdateInterval = null;
         let networkCheckAttempts = 0;
+        let selectedPaymentMethod = 'crypto'; // Default to crypto payment
         const MAX_RETRY_ATTEMPTS = 3;
         const cryptoPrices = {};
 
@@ -578,6 +613,95 @@
                 }
             }, 30000);
         });
+
+        // Add function to switch between payment tabs
+        function switchPaymentTab(tab) {
+            selectedPaymentMethod = tab;
+            
+            // Update tab buttons
+            document.getElementById('crypto-tab').classList.remove('border-green-500', 'text-green-600');
+            document.getElementById('crypto-tab').classList.add('border-transparent', 'text-gray-500');
+            document.getElementById('card-tab').classList.remove('border-green-500', 'text-green-600');
+            document.getElementById('card-tab').classList.add('border-transparent', 'text-gray-500');
+            
+            document.getElementById(`${tab}-tab`).classList.remove('border-transparent', 'text-gray-500');
+            document.getElementById(`${tab}-tab`).classList.add('border-green-500', 'text-green-600');
+            
+            // Show/hide payment sections
+            document.getElementById('crypto-payment').classList.add('hidden');
+            document.getElementById('card-payment').classList.add('hidden');
+            document.getElementById(`${tab}-payment`).classList.remove('hidden');
+            
+            // Show/hide appropriate buttons
+            if (tab === 'crypto') {
+                // For crypto, show the pay button only if a crypto is selected
+                if (selectedCrypto) {
+                    document.getElementById('pay-button').classList.remove('hidden');
+                } else {
+                    document.getElementById('pay-button').classList.add('hidden');
+                }
+            } else {
+                // For card payment, the button is inside the card-payment div
+                document.getElementById('pay-button').classList.add('hidden');
+            }
+        }
+        
+        // Proceed to Stripe payment
+        async function proceedToStripePayment() {
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            if (total <= 0) {
+                showToast('Your cart is empty', 'warning');
+                return;
+            }
+            
+            // Show loading spinner
+            const stripeButton = document.getElementById('stripe-button');
+            const originalButtonText = stripeButton.innerHTML;
+            stripeButton.innerHTML = `
+                <span class="flex items-center justify-center">
+                    <div class="spinner mr-2"></div>
+                    Processing...
+                </span>
+            `;
+            stripeButton.disabled = true;
+            
+            try {
+                // Create checkout session
+                const response = await fetch('/api/stripe/create-checkout-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        items: cart,
+                        amount: total,
+                        orderId: generateOrderId(),
+                        currency: 'aud'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Server responded with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to create checkout session');
+                }
+                
+                // Redirect to Stripe checkout
+                window.location.href = data.url;
+            } catch (error) {
+                console.error('Error creating Stripe checkout session:', error);
+                showToast('Error processing payment: ' + error.message, 'error');
+                
+                // Reset button
+                stripeButton.innerHTML = originalButtonText;
+                stripeButton.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>

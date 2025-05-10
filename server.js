@@ -17,6 +17,7 @@ const paymentRoutes = require('./server/routes/paymentRoutes');
 const walletRoutes = require('./server/routes/walletRoutes');
 const merchantRoutes = require('./server/routes/merchantRoutes');
 const adminRoutes = require('./server/routes/adminRoutes');
+const stripeRoutes = require('./server/routes/stripeRoutes');
 const { initDatabaseRecovery, startScheduledBackups, checkDatabaseStatus } = require('./server/utils/databaseMonitor');
 const { validateDatabaseOnStartup } = require('./server/utils/startupValidator');
 
@@ -41,7 +42,16 @@ const logger = winston.createLogger({
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+
+// Special handling for Stripe webhooks (needs raw body)
+app.use((req, res, next) => {
+    if (req.originalUrl === '/api/stripe/webhook') {
+        next();
+    } else {
+        express.json()(req, res, next);
+    }
+});
+
 app.use(express.static('Public'));
 
 // Serve the Json directory at /Json
@@ -883,6 +893,7 @@ app.use('/api', paymentRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', merchantRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // Admin dashboard
 app.get('/admin', (req, res) => {

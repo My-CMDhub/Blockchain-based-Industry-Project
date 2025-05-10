@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Success - CryptoGate</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg fixed w-full z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="Product.html" class="flex items-center hover:text-green-600 transition-colors">
+                        <i class="fas fa-leaf text-green-600 text-2xl mr-2"></i>
+                        <span class="text-xl font-bold text-gray-800">Eco Store</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Success Content -->
+    <div class="pt-24 pb-12">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="bg-white rounded-lg shadow-md p-8 text-center">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
+                    <i class="fas fa-check-circle text-green-600 text-5xl"></i>
+                </div>
+                
+                <h1 class="text-3xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
+                
+                <p class="text-xl text-gray-600 mb-6">Thank you for your purchase.</p>
+                
+                <div id="payment-details" class="bg-gray-50 p-6 rounded-lg mb-6 text-left">
+                    <h2 class="text-lg font-medium text-gray-900 mb-4">Payment Details</h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Order ID:</span>
+                            <span id="order-id" class="font-medium text-gray-900">Loading...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Amount:</span>
+                            <span id="payment-amount" class="font-medium text-gray-900">Loading...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Date:</span>
+                            <span id="payment-date" class="font-medium text-gray-900">Loading...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Status:</span>
+                            <span id="payment-status" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Loading...
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 justify-center">
+                    <a href="Product.html" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        Continue Shopping
+                    </a>
+                    <button id="download-receipt" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <i class="fas fa-download mr-2"></i>
+                        Download Receipt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Get session ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session_id');
+            
+            if (!sessionId) {
+                showError('No session ID found in URL. Unable to retrieve payment details.');
+                return;
+            }
+            
+            try {
+                // Fetch payment details
+                const response = await fetch(`/api/stripe/payment/${sessionId}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Error retrieving payment details');
+                }
+                
+                const { payment } = await response.json();
+                
+                if (!payment) {
+                    throw new Error('Payment details not found');
+                }
+                
+                // Update payment details
+                document.getElementById('order-id').textContent = payment.orderId || 'N/A';
+                document.getElementById('payment-amount').textContent = `$${parseFloat(payment.amount).toFixed(2)} ${payment.currency?.toUpperCase() || 'AUD'}`;
+                
+                // Format and display date
+                const paymentDate = payment.completedAt || payment.createdAt;
+                document.getElementById('payment-date').textContent = paymentDate 
+                    ? new Date(paymentDate).toLocaleString() 
+                    : 'N/A';
+                
+                // Update status badge
+                const statusBadge = document.getElementById('payment-status');
+                if (payment.status === 'completed') {
+                    statusBadge.textContent = 'Completed';
+                    statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800';
+                } else if (payment.status === 'pending') {
+                    statusBadge.textContent = 'Processing';
+                    statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800';
+                } else {
+                    statusBadge.textContent = payment.status || 'Unknown';
+                    statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800';
+                }
+                
+                // Clear shopping cart from localStorage
+                localStorage.removeItem('cart');
+                
+                // Handle receipt download
+                document.getElementById('download-receipt').addEventListener('click', () => {
+                    generateReceipt(payment);
+                });
+            } catch (error) {
+                console.error('Error loading payment details:', error);
+                showError(error.message || 'Error loading payment details');
+            }
+        });
+        
+        // Show error message
+        function showError(message) {
+            document.getElementById('payment-details').innerHTML = `
+                <div class="bg-red-50 p-4 rounded-md">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800">Error retrieving payment details</h3>
+                            <div class="mt-2 text-sm text-red-700">
+                                <p>${message}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Generate receipt for download
+        function generateReceipt(payment) {
+            const receiptDate = new Date(payment.completedAt || payment.createdAt).toLocaleString();
+            
+            // Generate receipt HTML
+            let receiptHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Receipt - ${payment.orderId}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
+                        .receipt { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; }
+                        .header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #eee; }
+                        .details { margin: 20px 0; }
+                        .details table { width: 100%; border-collapse: collapse; }
+                        .details th, .details td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+                        .details th { font-weight: bold; }
+                        .total { text-align: right; font-weight: bold; font-size: 1.2em; margin-top: 20px; }
+                        .footer { margin-top: 40px; font-size: 0.8em; text-align: center; color: #666; }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt">
+                        <div class="header">
+                            <h1>Receipt</h1>
+                            <p>Eco Store</p>
+                            <p>Order ID: ${payment.orderId}</p>
+                            <p>Date: ${receiptDate}</p>
+                        </div>
+                        
+                        <div class="details">
+                            <h2>Payment Details</h2>
+                            <table>
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                </tr>
+            `;
+            
+            // Add items if available
+            if (payment.items && payment.items.length > 0) {
+                payment.items.forEach(item => {
+                    receiptHtml += `
+                        <tr>
+                            <td>${item.name} ${item.quantity > 1 ? `x${item.quantity}` : ''}</td>
+                            <td>$${(item.price * (item.quantity || 1)).toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                receiptHtml += `
+                    <tr>
+                        <td>Purchase</td>
+                        <td>$${parseFloat(payment.amount).toFixed(2)}</td>
+                    </tr>
+                `;
+            }
+            
+            // Add total and footer
+            receiptHtml += `
+                            </table>
+                            <div class="total">Total: $${parseFloat(payment.amount).toFixed(2)} ${payment.currency?.toUpperCase() || 'AUD'}</div>
+                        </div>
+                        
+                        <div class="footer">
+                            <p>Thank you for your purchase!</p>
+                            <p>If you have any questions, please contact our customer support.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            // Create blob and download
+            const blob = new Blob([receiptHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `receipt-${payment.orderId}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Show toast
+            showToast('Receipt downloaded successfully', 'success');
+        }
+        
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            // Create toast container if it doesn't exist
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'fixed bottom-4 right-4 z-50 flex flex-col space-y-2';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // Create toast
+            const toast = document.createElement('div');
+            
+            // Set toast style based on type
+            let iconClass = 'fa-info-circle text-blue-500';
+            let bgColor = 'bg-blue-50 border-blue-100';
+            let textColor = 'text-blue-800';
+            
+            if (type === 'success') {
+                iconClass = 'fa-check-circle text-green-500';
+                bgColor = 'bg-green-50 border-green-100';
+                textColor = 'text-green-800';
+            } else if (type === 'error') {
+                iconClass = 'fa-exclamation-circle text-red-500';
+                bgColor = 'bg-red-50 border-red-100';
+                textColor = 'text-red-800';
+            } else if (type === 'warning') {
+                iconClass = 'fa-exclamation-triangle text-yellow-500';
+                bgColor = 'bg-yellow-50 border-yellow-100';
+                textColor = 'text-yellow-800';
+            }
+            
+            toast.className = `${bgColor} border p-3 rounded-lg shadow-md flex items-center space-x-2 min-w-[250px] transform transition-all duration-500 ease-in-out translate-x-0`;
+            toast.innerHTML = `
+                <i class="fas ${iconClass} text-lg"></i>
+                <p class="${textColor} text-sm">${message}</p>
+            `;
+            
+            // Add to container
+            toastContainer.appendChild(toast);
+            
+            // Animate and remove after timeout
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.parentElement.removeChild(toast);
+                    }
+                }, 500);
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

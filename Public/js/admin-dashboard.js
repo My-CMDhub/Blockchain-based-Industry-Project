@@ -1329,21 +1329,35 @@
             </div>`;
         
         try {
-            const res = await fetch(`${API_BASE_URL}/api/hd-wallet-balance`);
-            const data = await res.json();
+            // Load both HD wallet balance AND merchant dashboard balance for comparison
+            const [walletRes, merchantRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/hd-wallet-balance`),
+                fetch(`${API_BASE_URL}/api/wallet-balance`)
+            ]);
             
-            if (!data.success) throw new Error(data.error || 'Failed to fetch wallet balance');
+            const walletData = await walletRes.json();
+            const merchantData = await merchantRes.json();
+            
+            if (!walletData.success) throw new Error(walletData.error || 'Failed to fetch wallet balance');
             
             // Format numbers for display - ensure we show small numbers properly
-            const ethBalance = parseFloat(data.ethBalance).toFixed(8);
-            const audBalance = data.audBalance ? `$${data.audBalance}` : 'N/A';
-            const verifiedBalance = data.verifiedBalance ? parseFloat(data.verifiedBalance).toFixed(6) : '0.000000';
-            const wrongPaymentsBalance = data.wrongPaymentsBalance ? parseFloat(data.wrongPaymentsBalance).toFixed(6) : '0.000000';
+            const ethBalance = parseFloat(walletData.ethBalance || walletData.totalBalance || 0).toFixed(8);
+            const audBalance = walletData.audBalance ? `$${walletData.audBalance}` : 'N/A';
+            const verifiedBalance = walletData.verifiedBalance ? parseFloat(walletData.verifiedBalance).toFixed(6) : '0.000000';
+            const wrongPaymentsBalance = walletData.wrongPaymentsBalance ? parseFloat(walletData.wrongPaymentsBalance).toFixed(6) : '0.000000';
             
             // Get non-zero balance addresses
-            const nonZeroAddresses = data.addresses || [];
+            const nonZeroAddresses = walletData.addresses || [];
             
-            // Create wallet info HTML
+            // Merchant dashboard data
+            const merchantTotalBalance = merchantData.success ? parseFloat(merchantData.totalBalance || 0).toFixed(6) : '0.000000';
+            const merchantPendingBalance = merchantData.success ? parseFloat(merchantData.pendingBalance || 0).toFixed(6) : '0.000000';
+            const merchantConfirmedBalance = merchantData.success ? parseFloat(merchantData.verifiedBalance || 0).toFixed(6) : '0.000000';
+            
+            // Active payment addresses visible to merchants
+            const merchantActiveAddresses = merchantData.success && merchantData.addresses ? merchantData.addresses : [];
+            
+            // Create wallet info HTML with comparison to merchant dashboard
             let html = `
                 <h2 class="text-center mb-4">HD Wallet Status</h2>
                 
@@ -1351,39 +1365,59 @@
                     <div class="card-body">
                         <h3 class="card-title">Primary Wallet Address</h3>
                         <div class="d-flex align-items-center mb-3">
-                            <div class="text-break flex-grow-1">${data.address}</div>
-                            <button class="btn btn-outline-secondary ms-2" onclick="navigator.clipboard.writeText('${data.address}')">
+                            <div class="text-break flex-grow-1">${walletData.address || 'N/A'}</div>
+                            ${walletData.address ? `<button class="btn btn-outline-secondary ms-2" onclick="navigator.clipboard.writeText('${walletData.address}')">
                                 <i class="bi bi-clipboard"></i>
-                            </button>
+                            </button>` : ''}
                         </div>
-                        
-                        <h4 class="my-3 text-center fs-2">${ethBalance} ETH</h4>
-                        <h5 class="text-center text-muted mb-3">${audBalance} AUD</h5>
                         
                         <div class="row mt-4">
                             <div class="col-md-6">
                                 <div class="card bg-light">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Admin View (All Addresses)</h5>
+                                    </div>
                                     <div class="card-body text-center">
-                                        <h5 class="card-title">Verified Balance</h5>
-                                        <p class="card-text fs-4 text-success">${verifiedBalance} ETH</p>
+                                        <h4 class="my-2">${ethBalance} ETH</h4>
+                                        <h6 class="text-muted mb-3">${audBalance} AUD</h6>
+                                        
+                                        <div class="d-flex justify-content-between my-2">
+                                            <span>Verified:</span>
+                                            <strong class="text-success">${verifiedBalance} ETH</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between my-2">
+                                            <span>Wrong Payments:</span>
+                                            <strong class="text-danger">${wrongPaymentsBalance} ETH</strong>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="card bg-light">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Merchant Dashboard View</h5>
+                                    </div>
                                     <div class="card-body text-center">
-                                        <h5 class="card-title">Wrong Payments</h5>
-                                        <p class="card-text fs-4 text-danger">${wrongPaymentsBalance} ETH</p>
+                                        <h4 class="my-2">${merchantTotalBalance} ETH</h4>
+                                        
+                                        <div class="d-flex justify-content-between my-2">
+                                            <span>Confirmed:</span>
+                                            <strong class="text-success">${merchantConfirmedBalance} ETH</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between my-2">
+                                            <span>Pending:</span>
+                                            <strong class="text-primary">${merchantPendingBalance} ETH</strong>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <p class="text-muted mt-3">Last updated: ${new Date(data.lastUpdated).toLocaleString()}</p>
+                        <p class="text-muted mt-3">Last updated: ${new Date(walletData.lastUpdated || Date.now()).toLocaleString()}</p>
                         
                         <div class="d-flex justify-content-center mt-4">
                             <button class="btn btn-primary" onclick="loadHdWalletInfo()">
-                                <i class="bi bi-arrow-repeat me-1"></i> Refresh Balance
+                                <i class="bi bi-arrow-repeat me-1"></i> Refresh Balances
                             </button>
                         </div>
                     </div>
@@ -1393,8 +1427,9 @@
             if (nonZeroAddresses.length > 0) {
                 html += `
                     <div class="card mt-4">
-                        <div class="card-header">
-                            <h3 class="card-title mb-0">Addresses with Balance</h3>
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="card-title mb-0">All HD Wallet Addresses with Balance</h3>
+                            <span class="badge bg-primary">${nonZeroAddresses.length} addresses</span>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -1404,6 +1439,7 @@
                                             <th>Index</th>
                                             <th>Address</th>
                                             <th>Balance</th>
+                                            <th>Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>`;
@@ -1411,9 +1447,51 @@
                 nonZeroAddresses.forEach(addr => {
                     html += `
                         <tr>
-                            <td>${addr.index}</td>
+                            <td>${addr.index || 'N/A'}</td>
                             <td class="text-truncate" style="max-width: 150px;">${addr.address}</td>
-                            <td>${parseFloat(addr.balance).toFixed(8)} ETH</td>
+                            <td>${parseFloat(addr.balance || addr.balanceInEth || 0).toFixed(8)} ETH</td>
+                            <td>${addr.status ? `<span class="badge bg-${addr.status === 'verified' || addr.status === 'confirmed' ? 'success' : addr.status === 'pending' ? 'warning' : 'secondary'}">${addr.status}</span>` : '-'}</td>
+                        </tr>`;
+                });
+                                    
+                html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            
+            // Add merchant's active payment addresses section
+            if (merchantActiveAddresses.length > 0) {
+                html += `
+                    <div class="card mt-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="card-title mb-0">Merchant Dashboard Active Payment Addresses</h3>
+                            <span class="badge bg-success">${merchantActiveAddresses.length} addresses</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-3">These are the addresses currently visible to merchants on their dashboard.</p>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Address</th>
+                                            <th>Balance</th>
+                                            <th>Order ID</th>
+                                            <th>Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                                    
+                merchantActiveAddresses.forEach(addr => {
+                    const createdDate = addr.createdAt ? new Date(addr.createdAt).toLocaleString() : 'Unknown';
+                    html += `
+                        <tr>
+                            <td class="text-truncate" style="max-width: 150px;">${addr.address}</td>
+                            <td>${parseFloat(addr.balance || 0).toFixed(8)} ETH</td>
+                            <td>${addr.orderId || 'N/A'}</td>
+                            <td>${createdDate}</td>
                         </tr>`;
                 });
                                     

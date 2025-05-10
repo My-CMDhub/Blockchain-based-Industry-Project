@@ -20,6 +20,10 @@ const adminRoutes = require('./server/routes/adminRoutes');
 const stripeRoutes = require('./server/routes/stripeRoutes');
 const { initDatabaseRecovery, startScheduledBackups, checkDatabaseStatus } = require('./server/utils/databaseMonitor');
 const { validateDatabaseOnStartup } = require('./server/utils/startupValidator');
+const secureKeysRoutes = require('./server/routes/secureKeysRoutes');
+const { initializeDatabase } = require('./db/index');
+const { syncJsonToDb, setupFileWatchers } = require('./db/syncManager');
+const dataManager = require('./server/utils/dataManager');
 
 dotenv.config();
 
@@ -894,6 +898,58 @@ app.use('/api', walletRoutes);
 app.use('/api', merchantRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/secure-keys', secureKeysRoutes);
+
+// Add API key config endpoint
+app.get('/api/config/api-key', (req, res) => {
+    try {
+        // Only provide API key to authenticated requests with valid token
+        const authHeader = req.headers.authorization;
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        // Extract and verify token
+        const token = authHeader.split(' ')[1];
+        const jwt = require('jsonwebtoken');
+        const JWT_SECRET = process.env.JWT_SECRET || 'securekeys-jwt-secret-changeme-in-production';
+        
+        try {
+            // Verify token
+            const decoded = jwt.verify(token, JWT_SECRET);
+            
+            // Check if it's an admin session token
+            if (decoded.type !== 'admin-session') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Invalid token type'
+                });
+            }
+            
+            // Return API key to authenticated client
+            const apiKey = process.env.API_KEY || createApiKeyFromEncryptionKey();
+            return res.json({
+                success: true,
+                apiKey
+            });
+        } catch (tokenError) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid or expired token'
+            });
+        }
+    } catch (error) {
+        console.error('Error providing API key:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error'
+        });
+    }
+});
 
 // Admin dashboard
 app.get('/admin', (req, res) => {
@@ -934,7 +990,36 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Start the server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// Initialize database before server starts
+async function initializeApp() {
+  try {
+    // Initialize database schema
+    console.log('Initializing SQLite database...');
+    await initializeDatabase();
+    
+    // Perform initial sync from JSON to SQLite
+    console.log('Syncing data from JSON to SQLite...');
+    await syncJsonToDb();
+    
+    // Setup file watchers for real-time sync
+    console.log('Setting up file watchers...');
+    setupFileWatchers();
+    
+    console.log('Database initialized and synced successfully');
+    
+    // Start the server
+    startServer();
+  } catch (error) {
+    console.error('Error initializing application:', error);
+    logToFile(`ERROR INITIALIZING DATABASE: ${error.message}`);
+    // Start the server anyway but log the error
+    startServer();
+  }
+}
+
+function startServer() {
+  app.listen(PORT, () => {
     console.log('='.repeat(50));
     console.log(`Blockchain Payment Gateway Server v1.0`);
     console.log('='.repeat(50));
@@ -957,551 +1042,24 @@ app.listen(PORT, () => {
     const validationResult = validateDatabaseOnStartup();
     
     if (!validationResult.success) {
-        console.error('⚠️ DATABASE VALIDATION FAILED:');
-        validationResult.criticalErrors.forEach(error => console.error(`- ${error}`));
-        console.error('Please check the admin dashboard for details and recovery options.');
+      console.error('⚠️ DATABASE VALIDATION FAILED:');
+      validationResult.criticalErrors.forEach(error => console.error(`- ${error}`));
+      console.error('Please check the admin dashboard for details and recovery options.');
     } else if (validationResult.issues.length > 0) {
-        console.warn('⚠️ DATABASE VALIDATION ISSUES:');
-        console.warn(`Found ${validationResult.issues.length} issues.`);
-        console.warn(`Fixed ${validationResult.fixedIssues.length} issues automatically.`);
-        console.warn('Check the admin dashboard for details.');
+      console.warn('⚠️ DATABASE VALIDATION ISSUES:');
+      console.warn(`Found ${validationResult.issues.length} issues.`);
+      console.warn(`Fixed ${validationResult.fixedIssues.length} issues automatically.`);
+      console.warn('Check the admin dashboard for details.');
     } else {
-        console.log('✅ Database validation completed successfully.');
+      console.log('✅ Database validation completed successfully.');
     }
     
     // Initialize database recovery system AFTER validation
     initDatabaseRecovery();
     startScheduledBackups();
-});
-
-
-
-// Helper function to update transaction log entries with robust error handling
-function updateTransactionLog(txHash, updates) {
-    try {
-        console.log(`Updating transaction log for hash: ${txHash}`);
-        console.log(`Updates:`, JSON.stringify(updates, null, 2));
-        
-        const txFile = 'merchant_transactions.json';
-        
-        // Check if file exists
-        if (!fs.existsSync(txFile)) {
-            console.warn('Transaction file does not exist, cannot update');
-            return false;
-        }
-        
-        // Read and parse transaction log with error handling
-        let txLogs = [];
-        let fileContent;
-        
-        try {
-            fileContent = secureReadFile(txFile);
-        } catch (readError) {
-            console.error('Error reading transaction log file:', readError);
-            return false;
-        }
-        
-        try {
-            txLogs = JSON.parse(fileContent || '[]');
-            
-            // Ensure we have an array
-            if (!Array.isArray(txLogs)) {
-                console.warn('Transaction log was corrupted (not an array), creating backup');
-                
-                // Create a backup of the corrupted file
-                const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-                fs.copyFileSync(txFile, backupFile);
-                
-                // Create a new empty log
-                secureWriteFile(txFile, JSON.stringify([]));
-                
-                console.warn('Reset transaction log to empty array');
-                return false;
-            }
-        } catch (parseError) {
-            console.error('Error parsing transaction log for update:', parseError);
-            
-            // Create a backup of the corrupted file
-            const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-            fs.copyFileSync(txFile, backupFile);
-            
-            // Create a new empty log
-            secureWriteFile(txFile, JSON.stringify([]));
-            
-            return false;
-        }
-        
-        // Find and update the transaction
-        let updated = false;
-        const updatedLogs = txLogs.map(tx => {
-            if (tx.txHash === txHash) {
-                updated = true;
-                return {
-                    ...tx,
-                    ...updates,
-                    lastUpdated: new Date().toISOString()
-                };
-            }
-            return tx;
-        });
-        
-        if (updated) {
-            // Write back to file using the same safe approach as saveTxLog
-            const tempFile = `${txFile}.tmp`;
-            secureWriteFile(tempFile, JSON.stringify(updatedLogs, null, 2));
-            fs.renameSync(tempFile, txFile);
-            console.log(`Updated transaction log for ${txHash}`);
-            return true;
-        } else {
-            console.log(`Transaction ${txHash} not found in log, cannot update`);
-            return false;
-        }
-    } catch (error) {
-        console.error('Error updating transaction log:', error);
-        return false;
-    }
-}
-
-// Helper function to save a new transaction log entry
-function saveTxLog(txLogEntry) {
-    try {
-        console.log(`Saving transaction log entry for ${txLogEntry.txHash || txLogEntry.address || 'unknown'}`);
-        
-        // Get the transaction file path
-        const txFile = 'merchant_transactions.json';
-        
-        // Read existing logs if file exists
-        let txLogs = [];
-        if (fs.existsSync(txFile)) {
-            try {
-                const fileContent = secureReadFile(txFile);
-                txLogs = JSON.parse(fileContent || '[]');
-                
-                // Ensure we have an array
-                if (!Array.isArray(txLogs)) {
-                    console.warn('Transaction log was corrupted, resetting to empty array');
-                    txLogs = [];
-                }
-            } catch (parseError) {
-                console.error('Error parsing transaction log:', parseError);
-                txLogs = [];
-            }
-        }
-        
-        // Check if we already have this transaction recorded
-        let existingIndex = -1;
-        
-        // Try to match by txHash first if available
-        if (txLogEntry.txHash) {
-            existingIndex = txLogs.findIndex(tx => 
-                tx.txHash === txLogEntry.txHash
-            );
-        } 
-        // If no txHash or not found by txHash, try to match by txId
-        else if (txLogEntry.txId && existingIndex === -1) {
-            existingIndex = txLogs.findIndex(tx => 
-                tx.txId === txLogEntry.txId
-            );
-        }
-        // If payment address is available, try to match by that and timestamp
-        else if (txLogEntry.address && txLogEntry.timestamp && existingIndex === -1) {
-            existingIndex = txLogs.findIndex(tx => 
-                tx.address === txLogEntry.address && 
-                tx.timestamp === txLogEntry.timestamp
-            );
-        }
-        
-        // Add or update the transaction log entry
-        if (existingIndex >= 0) {
-            console.log(`Updating existing transaction log entry at index ${existingIndex}`);
-            
-            // Keep existing fields that aren't in the new entry
-            const existingTx = txLogs[existingIndex];
-            txLogs[existingIndex] = {
-                ...existingTx,
-                ...txLogEntry,
-                // Always record update history for better tracking
-                lastUpdated: new Date().toISOString(),
-                // If we're updating a status, keep track of status history
-                statusHistory: existingTx.statusHistory ? [
-                    ...existingTx.statusHistory,
-                    {
-                        status: txLogEntry.status,
-                        timestamp: new Date().toISOString()
-                    }
-                ] : [
-                    {
-                        status: existingTx.status, 
-                        timestamp: existingTx.timestamp || new Date().toISOString()
-                    },
-                    {
-                        status: txLogEntry.status,
-                        timestamp: new Date().toISOString()
-                    }
-                ]
-            };
-        } else {
-            console.log(`Adding new transaction log entry`);
-            
-            // Initialize history for new transactions
-            const newTxEntry = {
-                ...txLogEntry,
-                // Add creation timestamp if not present
-                timestamp: txLogEntry.timestamp || new Date().toISOString(),
-                // Initialize status history
-                statusHistory: [{
-                    status: txLogEntry.status,
-                    timestamp: txLogEntry.timestamp || new Date().toISOString()
-                }]
-            };
-            
-            // Ensure txId is present
-            if (!newTxEntry.txId) {
-                newTxEntry.txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            }
-            
-            // Add transaction to log
-            txLogs.push(newTxEntry);
-        }
-        
-        // Write back to file
-        secureWriteFile(txFile, JSON.stringify(txLogs, null, 2));
-        console.log(`Transaction log updated successfully`);
-        
-        return true;
-    } catch (error) {
-        console.error('Error saving transaction log:', error);
-        return false;
-    }
-}
-
-// Fix the issue with sending transactions from an address with the wrong nonce
-// This function gets a reliable nonce for a specific address
-
-
-// Function to check if we have pending transactions for the same address
-async function checkPendingTransactions(fromAddress, toAddress) {
-    console.log(`Checking for pending transactions from ${fromAddress} to ${toAddress}`);
-    
-    try {
-        const txFile = 'merchant_transactions.json';
-        if (!fs.existsSync(txFile)) {
-            console.log('No transaction file exists yet');
-            return null;
-        }
-        
-        // Read transaction log
-        const fileContent = secureReadFile(txFile);
-        if (!fileContent || !fileContent.trim()) {
-            console.log('Transaction file is empty');
-            return null;
-        }
-        
-        try {
-            const txLogs = JSON.parse(fileContent);
-            
-            // Filter for pending transactions with the same from/to addresses
-            // A transaction is pending if:
-            // 1. It has same from/to addresses
-            // 2. It's not marked as failed (status !== false)
-            // 3. Either has no confirmations or confirmations is 0 
-            // 4. Has no blockNumber (not yet mined)
-            const pendingTx = txLogs.find(tx => 
-                tx.from && tx.from.toLowerCase() === fromAddress.toLowerCase() &&
-                tx.to && tx.to.toLowerCase() === toAddress.toLowerCase() &&
-                tx.status !== false &&  // Not a failed transaction
-                (tx.confirmations === undefined || tx.confirmations === 0 || tx.confirmations === null) && // No confirmations yet
-                !tx.blockNumber // Not yet mined
-            );
-            
-            if (pendingTx) {
-                console.log(`Found pending transaction:`, JSON.stringify(pendingTx, null, 2));
-                return pendingTx;
-            }
-            
-            console.log('No pending transactions found');
-            return null;
-        } catch (parseError) {
-            console.error('Error parsing transaction log:', parseError);
-            return null;
-        }
-    } catch (error) {
-        console.error('Error checking pending transactions:', error);
-        return null;
-    }
-}
-
-// Function to check if a payment amount is correct
-function isPaymentAmountCorrect(payment) {
-    try {
-        // If payment has expected amount in addrInfo, check against actual amount
-        if (payment.addrInfo && payment.amount) {
-            // First check if we have a ethAmount specifically for ETH comparison
-            const expectedAmountToUse = payment.addrInfo.ethAmount || 
-                                       payment.addrInfo.displayAmount || 
-                                       payment.addrInfo.expectedAmount;
-            
-            // Skip check if no expected amount is available
-            if (!expectedAmountToUse) {
-                console.warn(`No expected amount available for payment: ${payment.address}`);
-                return false;
-            }
-            
-            // Normalize values to ensure proper comparison
-            let expectedAmount = expectedAmountToUse;
-            let actualAmount = payment.amount;
-            
-            // Convert both to floats for easy comparison if they're strings
-            if (typeof expectedAmount === 'string') {
-                expectedAmount = parseFloat(expectedAmount);
-            }
-            if (typeof actualAmount === 'string') {
-                actualAmount = parseFloat(actualAmount);
-            }
-            
-            // Handle potentially undefined/NaN values
-            if (isNaN(expectedAmount) || isNaN(actualAmount)) {
-                console.warn(`Invalid amount values for comparison: expected=${expectedAmountToUse}, actual=${payment.amount}`);
-                return false; // Mark as incorrect if we can't parse properly
-            }
-            
-            // Allow for a small variance (0.5%)
-            const deviation = expectedAmount * 0.005;
-            const isWithinRange = actualAmount >= (expectedAmount - deviation) && 
-                               actualAmount <= (expectedAmount + deviation);
-            
-            // Log the comparison for debugging
-            console.log(`Payment amount check: Expected=${expectedAmount}, Actual=${actualAmount}, Within range: ${isWithinRange}`);
-            
-            return isWithinRange;
-        } else if (payment.expectedAmount && payment.amount) {
-            // Direct comparison if addrInfo is not available but expectedAmount is
-            // First try to use ethAmount if it exists
-            let expectedAmount = payment.ethAmount || 
-                               payment.displayAmount || 
-                               payment.expectedAmount;
-            let actualAmount = payment.amount;
-            
-            // Normalize values
-            if (typeof expectedAmount === 'string') {
-                expectedAmount = parseFloat(expectedAmount);
-            }
-            if (typeof actualAmount === 'string') {
-                actualAmount = parseFloat(actualAmount);
-            }
-            
-            if (isNaN(expectedAmount) || isNaN(actualAmount)) {
-                console.warn(`Invalid direct amount values: expected=${payment.ethAmount || payment.displayAmount || payment.expectedAmount}, actual=${payment.amount}`);
-                return false;
-            }
-            
-            // Allow 0.5% deviation
-            const deviation = expectedAmount * 0.005;
-            const isWithinRange = actualAmount >= (expectedAmount - deviation) && 
-                               actualAmount <= (expectedAmount + deviation);
-            
-            console.log(`Direct payment amount check: Expected=${expectedAmount}, Actual=${actualAmount}, Within range: ${isWithinRange}`);
-            
-            return isWithinRange;
-        }
-        
-        // If we can't determine the expected amount, default to incorrect
-        console.warn('Cannot determine expected amount for payment:', payment.address);
-        return false;
-    } catch (error) {
-        console.error('Error checking payment amount:', error);
-        // If there's an error in checking, assume it's incorrect to be safe
-        return false;
-    }
-}
-
-// Function to save wrong payment record
-async function recordWrongPayment(payment) {
-    try {
-        console.log(`Recording wrong payment for ${payment.address} with amount ${payment.amount || 'unknown'}`);
-        
-        // Get stored keys
-        const keys = getStoredKeys();
-        if (!keys.activeAddresses) {
-            keys.activeAddresses = {};
-        }
-        
-        // Make sure we have an address to work with
-        if (!payment.address) {
-            console.error('Cannot record wrong payment without an address');
-            return false;
-        }
-        
-        // Get the existing entry or create a new one
-        let addrInfo = keys.activeAddresses[payment.address] || {};
-        
-        // Get the ETH amount that was shown to the user on the payment page
-        // This is the correct amount that should have been paid
-        const correctEthAmount = payment.ethAmount || 
-                              addrInfo.ethAmount || 
-                              addrInfo.displayAmount || 
-                              addrInfo.expectedAmount || 
-                              payment.expectedAmount;
-        
-        // Determine the reason for wrong payment
-        let wrongReason = '';
-        if (correctEthAmount && payment.amount) {
-            wrongReason = `Please submit ${correctEthAmount} ETH. You sent ${payment.amount} ETH which is incorrect.`;
-        } else {
-            wrongReason = 'Amount verification failed. Please check the expected payment amount and try again.';
-        }
-        
-        // Mark as wrong payment
-        addrInfo = {
-            ...addrInfo,
-            isWrongPayment: true,
-            wrongPayment: true,
-            amountVerified: false,
-            amount: payment.amount || addrInfo.amount,
-            ethAmount: correctEthAmount || addrInfo.ethAmount,  // Store ethAmount
-            expectedAmount: correctEthAmount || addrInfo.expectedAmount,
-            timestamp: payment.timestamp || addrInfo.timestamp || new Date().toISOString(),
-            status: 'wrong',
-            cryptoType: payment.cryptoType || addrInfo.cryptoType || 'ETH',
-            wrongReason: wrongReason,
-            isExpired: true,  // Mark the address as expired
-            expiredAt: new Date().toISOString(),
-            expiredReason: 'Address expired due to wrong payment detection'
-        };
-        
-        // Add to active addresses
-        keys.activeAddresses[payment.address] = addrInfo;
-        
-        // Save updated keys
-        updateStoredKeys(keys);
-        
-        // Log the wrong payment
-        logBlockchain('WRONG_PAYMENT', {
-            address: payment.address,
-            amount: payment.amount,
-            expectedAmount: correctEthAmount,
-            timestamp: new Date().toISOString(),
-            reason: wrongReason
-        });
-        
-        // Prepare transaction log entry
-        const txLog = {
-            address: payment.address,
-            amount: payment.amount,
-            ethAmount: correctEthAmount,
-            expectedAmount: correctEthAmount,
-            timestamp: payment.timestamp || new Date().toISOString(),
-            status: 'wrong',
-            type: 'payment',
-            cryptoType: payment.cryptoType || 'ETH',
-            isWrongPayment: true,
-            wrongPayment: true,
-            wrongPaymentRecorded: true,
-            amountVerified: false,
-            wrongReason: wrongReason,
-            isExpired: true,
-            expiredAt: new Date().toISOString(),
-            expiredReason: 'Address expired due to wrong payment detection'
-        };
-        
-        // If we have a txHash, include it
-        if (payment.txHash) {
-            txLog.txHash = payment.txHash;
-        }
-        
-        // Add txId if not present
-        if (!txLog.txId) {
-            const timestamp = new Date().getTime();
-            const randomStr = Math.random().toString(36).substring(2, 9);
-            txLog.txId = `tx_${timestamp}_${randomStr}`;
-        }
-        
-        // Add to transaction log
-        const txFile = 'merchant_transactions.json';
-        try {
-            let txLogs = [];
-            
-            // Read existing logs if file exists
-            if (fs.existsSync(txFile)) {
-                const fileContent = secureReadFile(txFile);
-                try {
-                    txLogs = JSON.parse(fileContent || '[]');
-                    
-                    // Ensure we have an array
-                    if (!Array.isArray(txLogs)) {
-                        console.warn('Transaction log was corrupted, resetting to empty array');
-                        txLogs = [];
-                    }
-                } catch (parseError) {
-                    console.error('Error parsing transaction log:', parseError);
-                    txLogs = [];
-                }
-            }
-            
-            // Check if we already have this transaction recorded
-            const existingIndex = txLogs.findIndex(tx => 
-                (tx.txHash && payment.txHash && tx.txHash === payment.txHash) ||
-                (tx.address === payment.address && tx.amount === payment.amount && 
-                 tx.timestamp === payment.timestamp)
-            );
-            
-            if (existingIndex >= 0) {
-                console.log(`Wrong payment already recorded, updating existing record`);
-                // Keep any existing fields and add/update our wrong payment flags
-                txLogs[existingIndex] = {
-                    ...txLogs[existingIndex],
-                    ...txLog,
-                    // Ensure these fields are always set correctly
-                    isWrongPayment: true,
-                    wrongPayment: true,
-                    wrongPaymentRecorded: true,
-                    amountVerified: false,
-                    status: 'wrong',
-                    isExpired: true,
-                    expiredAt: new Date().toISOString(),
-                    expiredReason: 'Address expired due to wrong payment detection'
-                };
-            } else {
-                // Add new transaction
-                txLogs.push(txLog);
-            }
-            
-            // Write back to file
-            secureWriteFile(txFile, JSON.stringify(txLogs, null, 2));
-            console.log(`Wrong payment recorded successfully for ${payment.address}`);
-            return true;
-        } catch (fileError) {
-            console.error('Error saving wrong payment to transaction log:', fileError);
-            
-            // Try to recover by creating fresh file with just this transaction
-            try {
-                secureWriteFile(txFile, JSON.stringify([txLog], null, 2));
-                return true;
-            } catch (recoveryError) {
-                console.error('Failed to recover transaction log:', recoveryError);
-                return false;
-            }
-        }
-    } catch (error) {
-        console.error('Error recording wrong payment:', error);
-        return false;
-    }
-}
-
-
-
-// Print all registered routes for debugging
-app._router.stack
-  .filter(r => r.route)
-  .forEach(r => {
-    console.log(`${Object.keys(r.route.methods).join(',').toUpperCase()} ${r.route.path}`);
   });
+}
 
-// ... after initializing web3 ...
-
-// ... existing code ...
-
-// Initialize database recovery system
-initDatabaseRecovery();
-startScheduledBackups();
+// Start initialization process
+initializeApp();
 

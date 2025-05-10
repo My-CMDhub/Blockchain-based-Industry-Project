@@ -63,6 +63,6 @@ memory-bank
 
 
 #JSON
-*.json
+.json
 database_backups
 corruption_backups

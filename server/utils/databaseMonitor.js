@@ -24,12 +24,7 @@ const CRITICAL_DB_FILES = [
         validator: validateAddressMapFile,
         defaultContent: '{}'
     },
-    {
-        path: 'payment_requests.json',
-        required: false,
-        validator: validatePaymentRequestFile,
-        defaultContent: '[]'
-    }
+   
 ];
 
 // Configuration for backup system

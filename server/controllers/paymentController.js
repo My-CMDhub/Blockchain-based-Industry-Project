@@ -84,33 +84,66 @@ exports.generatePaymentAddress = async (req, res) => {
                 continue;
             }
         }
-        // Scan ahead for a zero-balance address (up to 1000 indices)
-        const scanLimit = 1000;
+        
+        // First check if we already have zero-balance addresses in activeAddresses that we can reuse
         let found = false;
         let zeroBalanceAddress = null;
         let zeroBalanceIndex = null;
         let zeroBalancePrivateKey = null;
-        for (let i = 0; i < scanLimit; i++) {
-            const candidateIndex = nextIndex + i;
-            const { address: candidateAddress, privateKey: candidatePrivateKey } = await recoverWallet(mnemonic, candidateIndex);
-            let candidateBalance = '0';
-            try {
-                candidateBalance = await provider.getBalance(candidateAddress);
-            } catch (err) {
-                logger.warn(`Failed to get balance for ${candidateAddress} at index ${candidateIndex}: ${err.message}`);
-                continue;
-            }
-            if (ethers.BigNumber.from(candidateBalance).isZero()) {
-                found = true;
-                zeroBalanceAddress = candidateAddress;
-                zeroBalanceIndex = candidateIndex;
-                zeroBalancePrivateKey = candidatePrivateKey;
-                logger.info(`Found zero-balance address: ${candidateAddress} at index ${candidateIndex}`);
-                break;
-            } else {
-                logger.info(`Address ${candidateAddress} at index ${candidateIndex} has nonzero balance, skipping.`);
+        
+        // Check existing active addresses first for any with zero balance
+        if (keys.activeAddresses && Object.keys(keys.activeAddresses).length > 0) {
+            logger.info('Checking existing active addresses for zero balance before generating new address');
+            
+            for (const [addr, info] of Object.entries(keys.activeAddresses)) {
+                try {
+                    const balance = await provider.getBalance(addr);
+                    if (ethers.BigNumber.from(balance).isZero()) {
+                        found = true;
+                        zeroBalanceAddress = addr;
+                        zeroBalanceIndex = info.index;
+                        
+                        // Need to recover the private key for this address
+                        const wallet = await recoverWallet(mnemonic, info.index);
+                        zeroBalancePrivateKey = wallet.privateKey;
+                        
+                        logger.info(`Found existing zero-balance address to reuse: ${addr} at index ${info.index}`);
+                        break;
+                    }
+                } catch (err) {
+                    logger.warn(`Failed to check balance for existing address ${addr}: ${err.message}`);
+                }
             }
         }
+        
+        // If we didn't find a reusable address, scan for a new one
+        if (!found) {
+            // Scan ahead for a zero-balance address (up to 1000 indices)
+            const scanLimit = 1000;
+            
+            for (let i = 0; i < scanLimit; i++) {
+                const candidateIndex = nextIndex + i;
+                const { address: candidateAddress, privateKey: candidatePrivateKey } = await recoverWallet(mnemonic, candidateIndex);
+                let candidateBalance = '0';
+                try {
+                    candidateBalance = await provider.getBalance(candidateAddress);
+                } catch (err) {
+                    logger.warn(`Failed to get balance for ${candidateAddress} at index ${candidateIndex}: ${err.message}`);
+                    continue;
+                }
+                if (ethers.BigNumber.from(candidateBalance).isZero()) {
+                    found = true;
+                    zeroBalanceAddress = candidateAddress;
+                    zeroBalanceIndex = candidateIndex;
+                    zeroBalancePrivateKey = candidatePrivateKey;
+                    logger.info(`Found zero-balance address: ${candidateAddress} at index ${candidateIndex}`);
+                    break;
+                } else {
+                    logger.info(`Address ${candidateAddress} at index ${candidateIndex} has nonzero balance, skipping.`);
+                }
+            }
+        }
+        
         if (!found) {
             logger.error('No zero-balance address found in scan-ahead range (1000 indices).');
             return res.status(500).json({
@@ -118,6 +151,7 @@ exports.generatePaymentAddress = async (req, res) => {
                 error: 'No zero-balance address available in the first 1000 indices. Please clean up used addresses or increase the scan limit.'
             });
         }
+        
         const address = zeroBalanceAddress;
         const privateKey = zeroBalancePrivateKey;
         logger.info('Generated HD wallet address (zero-balance)', { address, index: zeroBalanceIndex });

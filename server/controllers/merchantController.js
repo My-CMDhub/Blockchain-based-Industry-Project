@@ -26,6 +26,7 @@ const { decrypt } = require('../../encryptionUtils');
 const ethers = require('ethers');
 const { BigNumber } = require('ethers');
 // const { recoverWallet } = require('../../recover.js');
+const path = require('path');
 
 // Default merchant address for fallback
 const DEFAULT_MERCHANT_ADDRESS = '0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b';
@@ -98,41 +99,41 @@ function hasPreviousWalletActivity() {
 
 exports.getMerchantTransactions = async (req, res) => {
     try {
-        const txFile = 'merchant_transactions.json';
+        console.log('Getting merchant transactions...');
         let transactions = [];
+        const txFile = 'merchant_transactions.json';
+
+        // Setup database status object
         let dbStatus = {
             isCorrupted: false,
             backupCreated: false,
+            isMissing: false,
+            dataLoss: false,
+            recoveryPossible: false,
             errorDetails: null,
             lastBackup: null
         };
 
-        // Check if database file exists
         if (fs.existsSync(txFile)) {
             try {
-                // Try to read the file
                 const fileContent = secureReadFile(txFile);
                 
-                // Check if file is empty
                 if (!fileContent || !fileContent.trim()) {
                     dbStatus.isCorrupted = true;
                     dbStatus.errorDetails = "Transaction file exists but is empty";
-                    console.error('ERROR: Transaction file is empty');
+                    console.error('ERROR: Transaction file exists but is empty');
                 } else {
-                    // Try to parse the JSON
                     try {
                         transactions = JSON.parse(fileContent);
                         
-                        // Validate data structure
                         if (!Array.isArray(transactions)) {
                             dbStatus.isCorrupted = true;
                             dbStatus.errorDetails = "Transaction data is not in expected format (not an array)";
                             console.error('ERROR: Transaction data is not an array');
                             
-                            // Create backup of corrupted file
-                            const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-                            fs.copyFileSync(txFile, backupFile);
-                            dbStatus.backupCreated = true;
+                            // Create backup of corrupted file using the new system
+                            const backupFile = createDatabaseBackup(txFile, 'corruption');
+                            dbStatus.backupCreated = !!backupFile;
                             dbStatus.lastBackup = backupFile;
                             
                             // Reset to empty array
@@ -145,15 +146,12 @@ exports.getMerchantTransactions = async (req, res) => {
                             dbStatus.dataLoss = true;
                             console.error('ERROR: Transaction file has been emptied unexpectedly');
                             
-                            // Look for backups
-                            const backupFiles = fs.readdirSync('.').filter(file => 
-                                file.startsWith('merchant_transactions.json.corrupted') || 
-                                file.startsWith('merchant_transactions.json.bak')
-                            );
+                            // Look for backups using our new helper functions
+                            const backupFiles = findAllBackupFiles('merchant_transactions');
                             
                             if (backupFiles.length > 0) {
-                                // Find most recent backup
-                                const latestBackup = backupFiles.sort().pop();
+                                // Latest backup is first in the array
+                                const latestBackup = backupFiles[0];
                                 dbStatus.lastBackup = latestBackup;
                                 dbStatus.recoveryPossible = true;
                             }
@@ -164,10 +162,9 @@ exports.getMerchantTransactions = async (req, res) => {
                         dbStatus.errorDetails = `Invalid JSON format: ${parseError.message}`;
                         console.error('ERROR: Failed to parse transaction JSON:', parseError);
                         
-                        // Create backup of corrupted file
-                        const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-                        fs.copyFileSync(txFile, backupFile);
-                        dbStatus.backupCreated = true;
+                        // Create backup of corrupted file using the new system
+                        const backupFile = createDatabaseBackup(txFile, 'corruption');
+                        dbStatus.backupCreated = !!backupFile;
                         dbStatus.lastBackup = backupFile;
                         
                         // Reset to empty array
@@ -184,11 +181,8 @@ exports.getMerchantTransactions = async (req, res) => {
         } else {
             console.log('INFO: Transaction file does not exist');
             
-            // Check if we have backup files - if we do, this might be unexpected data loss rather than new installation
-            const backupFiles = fs.readdirSync('.').filter(file => 
-                file.startsWith('merchant_transactions.json.corrupted') || 
-                file.startsWith('merchant_transactions.json.bak')
-            );
+            // Check if we have backup files using our helper
+            const backupFiles = findAllBackupFiles('merchant_transactions');
             
             // Check if there are any transaction-related files (indicators of previous existence)
             const transactionMetaFiles = fs.readdirSync('.').filter(file => 
@@ -209,8 +203,8 @@ exports.getMerchantTransactions = async (req, res) => {
                 dbStatus.recoveryPossible = backupFiles.length > 0;
                 
                 if (backupFiles.length > 0) {
-                    // Find most recent backup
-                    const latestBackup = backupFiles.sort().pop();
+                    // Most recent backup is the first in the sorted array
+                    const latestBackup = backupFiles[0];
                     dbStatus.lastBackup = latestBackup;
                 }
                 
@@ -465,6 +459,19 @@ exports.releaseAllFunds = async (req, res) => {
         console.log(`Checking balances of ${Object.keys(activeAddresses).length} active addresses...`);
         const addressBalances = [];
         let totalBalanceEth = parseFloat(rootBalance);
+        
+        // Add root address to our list if it has a balance
+        if (parseFloat(rootBalance) > 0) {
+            addressBalances.push({
+                address: rootAddr,
+                balance: parseFloat(rootBalance),
+                ethBalance: rootBalance,
+                index: 0,
+                wallet: rootAddress
+            });
+        }
+        
+        // Check all active addresses for balances
         for (const addr in activeAddresses) {
             const addrInfo = activeAddresses[addr];
             if (addrInfo.isWrongPayment === true || addrInfo.wrongPayment === true || addrInfo.status === 'wrong') {
@@ -474,14 +481,18 @@ exports.releaseAllFunds = async (req, res) => {
             console.log(`Checking balance for ${addr}...`);
             const balance = await getBalanceWithRetry(freshWeb3, addr);
             console.log(`Address ${addr} balance: ${balance} ETH`);
+            
+            if (parseFloat(balance) > 0) {
             addressBalances.push({
                 address: addr,
                 balance: parseFloat(balance),
                 ethBalance: balance,
                 index: addrInfo.index
             });
+            }
             totalBalanceEth += parseFloat(balance);
         }
+        
         if (totalBalanceEth <= 0) {
             return res.status(400).json({
                 success: false,
@@ -495,83 +506,261 @@ exports.releaseAllFunds = async (req, res) => {
         console.log(`Total balance: ${totalBalanceEth} ETH`);
         console.log(`Addresses with balance: ${addressBalances.length}`);
         
-        // Calculate transaction cost first to determine how much we can actually send
+        // Calculate transaction cost to determine which addresses can send funds
         const gasPrice = await getReliableGasPrice(freshWeb3);
         const gasLimit = 21000; // Basic ETH transfer
         const gasCostWei = BigInt(gasPrice) * BigInt(gasLimit);
         const gasCostEth = parseFloat(freshWeb3.utils.fromWei(gasCostWei.toString(), 'ether'));
         console.log(`Estimated gas cost per transaction: ${gasCostEth} ETH`);
         
-        // Choose the address with the highest balance to use for the consolidation
-        let selectedAddress;
-        let selectedWallet;
-        let selectedBalance;
+        // Identify which addresses have enough balance to cover gas costs
+        const viableAddresses = [];
+        let totalReleasableEth = 0;
         
-        // First try the root address if it has enough funds
-        if (parseFloat(rootBalance) >= gasCostEth * 1.2) { // 20% buffer for gas price fluctuations
-            console.log('Root address has sufficient balance for gas costs, using it as the sending address');
-            selectedAddress = rootAddr;
-            selectedWallet = rootAddress;
-            selectedBalance = parseFloat(rootBalance);
-        } else if (addressBalances.length > 0 && addressBalances[0].balance >= gasCostEth * 1.2) {
-            // Otherwise use the address with the highest balance
-            const topAddress = addressBalances[0];
-            console.log(`Using address with highest balance: ${topAddress.address} (${topAddress.balance} ETH)`);
-            try {
-                // Find the wallet for this address
-                const { wallet, index } = await findWalletForAddress(mnemonic, topAddress.address);
+        for (const addrInfo of addressBalances) {
+            // Instead of checking for a 20% buffer, just check it has enough for gas
+            // Check if this address has a non-zero balance
+            if (addrInfo.balance > 0) {
+                // For root address, we already have the wallet
+                if (addrInfo.address === rootAddr && addrInfo.wallet) {
+                    viableAddresses.push(addrInfo);
+                    // Calculate exact releasable amount based on gas cost
+                    const releasableAmount = Math.max(0, addrInfo.balance - gasCostEth);
+                    totalReleasableEth += releasableAmount;
+                    console.log(`Root address ${addrInfo.address} has ${addrInfo.balance} ETH, can release ${releasableAmount} ETH`);
+                    continue;
+                }
+                
+                try {
+                    // Find or recover the wallet for this address
+                    const { wallet, index } = await findWalletForAddress(mnemonic, addrInfo.address);
                 if (wallet) {
-                    selectedAddress = topAddress.address;
-                    selectedWallet = wallet;
-                    selectedBalance = topAddress.balance;
-                    console.log(`Found wallet for address ${selectedAddress} at index ${index}`);
+                        addrInfo.wallet = wallet;
+                        addrInfo.index = index;
+                        viableAddresses.push(addrInfo);
+                        // Calculate exact releasable amount based on gas cost
+                        const releasableAmount = Math.max(0, addrInfo.balance - gasCostEth);
+                        totalReleasableEth += releasableAmount;
+                        console.log(`Address ${addrInfo.address} has ${addrInfo.balance} ETH, can release ${releasableAmount} ETH`);
                 } else {
-                    throw new Error(`Could not find wallet for address ${topAddress.address}`);
+                        console.warn(`Could not find wallet for address ${addrInfo.address}, skipping`);
                 }
             } catch (error) {
-                console.error('Error finding wallet for address:', error);
-                return res.status(500).json({
-                    success: false,
-                    error: `Could not find wallet for selected address: ${error.message}`
-                });
+                    console.error(`Error recovering wallet for address ${addrInfo.address}:`, error);
             }
         } else {
-            console.error('No address has sufficient balance to cover gas costs');
+                console.log(`Address ${addrInfo.address} has zero balance, skipping`);
+            }
+        }
+        
+        if (viableAddresses.length === 0) {
             return res.status(400).json({
                 success: false,
-                error: `No address has sufficient balance to cover gas costs. Need at least ${gasCostEth * 1.2} ETH.`
+                error: `No addresses with funds found. Please check your wallet balance.`
             });
         }
         
-        // Calculate the amount to send (total balance minus gas cost)
-        let sendAmount = selectedBalance - (gasCostEth * 1.1); // 10% buffer
+        console.log(`Found ${viableAddresses.length} addresses with sufficient balance for transfers`);
+        console.log(`Total releasable amount: ${totalReleasableEth.toFixed(8)} ETH`);
         
-        // Round to a safe number of decimal places to avoid precision errors
-        sendAmount = parseFloat(sendAmount.toFixed(18));
+        // Prepare to track all transactions
+        const transactions = [];
+        let totalAmountSent = 0;
         
-        // Convert to Wei
-        let sendAmountWei;
-        try {
-            sendAmountWei = freshWeb3.utils.toWei(sendAmount.toString(), 'ether');
+        // Process each viable address and send its funds
+        for (const addrInfo of viableAddresses) {
+            try {
+                console.log(`Processing address ${addrInfo.address} with balance ${addrInfo.ethBalance} ETH`);
+                
+                // Calculate the amount to send - use the full balance minus exact gas
+                // Instead of leaving a buffer, calculate exactly what we need for gas
+                let addrBalanceWei;
+                try {
+                    addrBalanceWei = freshWeb3.utils.toBN(freshWeb3.utils.toWei(addrInfo.ethBalance, 'ether'));
         } catch (error) {
-            console.error('Error converting amount to Wei:', error);
-            return res.status(500).json({
-                success: false,
-                error: `Error converting amount to Wei: ${error.message}`
-            });
-        }
-        
-        console.log(`Sending ${sendAmount} ETH from ${selectedAddress} to merchant address ${normalizedMerchantAddress}`);
+                    console.error(`Error converting balance to Wei for address ${addrInfo.address}:`, error);
+                    continue;
+                }
+                
+                // Calculate gas cost in Wei precisely
+                const gasCostWeiBN = freshWeb3.utils.toBN(gasCostWei.toString());
+                
+                // Check if this is a dust amount (very small balance that's close to or less than gas cost)
+                const isDustAmount = addrBalanceWei.lte(gasCostWeiBN) || 
+                                    addrBalanceWei.lt(freshWeb3.utils.toBN(freshWeb3.utils.toWei('0.0001', 'ether')));
+                
+                // For dust amounts, try alternative approach
+                if (isDustAmount) {
+                    console.log(`Address ${addrInfo.address} has dust amount (${addrInfo.ethBalance} ETH). Attempting special handling...`);
+                    
+                    // Try with minimal gas price for dust amounts
+                    const minimalGasPrice = freshWeb3.utils.toWei('0.1', 'gwei');
+                    const minimalGasCostWei = BigInt(minimalGasPrice) * BigInt(gasLimit);
+                    const minimalGasCostWeiBN = freshWeb3.utils.toBN(minimalGasCostWei.toString());
+                    
+                    if (addrBalanceWei.gt(minimalGasCostWeiBN)) {
+                        // We can send with minimal gas
+                        const sendAmountWei = addrBalanceWei.sub(minimalGasCostWeiBN);
+                        const sendAmountEth = freshWeb3.utils.fromWei(sendAmountWei.toString(), 'ether');
+                        
+                        console.log(`Using minimal gas price for dust amount. Sending ${sendAmountEth} ETH from ${addrInfo.address}`);
+                        
+                        // Get nonce for sender
+                        const nonce = await getReliableNonce(freshWeb3, addrInfo.address);
+                        console.log(`Nonce for ${addrInfo.address}: ${nonce}`);
+                        
+                        const txObject = {
+                            from: addrInfo.address,
+                            to: normalizedMerchantAddress,
+                            value: sendAmountWei.toString(),
+                            gas: gasLimit,
+                            gasPrice: minimalGasPrice,
+                            nonce: nonce,
+                            // For dust, use legacy (type 0) transactions
+                            type: '0x0'
+                        };
+                        
+                        try {
+                            console.log('Signing minimal gas dust transaction...');
+                            const signedTx = await freshWeb3.eth.accounts.signTransaction(
+                                txObject, 
+                                addrInfo.wallet.privateKey
+                            );
+                            
+                            console.log('Sending dust transaction...');
+                            const txReceipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                            
+                            console.log('Dust transaction sent, hash:', txReceipt.transactionHash);
+                            
+                            // Add to successful transactions list
+                            transactions.push({
+                                txHash: txReceipt.transactionHash,
+                                from: addrInfo.address,
+                                amount: sendAmountEth.toString(),
+                                status: 'pending',
+                                isDust: true
+                            });
+                            
+                            totalAmountSent += parseFloat(sendAmountEth);
+                            
+                            // Log the transaction
+                            const txLogEntry = {
+                                txHash: txReceipt.transactionHash,
+                                from: addrInfo.address,
+                                to: normalizedMerchantAddress,
+                                amount: sendAmountEth,
+                                timestamp: new Date().toISOString(),
+                                status: true,
+                                type: 'release',
+                                gasUsed: gasLimit,
+                                gasPrice: `${parseFloat(freshWeb3.utils.fromWei(minimalGasPrice, 'gwei'))} gwei`,
+                                completedAt: new Date().toISOString(),
+                                lastUpdated: new Date().toISOString(),
+                                txId: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
+                                isDust: true
+                            };
+                            
+                            // Write to transaction log
+                            await logTransaction(txLogEntry);
+                            
+                            continue; // Skip the normal flow for this address
+                        } catch (dustError) {
+                            console.error(`Failed to send dust transaction: ${dustError.message}`);
+                            // Fall through to standard approach as a backup
+                        }
+                    } else {
+                        console.log(`Dust amount too small even for minimal gas price. Balance: ${addrInfo.ethBalance} ETH, Gas cost: ${freshWeb3.utils.fromWei(minimalGasCostWei.toString(), 'ether')} ETH`);
+                    }
+                    
+                    // If the dust handling failed, try one more approach - send entire balance 
+                    console.log(`Attempting to send entire balance for dust amount...`);
+                    try {
+                        const nonce = await getReliableNonce(freshWeb3, addrInfo.address);
+                        
+                        // Create a legacy transaction sending entire balance
+                        // This will likely fail on the network but we try anyway
+                        const txObject = {
+                            from: addrInfo.address,
+                            to: normalizedMerchantAddress,
+                            value: addrBalanceWei.toString(),
+                            gas: gasLimit,
+                            gasPrice: freshWeb3.utils.toWei('0.1', 'gwei'),
+                            nonce: nonce,
+                            type: '0x0'
+                        };
+                        
+                        console.log('Signing full balance dust transaction...');
+                        const signedTx = await freshWeb3.eth.accounts.signTransaction(
+                            txObject,
+                            addrInfo.wallet.privateKey
+                        );
+                        
+                        console.log('Sending full balance dust transaction...');
+                        const txReceipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                        
+                        console.log('Full balance dust transaction sent, hash:', txReceipt.transactionHash);
+                        
+                        // If we got here, the transaction somehow succeeded
+                        transactions.push({
+                            txHash: txReceipt.transactionHash,
+                            from: addrInfo.address,
+                            amount: addrInfo.ethBalance,
+                            status: 'pending',
+                            isDust: true,
+                            fullBalance: true
+                        });
+                        
+                        totalAmountSent += parseFloat(addrInfo.ethBalance);
+                        
+                        // Log the transaction
+                        const txLogEntry = {
+                            txHash: txReceipt.transactionHash,
+                            from: addrInfo.address,
+                            to: normalizedMerchantAddress,
+                            amount: addrInfo.ethBalance,
+                            timestamp: new Date().toISOString(),
+                            status: true,
+                            type: 'release',
+                            gasUsed: gasLimit,
+                            gasPrice: '0.1 gwei',
+                            completedAt: new Date().toISOString(),
+                            lastUpdated: new Date().toISOString(),
+                            txId: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
+                            isDust: true,
+                            fullBalance: true
+                        };
+                        
+                        await logTransaction(txLogEntry);
+                        continue;
+                    } catch (fullDustError) {
+                        console.error(`Failed to send full balance dust transaction: ${fullDustError.message}`);
+                        console.log(`Will skip dust address ${addrInfo.address} as all approaches failed`);
+                        continue; // Skip to next address
+                    }
+                }
+                
+                // Make sure we can cover the gas (for non-dust amounts)
+                if (addrBalanceWei.lt(gasCostWeiBN)) {
+                    console.log(`Address ${addrInfo.address} has insufficient balance for gas, skipping`);
+                    continue;
+                }
+                
+                // Calculate exact amount to send (all balance minus gas)
+                const sendAmountWei = addrBalanceWei.sub(gasCostWeiBN);
+                
+                // Convert back to ETH for logging
+                const sendAmountEth = freshWeb3.utils.fromWei(sendAmountWei.toString(), 'ether');
+                console.log(`Sending ${sendAmountEth} ETH from ${addrInfo.address} to merchant address ${normalizedMerchantAddress}`);
         
         // Get nonce for sender
-        const nonce = await getReliableNonce(freshWeb3, selectedAddress);
-        console.log(`Nonce for ${selectedAddress}: ${nonce}`);
+                const nonce = await getReliableNonce(freshWeb3, addrInfo.address);
+                console.log(`Nonce for ${addrInfo.address}: ${nonce}`);
         
         // Create and sign transaction
         const txObject = {
-            from: selectedAddress,
+                    from: addrInfo.address,
             to: normalizedMerchantAddress,
-            value: sendAmountWei,
+                    value: sendAmountWei.toString(),
             gas: gasLimit,
             gasPrice: gasPrice,
             nonce: nonce
@@ -581,7 +770,7 @@ exports.releaseAllFunds = async (req, res) => {
         
         // Sign the transaction
         console.log('Signing transaction...');
-        const signedTx = await freshWeb3.eth.accounts.signTransaction(txObject, selectedWallet.privateKey);
+                const signedTx = await freshWeb3.eth.accounts.signTransaction(txObject, addrInfo.wallet.privateKey);
         console.log('Transaction signed');
         
         // Send transaction with retry
@@ -590,20 +779,23 @@ exports.releaseAllFunds = async (req, res) => {
         try {
             txReceipt = await sendTransactionWithRetry(freshWeb3, signedTx);
             console.log('Transaction sent, hash:', txReceipt.transactionHash);
-        } catch (txError) {
-            console.error('Failed to send transaction:', txError);
-            return res.status(500).json({
-                success: false,
-                error: `Failed to send transaction: ${txError.message}`
-            });
-        }
+                    
+                    // Add to successful transactions list
+                    transactions.push({
+                        txHash: txReceipt.transactionHash,
+                        from: addrInfo.address,
+                        amount: sendAmountEth.toString(),
+                        status: 'pending'
+                    });
+                    
+                    totalAmountSent += parseFloat(sendAmountEth);
         
         // Log the transaction
         const txLogEntry = {
             txHash: txReceipt.transactionHash,
-            from: selectedAddress,
+                        from: addrInfo.address,
             to: normalizedMerchantAddress,
-            amount: sendAmount.toString(),
+                        amount: sendAmountEth.toString(),
             timestamp: new Date().toISOString(),
             status: 'pending',
             type: 'release',
@@ -614,13 +806,13 @@ exports.releaseAllFunds = async (req, res) => {
         // Save to transaction log
         saveTxLog(txLogEntry);
         
-        // Start monitoring transaction for confirmation
-        const monitorTransaction = async () => {
+                    // Start monitoring transaction for confirmation (in background)
+                    setTimeout(async () => {
             try {
                 const receipt = await checkTransactionReceipt(freshWeb3, txReceipt.transactionHash);
                 if (receipt) {
                     const confirmations = receipt.confirmations || 0;
-                    console.log(`Transaction confirmed with ${confirmations} confirmations`);
+                                console.log(`Transaction ${txReceipt.transactionHash} confirmed with ${confirmations} confirmations`);
                     // Update transaction log with confirmed status
                     updateTransactionLog(txReceipt.transactionHash, {
                         status: true,
@@ -629,19 +821,47 @@ exports.releaseAllFunds = async (req, res) => {
                     });
                 }
             } catch (error) {
-                console.error('Error monitoring transaction:', error);
+                            console.error(`Error monitoring transaction ${txReceipt.transactionHash}:`, error);
+                        }
+                    }, 5000);
+                    
+                } catch (txError) {
+                    console.error(`Failed to send transaction from ${addrInfo.address}:`, txError);
+                    
+                    // Add to failed transactions list
+                    transactions.push({
+                        from: addrInfo.address,
+                        amount: sendAmountEth.toString(),
+                        status: 'failed',
+                        error: txError.message
+                    });
+                }
+            } catch (addrError) {
+                console.error(`Error processing address ${addrInfo.address}:`, addrError);
             }
-        };
+        }
         
-        // Start monitoring in background
-        setTimeout(monitorTransaction, 5000);
+        // Check if we were able to send any transactions
+        if (transactions.length === 0) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to send any transactions'
+            });
+        }
         
-        // Return success response immediately
+        // Clean up zero balance addresses from activeAddresses
+        await cleanupZeroBalanceAddresses();
+        
+        // Return success with all transaction info
         return res.json({
             success: true,
-            txHash: txReceipt.transactionHash,
-            amount: sendAmount.toString(),
-            from: selectedAddress,
+            message: `Successfully initiated release from ${transactions.length} addresses`,
+            totalAmount: totalAmountSent.toString(),
+            transactions: transactions,
+            // For backward compatibility with client, also return the first transaction details
+            txHash: transactions[0]?.txHash,
+            amount: transactions[0]?.amount,
+            from: transactions[0]?.from,
             to: normalizedMerchantAddress
         });
     } catch (error) {
@@ -653,6 +873,59 @@ exports.releaseAllFunds = async (req, res) => {
         });
     }
 };
+
+/**
+ * Removes addresses with zero balance from activeAddresses in keys.json
+ */
+async function cleanupZeroBalanceAddresses() {
+    try {
+        // Read the keys file
+        const keysPath = path.join(process.cwd(), 'Json', 'keys.json');
+        const keysData = await secureReadFile(keysPath);
+        
+        if (!keysData || !keysData.activeAddresses) {
+            console.log('No active addresses to clean up');
+            return;
+        }
+        
+        const web3 = getWeb3();
+        const activeAddresses = { ...keysData.activeAddresses };
+        const addressesToRemove = [];
+        
+        // Check each address balance
+        for (const [address, info] of Object.entries(activeAddresses)) {
+            try {
+                const balance = await getBalanceWithRetry(web3, address);
+                const balanceNum = parseFloat(balance);
+                
+                // If balance is zero or extremely close to zero, mark for removal
+                if (balanceNum < 0.00000001) {
+                    addressesToRemove.push(address);
+                    console.log(`Marking address ${address} for removal - zero balance detected`);
+                }
+            } catch (err) {
+                console.error(`Error checking balance for ${address}: ${err.message}`);
+            }
+        }
+        
+        // Remove the zero balance addresses
+        if (addressesToRemove.length > 0) {
+            for (const addr of addressesToRemove) {
+                delete activeAddresses[addr];
+                console.log(`Removed address ${addr} from activeAddresses`);
+            }
+            
+            // Update the keys file
+            keysData.activeAddresses = activeAddresses;
+            await secureWriteFile(keysPath, keysData);
+            console.log(`Cleaned up ${addressesToRemove.length} zero balance addresses`);
+        } else {
+            console.log('No zero balance addresses to clean up');
+        }
+    } catch (error) {
+        console.error(`Error cleaning up zero balance addresses: ${error.message}`);
+    }
+}
 
 // Modularized version of /api/release-funds from server.js
 exports.releaseFunds = async (req, res) => {
@@ -814,13 +1087,156 @@ exports.releaseFunds = async (req, res) => {
                     console.log(`Requested amount plus gas exceeds available balance`);
                     console.log(`Max sendable amount: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`);
                     
+                    // If the difference is very small, we can adjust the send amount automatically
+                    // instead of rejecting the transaction
+                    const difference = requestedAmountWei - maxAmountWei;
+                    const differenceEth = freshWeb3.utils.fromWei(difference.toString(), 'ether');
+                    
+                    // If the difference is under 0.0001 ETH, we can adjust automatically
+                    if (difference < BigInt(freshWeb3.utils.toWei('0.0001', 'ether'))) {
+                        console.log(`Difference is minimal (${differenceEth} ETH). Adjusting amount to send maximum possible.`);
+                        
+                        // Adjust requested amount to maximum sendable
+                        const adjustedAmount = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                        console.log(`Adjusted amount to send: ${adjustedAmount} ETH`);
+                        
+                        // Prepare transaction data with adjusted amount
+                        const txData = {
+                            from: rootAddr,
+                            to: normalizedMerchantAddress,
+                            value: maxAmountWei.toString(),
+                            gas: gasLimit,
+                            gasPrice: gasPrice,
+                            nonce: nonce
+                        };
+                        
+                        console.log('Transaction data prepared with adjusted amount:', JSON.stringify(txData, null, 2));
+                        
+                        // Sign transaction
+                        console.log('Signing transaction...');
+                        const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
+                        console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                        
+                        // Send transaction with retry mechanism
+                        console.log('Sending transaction with retry...');
+                        const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                        console.log('Transaction successfully sent and confirmed!');
+                        console.log(`Transaction hash: ${receipt.transactionHash}`);
+                        console.log(`Block number: ${receipt.blockNumber}`);
+                        console.log(`Gas used: ${receipt.gasUsed}`);
+                        
+                        // Record the transaction
+                        const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        const txLogEntry = {
+                            txId: txId,
+                            txHash: signedTx.transactionHash,
+                            from: rootAddr,
+                            to: normalizedMerchantAddress,
+                            amount: adjustedAmount,
+                            amountWei: maxAmountWei.toString(),
+                            timestamp: new Date().toISOString(),
+                            status: receipt.status,
+                            blockNumber: receipt.blockNumber,
+                            gasUsed: receipt.gasUsed,
+                            type: 'release',
+                            adjusted: true,
+                            requestedAmount: amount,
+                            note: `Amount adjusted from ${amount} ETH to ${adjustedAmount} ETH due to gas requirements`
+                        };
+                        
+                        // Save transaction to log
+                        saveTxLog(txLogEntry);
+                        
+                        // Clean up zero balance addresses
+                        await cleanupZeroBalanceAddresses();
+                        
+                        // Return success response
+                        return res.json({
+                            success: true,
+                            txHash: signedTx.transactionHash,
+                            amount: adjustedAmount,
+                            requestedAmount: amount,
+                            adjusted: true,
+                            timestamp: new Date().toISOString(),
+                            blockNumber: receipt.blockNumber
+                        });
+                    } else {
+                        // If the difference is not small, return an informative error as before
                     return res.status(400).json({
                         success: false,
                         error: `Insufficient balance after gas fees. Available to send: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`
                     });
+                    }
                 }
                 
-                // Prepare transaction data
+                // If releasing all funds from the address, calculate exact amount minus gas
+                if (Math.abs(rootBalance - requestedAmount) < 0.00001) {
+                    console.log('Detected request to release all funds from address. Using precise calculation...');
+                    
+                    // Use the exact max amount that can be sent
+                    const txData = {
+                        from: rootAddr,
+                        to: normalizedMerchantAddress,
+                        value: maxAmountWei.toString(),
+                        gas: gasLimit,
+                        gasPrice: gasPrice,
+                        nonce: nonce
+                    };
+                    
+                    console.log('Transaction data prepared for full balance release:', JSON.stringify(txData, null, 2));
+                    
+                    // Sign transaction with exact amount
+                    console.log('Signing full balance transaction...');
+                    const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
+                    console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                    
+                    // Send transaction with retry mechanism
+                    console.log('Sending transaction with retry...');
+                    const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                    console.log('Transaction successfully sent and confirmed!');
+                    console.log(`Transaction hash: ${receipt.transactionHash}`);
+                    console.log(`Block number: ${receipt.blockNumber}`);
+                    console.log(`Gas used: ${receipt.gasUsed}`);
+                    
+                    // Calculate actual amount sent (original minus gas)
+                    const actualAmount = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                    
+                    // Record the transaction
+                    const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                    const txLogEntry = {
+                        txId: txId,
+                        txHash: signedTx.transactionHash,
+                        from: rootAddr,
+                        to: normalizedMerchantAddress,
+                        amount: actualAmount,
+                        amountWei: maxAmountWei.toString(),
+                        timestamp: new Date().toISOString(),
+                        status: receipt.status,
+                        blockNumber: receipt.blockNumber,
+                        gasUsed: receipt.gasUsed,
+                        type: 'release',
+                        fullBalance: true
+                    };
+                    
+                    // Save transaction to log
+                    saveTxLog(txLogEntry);
+                    
+                    // Clean up zero balance addresses
+                    await cleanupZeroBalanceAddresses();
+                    
+                    // Return success response
+                    return res.json({
+                        success: true,
+                        txHash: signedTx.transactionHash,
+                        amount: actualAmount,
+                        timestamp: new Date().toISOString(),
+                        blockNumber: receipt.blockNumber,
+                        fullBalance: true
+                    });
+                }
+                
+                // Standard release for exact amount
+                // Prepare transaction data for standard amount-specified release
                 const txData = {
                     from: rootAddr,
                     to: normalizedMerchantAddress,
@@ -830,9 +1246,9 @@ exports.releaseFunds = async (req, res) => {
                     nonce: nonce
                 };
                 
-                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
+                console.log('Transaction data prepared for standard amount-specified release:', JSON.stringify(txData, null, 2));
                 
-                // Sign transaction
+                // Sign transaction with exact amount
                 console.log('Signing transaction...');
                 const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, rootAddress.privateKey);
                 console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
@@ -845,6 +1261,9 @@ exports.releaseFunds = async (req, res) => {
                 console.log(`Block number: ${receipt.blockNumber}`);
                 console.log(`Gas used: ${receipt.gasUsed}`);
                 
+                // Calculate actual amount sent (original minus gas)
+                const actualAmount = freshWeb3.utils.fromWei(requestedAmountWei.toString(), 'ether');
+                
                 // Record the transaction
                 const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 const txLogEntry = {
@@ -852,23 +1271,27 @@ exports.releaseFunds = async (req, res) => {
                     txHash: signedTx.transactionHash,
                     from: rootAddr,
                     to: normalizedMerchantAddress,
-                    amount: amount,
+                    amount: actualAmount,
                     amountWei: requestedAmountWei.toString(),
                     timestamp: new Date().toISOString(),
                     status: receipt.status,
                     blockNumber: receipt.blockNumber,
                     gasUsed: receipt.gasUsed,
-                    type: 'release'
+                    type: 'release',
+                    requestedAmount: amount
                 };
                 
                 // Save transaction to log
                 saveTxLog(txLogEntry);
                 
+                // Clean up zero balance addresses
+                await cleanupZeroBalanceAddresses();
+                
                 // Return success response
                 return res.json({
                     success: true,
                     txHash: signedTx.transactionHash,
-                    amount: amount,
+                    amount: actualAmount,
                     timestamp: new Date().toISOString(),
                     blockNumber: receipt.blockNumber
                 });
@@ -1027,13 +1450,156 @@ exports.releaseFunds = async (req, res) => {
                     console.log(`Requested amount plus gas exceeds available balance`);
                     console.log(`Max sendable amount: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`);
                     
+                    // If the difference is very small, we can adjust the send amount automatically
+                    // instead of rejecting the transaction
+                    const difference = requestedAmountWei - maxAmountWei;
+                    const differenceEth = freshWeb3.utils.fromWei(difference.toString(), 'ether');
+                    
+                    // If the difference is under 0.0001 ETH, we can adjust automatically
+                    if (difference < BigInt(freshWeb3.utils.toWei('0.0001', 'ether'))) {
+                        console.log(`Difference is minimal (${differenceEth} ETH). Adjusting amount to send maximum possible.`);
+                        
+                        // Adjust requested amount to maximum sendable
+                        const adjustedAmount = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                        console.log(`Adjusted amount to send: ${adjustedAmount} ETH`);
+                        
+                        // Prepare transaction data with adjusted amount
+                        const txData = {
+                            from: highestBalanceAddr.address,
+                            to: normalizedMerchantAddress,
+                            value: maxAmountWei.toString(),
+                            gas: gasLimit,
+                            gasPrice: gasPrice,
+                            nonce: nonce
+                        };
+                        
+                        console.log('Transaction data prepared with adjusted amount:', JSON.stringify(txData, null, 2));
+                        
+                        // Sign transaction
+                        console.log('Signing transaction...');
+                        const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, senderWallet.privateKey);
+                        console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                        
+                        // Send transaction with retry mechanism
+                        console.log('Sending transaction with retry...');
+                        const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                        console.log('Transaction successfully sent and confirmed!');
+                        console.log(`Transaction hash: ${receipt.transactionHash}`);
+                        console.log(`Block number: ${receipt.blockNumber}`);
+                        console.log(`Gas used: ${receipt.gasUsed}`);
+                        
+                        // Record the transaction
+                        const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        const txLogEntry = {
+                            txId: txId,
+                            txHash: signedTx.transactionHash,
+                            from: highestBalanceAddr.address,
+                            to: normalizedMerchantAddress,
+                            amount: adjustedAmount,
+                            amountWei: maxAmountWei.toString(),
+                            timestamp: new Date().toISOString(),
+                            status: receipt.status,
+                            blockNumber: receipt.blockNumber,
+                            gasUsed: receipt.gasUsed,
+                            type: 'release',
+                            adjusted: true,
+                            requestedAmount: amount,
+                            note: `Amount adjusted from ${amount} ETH to ${adjustedAmount} ETH due to gas requirements`
+                        };
+                        
+                        // Save transaction to log
+                        saveTxLog(txLogEntry);
+                        
+                        // Clean up zero balance addresses
+                        await cleanupZeroBalanceAddresses();
+                        
+                        // Return success response
+                        return res.json({
+                            success: true,
+                            txHash: signedTx.transactionHash,
+                            amount: adjustedAmount,
+                            requestedAmount: amount,
+                            adjusted: true,
+                            timestamp: new Date().toISOString(),
+                            blockNumber: receipt.blockNumber
+                        });
+                    } else {
+                        // If the difference is not small, return an informative error as before
                     return res.status(400).json({
                         success: false,
                         error: `Insufficient balance after gas fees. Available to send: ${freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether')} ETH`
                     });
+                    }
                 }
                 
-                // Prepare transaction data
+                // If releasing all funds from the address, calculate exact amount minus gas
+                if (Math.abs(highestBalanceAddr.balance - requestedAmount) < 0.00001) {
+                    console.log('Detected request to release all funds from address. Using precise calculation...');
+                    
+                    // Use the exact max amount that can be sent
+                    const txData = {
+                        from: highestBalanceAddr.address,
+                        to: normalizedMerchantAddress,
+                        value: maxAmountWei.toString(),
+                        gas: gasLimit,
+                        gasPrice: gasPrice,
+                        nonce: nonce
+                    };
+                    
+                    console.log('Transaction data prepared for full balance release:', JSON.stringify(txData, null, 2));
+                    
+                    // Sign transaction with exact amount
+                    console.log('Signing full balance transaction...');
+                    const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, senderWallet.privateKey);
+                    console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
+                    
+                    // Send transaction with retry mechanism
+                    console.log('Sending transaction with retry...');
+                    const receipt = await sendTransactionWithRetry(freshWeb3, signedTx);
+                    console.log('Transaction successfully sent and confirmed!');
+                    console.log(`Transaction hash: ${receipt.transactionHash}`);
+                    console.log(`Block number: ${receipt.blockNumber}`);
+                    console.log(`Gas used: ${receipt.gasUsed}`);
+                    
+                    // Calculate actual amount sent (original minus gas)
+                    const actualAmount = freshWeb3.utils.fromWei(maxAmountWei.toString(), 'ether');
+                    
+                    // Record the transaction
+                    const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                    const txLogEntry = {
+                        txId: txId,
+                        txHash: signedTx.transactionHash,
+                        from: highestBalanceAddr.address,
+                        to: normalizedMerchantAddress,
+                        amount: actualAmount,
+                        amountWei: maxAmountWei.toString(),
+                        timestamp: new Date().toISOString(),
+                        status: receipt.status,
+                        blockNumber: receipt.blockNumber,
+                        gasUsed: receipt.gasUsed,
+                        type: 'release',
+                        fullBalance: true
+                    };
+                    
+                    // Save transaction to log
+                    saveTxLog(txLogEntry);
+                    
+                    // Clean up zero balance addresses
+                    await cleanupZeroBalanceAddresses();
+                    
+                    // Return success response
+                    return res.json({
+                        success: true,
+                        txHash: signedTx.transactionHash,
+                        amount: actualAmount,
+                        timestamp: new Date().toISOString(),
+                        blockNumber: receipt.blockNumber,
+                        fullBalance: true
+                    });
+                }
+                
+                // Standard release for exact amount
+                // Prepare transaction data for standard amount-specified release
                 const txData = {
                     from: highestBalanceAddr.address,
                     to: normalizedMerchantAddress,
@@ -1043,9 +1609,9 @@ exports.releaseFunds = async (req, res) => {
                     nonce: nonce
                 };
                 
-                console.log('Transaction data prepared:', JSON.stringify(txData, null, 2));
+                console.log('Transaction data prepared for standard amount-specified release:', JSON.stringify(txData, null, 2));
                 
-                // Sign transaction
+                // Sign transaction with exact amount
                 console.log('Signing transaction...');
                 const signedTx = await freshWeb3.eth.accounts.signTransaction(txData, senderWallet.privateKey);
                 console.log(`Transaction signed. Hash: ${signedTx.transactionHash}`);
@@ -1058,6 +1624,9 @@ exports.releaseFunds = async (req, res) => {
                 console.log(`Block number: ${receipt.blockNumber}`);
                 console.log(`Gas used: ${receipt.gasUsed}`);
                 
+                // Calculate actual amount sent (original minus gas)
+                const actualAmount = freshWeb3.utils.fromWei(requestedAmountWei.toString(), 'ether');
+                
                 // Record the transaction
                 const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 const txLogEntry = {
@@ -1065,23 +1634,27 @@ exports.releaseFunds = async (req, res) => {
                     txHash: signedTx.transactionHash,
                     from: highestBalanceAddr.address,
                     to: normalizedMerchantAddress,
-                    amount: amount,
+                    amount: actualAmount,
                     amountWei: requestedAmountWei.toString(),
                     timestamp: new Date().toISOString(),
                     status: receipt.status,
                     blockNumber: receipt.blockNumber,
                     gasUsed: receipt.gasUsed,
-                    type: 'release'
+                    type: 'release',
+                    requestedAmount: amount
                 };
                 
                 // Save transaction to log
                 saveTxLog(txLogEntry);
                 
+                // Clean up zero balance addresses
+                await cleanupZeroBalanceAddresses();
+                
                 // Return success response
                 return res.json({
                     success: true,
                     txHash: signedTx.transactionHash,
-                    amount: amount,
+                    amount: actualAmount,
                     timestamp: new Date().toISOString(),
                     blockNumber: receipt.blockNumber
                 });
@@ -1447,4 +2020,184 @@ exports.getWalletBalance = async (req, res) => {
 };
 
 // ... (rest of the existing code)
+   
+// Helper to create backup files with better organization and less duplication
+function createDatabaseBackup(sourceFile, reason = 'corruption') {
+    try {
+        // Create backup directories if they don't exist
+        const backupDir = path.join(process.cwd(), 'database_backups');
+        const corruptionDir = path.join(process.cwd(), 'corruption_backups');
+        
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+        
+        if (!fs.existsSync(corruptionDir)) {
+            fs.mkdirSync(corruptionDir, { recursive: true });
+        }
+        
+        // Choose directory based on reason
+        const targetDir = reason === 'corruption' ? corruptionDir : backupDir;
+        
+        // Format timestamp in a file-friendly format: YYYY-MM-DD_HH-MM-SS
+        const now = new Date();
+        const timestamp = now.toISOString()
+            .replace('T', '_')
+            .replace(/:/g, '-')
+            .split('.')[0];
+        
+        // Get source filename without path
+        const sourceFileName = path.basename(sourceFile);
+        const baseFileName = sourceFileName.split('.')[0]; // Get part before first dot
+        
+        // Create backup filename: {originalname}_{timestamp}.bak
+        const backupFileName = `${baseFileName}_${timestamp}.bak`;
+        const backupFilePath = path.join(targetDir, backupFileName);
+        
+        // Check if the source file exists
+        if (!fs.existsSync(sourceFile)) {
+            console.warn(`Source file ${sourceFile} does not exist, cannot create backup`);
+            return null;
+        }
+        
+        // Check if a backup with the exact same content already exists from the last minute
+        // to avoid creating multiple identical backups during error loops
+        const existingBackups = fs.readdirSync(targetDir)
+            .filter(file => file.startsWith(baseFileName) && file.endsWith('.bak'))
+            .map(file => path.join(targetDir, file));
+        
+        // Sort by creation time, most recent first
+        existingBackups.sort((a, b) => {
+            try {
+                return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
+            } catch (e) {
+                return 0;
+            }
+        });
+        
+        // If we have recent backups (within the last minute), check if content is identical
+        if (existingBackups.length > 0) {
+            const mostRecentBackup = existingBackups[0];
+            const backupStat = fs.statSync(mostRecentBackup);
+            const backupAge = (now.getTime() - backupStat.mtime.getTime()) / 1000; // age in seconds
+            
+            if (backupAge < 60) { // Less than 1 minute old
+                try {
+                    const sourceContent = fs.readFileSync(sourceFile, 'utf8');
+                    const backupContent = fs.readFileSync(mostRecentBackup, 'utf8');
+                    
+                    if (sourceContent === backupContent) {
+                        console.log(`Identical backup created less than a minute ago (${mostRecentBackup}), skipping duplicate`);
+                        return mostRecentBackup;
+                    }
+                } catch (e) {
+                    console.error('Error comparing file contents:', e);
+                    // Continue with creating a new backup if comparison fails
+                }
+            }
+        }
+        
+        // Create the backup
+        fs.copyFileSync(sourceFile, backupFilePath);
+        console.log(`Created backup at ${backupFilePath}`);
+        
+        // Cleanup old backups if we have too many
+        cleanupOldBackups(targetDir, baseFileName);
+        
+        return backupFilePath;
+    } catch (error) {
+        console.error('Error creating backup:', error);
+        return null;
+    }
+}
+
+// Helper to clean up old backups to prevent excessive disk usage
+function cleanupOldBackups(backupDir, filePrefix, maxBackups = 50) {
+    try {
+        // Get all backup files for this file type
+        const backups = fs.readdirSync(backupDir)
+            .filter(file => file.startsWith(filePrefix) && file.endsWith('.bak'))
+            .map(file => ({
+                name: file,
+                path: path.join(backupDir, file),
+                mtime: fs.statSync(path.join(backupDir, file)).mtime.getTime()
+            }));
+        
+        // If we have more than maxBackups, remove the oldest ones
+        if (backups.length > maxBackups) {
+            // Sort by modification time (oldest first)
+            backups.sort((a, b) => a.mtime - b.mtime);
+            
+            // Get list of files to delete (keeping the newest maxBackups)
+            const filesToDelete = backups.slice(0, backups.length - maxBackups);
+            
+            console.log(`Cleaning up ${filesToDelete.length} old backup files for ${filePrefix}`);
+            
+            // Delete the old backups
+            filesToDelete.forEach(file => {
+                try {
+                    fs.unlinkSync(file.path);
+                    console.log(`Deleted old backup: ${file.name}`);
+                } catch (deleteError) {
+                    console.error(`Failed to delete backup ${file.path}:`, deleteError);
+                }
+            });
+        }
+    } catch (error) {
+        console.error(`Error cleaning up old backups for ${filePrefix}:`, error);
+    }
+}
+
+// Helper function to find all backup files for a given base filename
+function findAllBackupFiles(baseFilename) {
+    try {
+        const backupDir = path.join(process.cwd(), 'database_backups');
+        const corruptionDir = path.join(process.cwd(), 'corruption_backups');
+        let backupFiles = [];
+        
+        // Check new-style backups in dedicated backup directory
+        if (fs.existsSync(backupDir)) {
+            const dbBackups = fs.readdirSync(backupDir)
+                .filter(file => file.startsWith(`${baseFilename}_`) && file.endsWith('.bak'))
+                .map(file => path.join(backupDir, file));
+            backupFiles = [...backupFiles, ...dbBackups];
+        }
+        
+        // Check corruption backups in dedicated directory
+        if (fs.existsSync(corruptionDir)) {
+            const corruptionBackups = fs.readdirSync(corruptionDir)
+                .filter(file => file.startsWith(`${baseFilename}_`) && file.endsWith('.bak'))
+                .map(file => path.join(corruptionDir, file));
+            backupFiles = [...backupFiles, ...corruptionBackups];
+        }
+        
+        // Also check legacy backups in root directory
+        // These have different naming patterns
+        const legacyBackups = fs.readdirSync('.')
+            .filter(file => {
+                return (
+                    (file.startsWith(`${baseFilename}.json.corrupted`) || 
+                    file.startsWith(`${baseFilename}.json.bak`)) &&
+                    fs.statSync(file).isFile()
+                );
+            })
+            .map(file => path.join(process.cwd(), file));
+        
+        backupFiles = [...backupFiles, ...legacyBackups];
+        
+        // Sort by modification time, most recent first
+        backupFiles.sort((a, b) => {
+            try {
+                return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
+            } catch (e) {
+                return 0;
+            }
+        });
+        
+        return backupFiles;
+    } catch (error) {
+        console.error(`Error finding backup files for ${baseFilename}:`, error);
+        return [];
+    }
+}
    

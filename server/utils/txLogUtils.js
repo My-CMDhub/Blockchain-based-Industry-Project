@@ -1,143 +1,148 @@
-// Utility functions for transaction log management
-const fs = require('fs');
-const { secureReadFile, secureWriteFile } = require('./fileUtils');
+/**
+ * Transaction Log Utilities
+ * Provides functions for managing transaction logs with SQLite database sync
+ */
 
-// Helper function to update transaction log entries with robust error handling
-function updateTransactionLog(txHash, updates) {
+const { logToFile } = require('./logger');
+const dataManager = require('./dataManager');
+
+/**
+ * Update an existing transaction in the log
+ * @param {string} txHash - Transaction hash
+ * @param {Object} updates - Updates to apply to the transaction
+ * @returns {Promise<boolean>} Success status
+ */
+async function updateTransactionLog(txHash, updates) {
     try {
         console.log(`Updating transaction log for hash: ${txHash}`);
         console.log(`Updates:`, JSON.stringify(updates, null, 2));
-        const txFile = 'merchant_transactions.json';
-        if (!fs.existsSync(txFile)) {
-            console.warn('Transaction file does not exist, cannot update');
-            return false;
-        }
-        let txLogs = [];
-        let fileContent;
-        try {
-            fileContent = secureReadFile(txFile);
-        } catch (readError) {
-            console.error('Error reading transaction log file:', readError);
-            return false;
-        }
-        try {
-            txLogs = JSON.parse(fileContent || '[]');
-            if (!Array.isArray(txLogs)) {
-                console.warn('Transaction log was corrupted (not an array), creating backup');
-                const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-                fs.copyFileSync(txFile, backupFile);
-                secureWriteFile(txFile, JSON.stringify([]));
-                console.warn('Reset transaction log to empty array');
-                return false;
-            }
-        } catch (parseError) {
-            console.error('Error parsing transaction log for update:', parseError);
-            const backupFile = `${txFile}.corrupted.${Date.now()}.bak`;
-            fs.copyFileSync(txFile, backupFile);
-            secureWriteFile(txFile, JSON.stringify([]));
-            return false;
-        }
-        let updated = false;
-        const updatedLogs = txLogs.map(tx => {
-            if (tx.txHash === txHash) {
-                updated = true;
-                return {
-                    ...tx,
-                    ...updates,
-                    lastUpdated: new Date().toISOString()
-                };
-            }
-            return tx;
-        });
-        if (updated) {
-            const tempFile = `${txFile}.tmp`;
-            secureWriteFile(tempFile, JSON.stringify(updatedLogs, null, 2));
-            fs.renameSync(tempFile, txFile);
-            console.log(`Updated transaction log for ${txHash}`);
-            return true;
-        } else {
+        
+        // Get all merchant transactions
+        const transactions = await dataManager.getMerchantTransactions();
+        
+        // Find the transaction by hash
+        const transaction = transactions.find(tx => tx.txHash === txHash);
+        
+        if (!transaction) {
             console.log(`Transaction ${txHash} not found in log, cannot update`);
             return false;
         }
+        
+        // Merge updates with existing transaction
+        const updatedTransaction = {
+            ...transaction,
+            ...updates,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        // Add to status history if status is changing
+        if (updates.status && updates.status !== transaction.status) {
+            updatedTransaction.statusHistory = transaction.statusHistory || [];
+            updatedTransaction.statusHistory.push({
+                status: updates.status,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Update in database
+        await dataManager.updateTransaction(transaction.txId, updatedTransaction);
+        
+        console.log(`Updated transaction log for ${txHash}`);
+        return true;
     } catch (error) {
         console.error('Error updating transaction log:', error);
+        logToFile(`Error updating transaction log: ${error.message}`);
         return false;
     }
 }
 
-// Helper function to save a new transaction log entry
-function saveTxLog(txLogEntry) {
+/**
+ * Save a new transaction to the log
+ * @param {Object} txLogEntry - Transaction log entry
+ * @returns {Promise<boolean>} Success status
+ */
+async function saveTxLog(txLogEntry) {
     try {
         console.log(`Saving transaction log entry for ${txLogEntry.txHash || txLogEntry.address || 'unknown'}`);
-        const txFile = 'merchant_transactions.json';
-        let txLogs = [];
-        if (fs.existsSync(txFile)) {
-            try {
-                const fileContent = secureReadFile(txFile);
-                txLogs = JSON.parse(fileContent || '[]');
-                if (!Array.isArray(txLogs)) {
-                    console.warn('Transaction log was corrupted, resetting to empty array');
-                    txLogs = [];
-                }
-            } catch (parseError) {
-                console.error('Error parsing transaction log:', parseError);
-                txLogs = [];
-            }
-        }
-        let existingIndex = -1;
+        
+        // Get all transactions to check for existing
+        const transactions = await dataManager.getMerchantTransactions();
+        
+        // Find existing transaction if any
+        let existingTransaction = null;
+        
+        // Try to match by txHash first if available
         if (txLogEntry.txHash) {
-            existingIndex = txLogs.findIndex(tx => tx.txHash === txLogEntry.txHash);
-        } else if (txLogEntry.txId && existingIndex === -1) {
-            existingIndex = txLogs.findIndex(tx => tx.txId === txLogEntry.txId);
-        } else if (txLogEntry.address && txLogEntry.timestamp && existingIndex === -1) {
-            existingIndex = txLogs.findIndex(tx => tx.address === txLogEntry.address && tx.timestamp === txLogEntry.timestamp);
+            existingTransaction = transactions.find(tx => tx.txHash === txLogEntry.txHash);
         }
-        if (existingIndex >= 0) {
-            console.log(`Updating existing transaction log entry at index ${existingIndex}`);
-            const existingTx = txLogs[existingIndex];
-            txLogs[existingIndex] = {
-                ...existingTx,
-                ...txLogEntry,
-                lastUpdated: new Date().toISOString(),
-                statusHistory: existingTx.statusHistory ? [
-                    ...existingTx.statusHistory,
-                    {
-                        status: txLogEntry.status,
-                        timestamp: new Date().toISOString()
-                    }
-                ] : [
-                    {
-                        status: existingTx.status, 
-                        timestamp: existingTx.timestamp || new Date().toISOString()
-                    },
-                    {
-                        status: txLogEntry.status,
-                        timestamp: new Date().toISOString()
-                    }
-                ]
+        // If no txHash or not found by txHash, try to match by txId
+        if (!existingTransaction && txLogEntry.txId) {
+            existingTransaction = transactions.find(tx => tx.txId === txLogEntry.txId);
+        }
+        // If payment address is available, try to match by that and timestamp
+        if (!existingTransaction && txLogEntry.address && txLogEntry.timestamp) {
+            existingTransaction = transactions.find(tx => 
+                tx.address === txLogEntry.address && 
+                tx.timestamp === txLogEntry.timestamp
+            );
+        }
+        
+        // Ensure we have a txId
+        if (!txLogEntry.txId) {
+            txLogEntry.txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        }
+        
+        // Initialize history for new transactions
+        const newEntry = {
+            ...txLogEntry,
+            timestamp: txLogEntry.timestamp || new Date().toISOString(),
+            // Set transaction type if not provided
+            type: txLogEntry.type || 'payment'
+        };
+        
+        // Add status history if not present
+        if (!newEntry.statusHistory) {
+            newEntry.statusHistory = [{
+                status: newEntry.status,
+                timestamp: newEntry.timestamp
+            }];
+        }
+        
+        if (existingTransaction) {
+            console.log(`Updating existing transaction log entry: ${existingTransaction.txId}`);
+            
+            // Merge with existing transaction
+            const updatedTransaction = {
+                ...existingTransaction,
+                ...newEntry,
+                lastUpdated: new Date().toISOString()
             };
-        } else {
-            console.log(`Adding new transaction log entry`);
-            const newTxEntry = {
-                ...txLogEntry,
-                timestamp: txLogEntry.timestamp || new Date().toISOString(),
-                statusHistory: [{
-                    status: txLogEntry.status,
-                    timestamp: txLogEntry.timestamp || new Date().toISOString()
-                }]
-            };
-            if (!newTxEntry.txId) {
-                newTxEntry.txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            
+            // Update status history if status has changed
+            if (newEntry.status && newEntry.status !== existingTransaction.status) {
+                updatedTransaction.statusHistory = existingTransaction.statusHistory || [];
+                updatedTransaction.statusHistory.push({
+                    status: newEntry.status,
+                    timestamp: new Date().toISOString()
+                });
             }
-            txLogs.push(newTxEntry);
+            
+            // Update the transaction
+            await dataManager.updateTransaction(existingTransaction.txId, updatedTransaction);
+        } else {
+            console.log(`Adding new transaction log entry with ID: ${newEntry.txId}`);
+            
+            // Add the transaction
+            await dataManager.recordTransaction(newEntry);
         }
-        secureWriteFile(txFile, JSON.stringify(txLogs, null, 2));
+        
         console.log(`Transaction log updated successfully`);
         return true;
     } catch (error) {
         console.error('Error saving transaction log:', error);
+        logToFile(`Error saving transaction log: ${error.message}`);
         return false;
     }
 }
 
-module.exports = { saveTxLog, updateTransactionLog }; 
+module.exports = { updateTransactionLog, saveTxLog }; 

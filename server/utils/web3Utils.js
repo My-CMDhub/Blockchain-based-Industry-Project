@@ -388,16 +388,25 @@ async function getBalanceWithRetry(web3, address, retryCount = 3) {
     let lastError;
     for (let i = 0; i < retryCount; i++) {
         try {
+            // Get the raw balance in wei
             const balanceWei = await web3.eth.getBalance(address);
-            // Convert to ETH string for consistency
-            return web3.utils.fromWei(balanceWei, 'ether');
+            
+            // Convert to ETH string with full precision
+            // This ensures we don't lose any decimal precision
+            const balanceEth = web3.utils.fromWei(balanceWei, 'ether');
+            
+            // Log the exact balance values for debugging
+            console.log(`Balance for ${address}: ${balanceEth} wei`);
+            
+            return balanceEth;
         } catch (error) {
             lastError = error;
+            console.warn(`Balance fetch attempt ${i+1} failed for ${address}:`, error.message);
             // Wait a bit before retrying
-            await new Promise(res => setTimeout(res, 500));
+            await new Promise(res => setTimeout(res, 500 * (i + 1))); // Increasing backoff
         }
     }
-    console.error(`getBalanceWithRetry failed for ${address}:`, lastError ? lastError.message : 'Unknown error');
+    console.error(`getBalanceWithRetry failed for ${address} after ${retryCount} attempts:`, lastError ? lastError.message : 'Unknown error');
     return '0';
 }
 
@@ -496,33 +505,60 @@ function compareAmountsWithPrecision(expectedStr, actualStr) {
             return false;
         }
         
-        // Two approaches to verify - first, a numerical approach that's extremely strict
-        // For very small amounts, we want exactness to 6 decimal places
-        // For larger amounts, we'll also allow a tiny percentage difference
+        // Multiple approaches for different scenarios:
         
-        // Option 1: Format both numbers to 6 decimal places and compare
+        // 1. Exact string match at 6 decimal places (handles most cases)
         const expectedFormatted = expected.toFixed(6);
         const actualFormatted = actual.toFixed(6);
-        
-        // Check exact match at 6 decimal places
         const exactMatch = expectedFormatted === actualFormatted;
         
-        // Option 2: Allow a very tiny variance (0.000001 or 0.01% whichever is smaller)
-        const smallestAllowedDeviation = Math.min(0.000001, expected * 0.0001);
+        // 2. Allow a very tiny variance with percentage-based approach
+        // Calculate acceptable difference based on amount scale
+        // For very small amounts (<0.001), be extremely precise
+        // For larger amounts, allow a slightly higher tolerance
+        let allowedPercentage;
+        if (expected < 0.001) {
+            allowedPercentage = 0.001; // 0.1% for tiny amounts
+        } else if (expected < 0.01) {
+            allowedPercentage = 0.002; // 0.2% for small amounts
+        } else {
+            allowedPercentage = 0.003; // 0.3% for normal amounts
+        }
+        
+        // Absolute difference in value
         const differenceInValue = Math.abs(expected - actual);
-        const isWithinTinyRange = differenceInValue <= smallestAllowedDeviation;
+        
+        // Calculate the difference as a percentage of the expected amount
+        const differencePercentage = (differenceInValue / expected) * 100;
+        
+        // Define the acceptable absolute difference (whichever is smaller)
+        const maxFixedDiff = 0.000002; // 0.000002 ETH (absolute tolerance)
+        const maxPercentDiff = expected * (allowedPercentage / 100); // Percentage-based tolerance
+        
+        // Use the smaller of the two tolerances
+        const effectiveMaxDiff = Math.min(maxFixedDiff, maxPercentDiff);
+        
+        // Check if the difference is within our acceptable range
+        const isWithinAcceptableRange = differenceInValue <= effectiveMaxDiff;
+        
+        // 3. For rounding errors, check if they're off by just 1 in the last decimal
+        // This handles cases where exchanges may round slightly differently
+        const expectedInWei = Math.round(expected * 1000000);
+        const actualInWei = Math.round(actual * 1000000);
+        const offByOneInLastPlace = Math.abs(expectedInWei - actualInWei) <= 1;
         
         // Log the detailed comparison for transparency
-        console.log(`Payment amount check (high precision):\n` +
+        console.log(`Payment amount check (enhanced precision):\n` +
                    `Expected: ${expected} (${expectedFormatted})\n` +
                    `Actual: ${actual} (${actualFormatted})\n` +
                    `Exact match at 6 decimals: ${exactMatch}\n` +
-                   `Difference: ${differenceInValue}\n` +
-                   `Max allowed difference: ${smallestAllowedDeviation}\n` +
-                   `Within allowed tiny range: ${isWithinTinyRange}`);
+                   `Difference: ${differenceInValue} ETH (${differencePercentage.toFixed(6)}%)\n` +
+                   `Max allowed difference: ${effectiveMaxDiff} ETH\n` +
+                   `Within allowed range: ${isWithinAcceptableRange}\n` +
+                   `Off by ≤1 in last decimal place: ${offByOneInLastPlace}`);
         
-        // Consider a payment correct if either condition is met
-        return exactMatch || isWithinTinyRange;
+        // Consider a payment correct if any of our conditions are met
+        return exactMatch || isWithinAcceptableRange || offByOneInLastPlace;
     } catch (e) {
         console.error('Error in precision comparison:', e);
         return false;

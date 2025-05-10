@@ -1,0 +1,294 @@
+:root {
+    --primary-color: #2563eb;
+    --secondary-color: #1e40af;
+    --success-color: #059669;
+    --danger-color: #dc2626;
+    --warning-color: #d97706;
+    --info-color: #0891b2;
+    --background-color: #f8fafc;
+    --card-bg: #ffffff;
+    --text-primary: #1f2937;
+    --text-secondary: #4b5563;
+    --border-color: #e5e7eb;
+}
+
+body {
+    background-color: var(--background-color);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.dashboard-container {
+    padding: 2rem;
+}
+
+.stats-card {
+    background: var(--card-bg);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+    border: 1px solid var(--border-color);
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+.stats-value {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.stats-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem; 
+    margin-top: 0.5rem;
+}
+
+.transaction-table {
+    background: var(--card-bg);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.transaction-table th {
+    background: var(--background-color);
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    padding: 1rem;
+}
+
+.transaction-table td {
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+.status-badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background-color: #e9ecef;
+    color: #495057;
+}
+.status-confirmed {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+.status-failed {
+    background-color: #f8d7da;
+    color: #842029;
+}
+.status-success {
+    background-color: #198754;
+    color: white;
+}
+.status-expired {
+    background-color: #e2e3e5;
+    color: #41464b;
+}
+.status-payment {
+    background-color: #cfe2ff;
+    color: #084298;
+}
+.status-release {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+.status-other {
+    background-color: #e9ecef;
+    color: #495057;
+}
+.dashboard-card {
+    transition: all 0.3s ease;
+}
+.dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+.wrong-payment-row {
+    background-color: rgba(248, 215, 218, 0.3);
+}
+.wrong-payment-row:hover {
+    background-color: rgba(248, 215, 218, 0.5);
+}
+.expired-address-row {
+    background-color: rgba(226, 227, 229, 0.3);
+}
+.expired-address-row:hover {
+    background-color: rgba(226, 227, 229, 0.5);
+}
+.failed-release-row {
+    background-color: rgba(255, 243, 205, 0.3);
+}
+.failed-release-row:hover {
+    background-color: rgba(255, 243, 205, 0.5);
+}
+.success-release-row {
+    background-color: rgba(209, 231, 221, 0.3);
+}
+.success-release-row:hover {
+    background-color: rgba(209, 231, 221, 0.5);
+}
+.confirmed-payment-row {
+    background-color: rgba(207, 226, 255, 0.3);
+}
+.confirmed-payment-row:hover {
+    background-color: rgba(207, 226, 255, 0.5);
+}
+.wrong-payment-tag {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 8px;
+    background-color: #dc3545;
+    color: white;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+.expired-tag {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 8px;
+    background-color: #6c757d;
+    color: white;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+.wallet-address {
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+.balance-info {
+    width: 100px;
+    display: inline-block;
+}
+
+.unverified-row {
+    background-color: rgba(234, 179, 8, 0.05);
+}
+
+.wrong-payment-row {
+    background-color: rgba(220, 38, 38, 0.15) !important;
+    border-left: 4px solid #dc2626 !important;
+}
+
+.wrong-payment-details {
+    background-color: rgba(220, 38, 38, 0.05);
+    border-left: 4px solid #dc2626;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+}
+
+.action-button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+.action-button-primary {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.action-button-primary:hover {
+    background: var(--secondary-color);
+}
+
+.action-button-outline {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.action-button-outline:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.address-card {
+    background: var(--card-bg);
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+}
+
+.address-card .address {
+    font-family: monospace;
+        font-size: 0.9rem;
+    word-break: break-all;
+}
+
+.copy-button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 0.25rem;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.copy-button:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    background: var(--card-bg);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: none;
+}
+
+.toast.success {
+    border-left: 4px solid var(--success-color);
+}
+
+.toast.error {
+    border-left: 4px solid var(--danger-color);
+}
+
+.toast.warning {
+    border-left: 4px solid var(--warning-color);
+}
+
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 1rem;
+    }
+
+    .stats-card {
+    margin-bottom: 1rem;
+    }
+
+    .transaction-table {
+        font-size: 0.9rem;
+    }
+}
+
+.action-button-danger {
+    background: var(--danger-color);
+    color: white;
+    border: none;
+}
+
+.action-button-danger:hover {
+    background: #b91c1c;
+}

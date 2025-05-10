@@ -25,7 +25,7 @@ const DATABASE_FILES = [
     'merchant_transactions.json',
     'Json/keys.json',
     'address_index_map.json',
-    'payment_requests.json'
+    
 ];
 
 const BACKUP_DIRS = [

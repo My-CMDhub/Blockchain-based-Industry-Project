@@ -422,7 +422,7 @@ function isProviderError(error) {
         error.message.toLowerCase().includes(indicator.toLowerCase()));
 }
 
-// Function to check if a payment amount is correct
+// Function to check if a payment amount is correct with high precision
 function isPaymentAmountCorrect(payment) {
     try {
         // If payment has expected amount in addrInfo, check against actual amount
@@ -436,28 +436,22 @@ function isPaymentAmountCorrect(payment) {
                 console.warn(`No expected amount available for payment: ${payment.address}`);
                 return false;
             }
+            
             // Normalize values to ensure proper comparison
             let expectedAmount = expectedAmountToUse;
             let actualAmount = payment.amount;
-            // Convert both to floats for easy comparison if they're strings
-            if (typeof expectedAmount === 'string') {
-                expectedAmount = parseFloat(expectedAmount);
+            
+            // Convert both to strings then to floats for consistent handling
+            if (typeof expectedAmount !== 'string') {
+                expectedAmount = expectedAmount.toString();
             }
-            if (typeof actualAmount === 'string') {
-                actualAmount = parseFloat(actualAmount);
+            if (typeof actualAmount !== 'string') {
+                actualAmount = actualAmount.toString();
             }
-            // Handle potentially undefined/NaN values
-            if (isNaN(expectedAmount) || isNaN(actualAmount)) {
-                console.warn(`Invalid amount values for comparison: expected=${expectedAmountToUse}, actual=${payment.amount}`);
-                return false; // Mark as incorrect if we can't parse properly
-            }
-            // Allow for a small variance (0.5%)
-            const deviation = expectedAmount * 0.005;
-            const isWithinRange = actualAmount >= (expectedAmount - deviation) && 
-                               actualAmount <= (expectedAmount + deviation);
-            // Log the comparison for debugging
-            console.log(`Payment amount check: Expected=${expectedAmount}, Actual=${actualAmount}, Within range: ${isWithinRange}`);
-            return isWithinRange;
+            
+            // Use fixed-precision comparison for higher accuracy
+            return compareAmountsWithPrecision(expectedAmount, actualAmount);
+            
         } else if (payment.expectedAmount && payment.amount) {
             // Direct comparison if addrInfo is not available but expectedAmount is
             // First try to use ethAmount if it exists
@@ -465,30 +459,72 @@ function isPaymentAmountCorrect(payment) {
                                payment.displayAmount || 
                                payment.expectedAmount;
             let actualAmount = payment.amount;
-            // Normalize values
-            if (typeof expectedAmount === 'string') {
-                expectedAmount = parseFloat(expectedAmount);
+            
+            // Convert both to strings for consistent handling
+            if (typeof expectedAmount !== 'string') {
+                expectedAmount = expectedAmount.toString();
             }
-            if (typeof actualAmount === 'string') {
-                actualAmount = parseFloat(actualAmount);
+            if (typeof actualAmount !== 'string') {
+                actualAmount = actualAmount.toString();
             }
-            if (isNaN(expectedAmount) || isNaN(actualAmount)) {
-                console.warn(`Invalid direct amount values: expected=${payment.ethAmount || payment.displayAmount || payment.expectedAmount}, actual=${payment.amount}`);
-                return false;
-            }
-            // Allow 0.5% deviation
-            const deviation = expectedAmount * 0.005;
-            const isWithinRange = actualAmount >= (expectedAmount - deviation) && 
-                               actualAmount <= (expectedAmount + deviation);
-            console.log(`Direct payment amount check: Expected=${expectedAmount}, Actual=${actualAmount}, Within range: ${isWithinRange}`);
-            return isWithinRange;
+            
+            // Use fixed-precision comparison
+            return compareAmountsWithPrecision(expectedAmount, actualAmount);
         }
+        
         // If we can't determine the expected amount, default to incorrect
         console.warn('Cannot determine expected amount for payment:', payment.address);
         return false;
     } catch (error) {
         console.error('Error checking payment amount:', error);
         // If there's an error in checking, assume it's incorrect to be safe
+        return false;
+    }
+}
+
+// Helper function to compare cryptocurrency amounts with high precision
+// Focuses on first 6 digits after decimal point for accuracy
+function compareAmountsWithPrecision(expectedStr, actualStr) {
+    try {
+        // Convert to numeric values for initial checks
+        const expected = parseFloat(expectedStr);
+        const actual = parseFloat(actualStr);
+        
+        // Handle NaN values
+        if (isNaN(expected) || isNaN(actual)) {
+            console.warn(`Invalid amount values for comparison: expected=${expectedStr}, actual=${actualStr}`);
+            return false;
+        }
+        
+        // Two approaches to verify - first, a numerical approach that's extremely strict
+        // For very small amounts, we want exactness to 6 decimal places
+        // For larger amounts, we'll also allow a tiny percentage difference
+        
+        // Option 1: Format both numbers to 6 decimal places and compare
+        const expectedFormatted = expected.toFixed(6);
+        const actualFormatted = actual.toFixed(6);
+        
+        // Check exact match at 6 decimal places
+        const exactMatch = expectedFormatted === actualFormatted;
+        
+        // Option 2: Allow a very tiny variance (0.000001 or 0.01% whichever is smaller)
+        const smallestAllowedDeviation = Math.min(0.000001, expected * 0.0001);
+        const differenceInValue = Math.abs(expected - actual);
+        const isWithinTinyRange = differenceInValue <= smallestAllowedDeviation;
+        
+        // Log the detailed comparison for transparency
+        console.log(`Payment amount check (high precision):\n` +
+                   `Expected: ${expected} (${expectedFormatted})\n` +
+                   `Actual: ${actual} (${actualFormatted})\n` +
+                   `Exact match at 6 decimals: ${exactMatch}\n` +
+                   `Difference: ${differenceInValue}\n` +
+                   `Max allowed difference: ${smallestAllowedDeviation}\n` +
+                   `Within allowed tiny range: ${isWithinTinyRange}`);
+        
+        // Consider a payment correct if either condition is met
+        return exactMatch || isWithinTinyRange;
+    } catch (e) {
+        console.error('Error in precision comparison:', e);
         return false;
     }
 }

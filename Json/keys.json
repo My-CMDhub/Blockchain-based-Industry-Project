@@ -7,5 +7,21 @@
     "iv": "cbe0b018bf3724cd29adc840058677e1",
     "encryptedData": "c75cbec9ebc6d8205e2a8329560de767963a0ad04705864c1161dbfb44033037373840c69bcde01247d08a734f5285d0d0999b5623df47e4673d9bf8527ba29ef932f5572880d092ab294051ad8cfce4b489613ac401636b36d99c73ed0a9141a6f9b38bc799a1baee6441f5ed36dd57"
   },
-  "activeAddresses": {}
+  "activeAddresses": {
+    "0xe8449f92c780970142415Ca92CF0C93875a305A0": {
+      "index": 5,
+      "ethAmount": "0.00205560",
+      "expectedAmount": "0.00205560",
+      "cryptoType": "ETH",
+      "createdAt": "2025-05-09T23:13:19.194Z",
+      "expiresAt": "2025-05-09T23:43:19.194Z",
+      "status": "confirmed",
+      "orderId": "ORD-MAHEWMBX",
+      "fiatAmount": "7.49",
+      "fiatCurrency": "AUD",
+      "amount": "0.002056",
+      "timestamp": "2025-05-09T23:14:25.465Z",
+      "amountVerified": true
+    }
+  }
 }

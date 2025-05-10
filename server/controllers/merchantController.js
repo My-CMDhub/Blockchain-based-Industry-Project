@@ -546,6 +546,9 @@ exports.releaseAllFunds = async (req, res) => {
         // Calculate the amount to send (total balance minus gas cost)
         let sendAmount = selectedBalance - (gasCostEth * 1.1); // 10% buffer
         
+        // Round to a safe number of decimal places to avoid precision errors
+        sendAmount = parseFloat(sendAmount.toFixed(18));
+        
         // Convert to Wei
         let sendAmountWei;
         try {

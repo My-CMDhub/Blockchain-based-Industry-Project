@@ -3,19 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Merchant Dashboard</title>
+    <title>Merchant Dashboard - CryptoGate</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/boxicons@2.0.7/css/boxicons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/merchant-dashboard.css">
+    <link rel="stylesheet" href="css/theme.css">
 </head>
-<body>
+<body style="background: var(--color-bg); color: var(--color-text);">
+    <!-- Main Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top navbar-cryptogate">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="index.html">
+                <i class="fas fa-coins text-yellow-400 text-2xl mr-2"></i>
+                <span class="fw-bold">CryptoGate</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="Product.html">
+                            <i class="bx bx-store-alt me-1"></i> Store
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="merchant-dashboard.html">
+                            <i class="bx bx-dashboard me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="admin-dashboard.html">
+                            <i class="bx bx-cog me-1"></i> Admin
+                        </a>
+                    </li>
+                </ul>
+                <button class="btn btn-outline-light ms-2" onclick="toggleTheme()" title="Toggle dark mode">
+                    <i class="fa fa-moon"></i>
+                </button>
+                <div class="navbar-text me-3 text-white">
+                    <i class="bx bx-network-chart me-1"></i>
+                    <span id="navNetworkStatus">Checking network...</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
     <div class="dashboard-container">
         <div class="row mb-4">
             <div class="col-12">
-                <h1 class="mb-4">Merchant Dashboard</h1>
+                <h1 class="mb-3">Merchant Dashboard</h1>
+                <p class="text-secondary">Manage your payment gateway, track transactions, and release funds.</p>
             </div>
         </div>
         
+        <!-- Balance Stats Cards -->
         <div class="row mb-4">
             <div class="col-md-4 mb-3">
                 <div class="stats-card">
@@ -46,9 +89,22 @@
                             <label for="releaseAmount" class="form-label">Amount (ETH)</label>
                             <input type="number" class="form-control" id="releaseAmount" step="0.001" min="0">
                             </div>
+                        
+                        <!-- Fund Release Progress -->
+                        <div id="releaseProgressContainer" class="mb-3 d-none">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span id="releaseProgressStatus">Processing fund release...</span>
+                                <span id="releaseProgressPercent">0%</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div id="releaseProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="mt-2 small text-muted" id="releaseProgressDetails">Preparing transaction...</div>
+                        </div>
+                        
                         <div class="d-flex gap-2">
-                            <button class="action-button action-button-primary" onclick="releaseFunds()">Release Specified Amount</button>
-                            <button class="action-button action-button-outline" onclick="releaseAllFunds()">Release All Funds</button>
+                            <button class="action-button action-button-primary" id="releaseFundsBtn" onclick="releaseFunds()">Release Specified Amount</button>
+                            <button class="action-button action-button-outline" id="releaseAllFundsBtn" onclick="releaseAllFunds()">Release All Funds</button>
                         </div>
                     </div>
                             </div>
@@ -224,8 +280,17 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container">
+            <div class="row">
+                <div class="col-12 text-center">
+                    <p class="text-muted mb-0">&copy; 2023 CryptoGate - Blockchain Payment Gateway</p>
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <div class="toast" id="toast">
         <div class="toast-content"></div>
@@ -233,6 +298,28 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
-    <script src="js/merchant-dashboard.js"> </script>
+    <script src="js/merchant-dashboard.js"></script>
+    <script src="js/theme-toggle.js"></script>
+    <script>
+        // Update navbar network status
+        function updateNavNetworkStatus() {
+            const networkNameElement = document.getElementById('networkName');
+            const navNetworkStatusElement = document.getElementById('navNetworkStatus');
+            if (networkNameElement && navNetworkStatusElement) {
+                const networkName = networkNameElement.textContent.trim();
+                if (networkName && networkName !== '-' && networkName.length > 2) {
+                    navNetworkStatusElement.innerHTML = `${networkName} <span class="badge bg-success rounded-pill">Connected</span>`;
+                } else {
+                    navNetworkStatusElement.innerHTML = `Network <span class="badge bg-warning rounded-pill">Connecting...</span>`;
+                }
+            }
+        }
+        // Check network status periodically
+        setInterval(updateNavNetworkStatus, 2000);
+        // Force update after 3 seconds in case async
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateNavNetworkStatus, 3000);
+        });
+    </script>
 </body>
 </html>

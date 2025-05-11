@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shopping Cart - Eco Store</title>
+    <title>Shopping Cart - CryptoGate</title>
     <!-- Add favicon -->
     <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/theme.css">
     <!-- Update QR code library to a more reliable version -->
     <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
     <!-- Update ethers.js source -->
@@ -17,7 +18,7 @@
         .spinner {
             border: 3px solid rgba(0, 0, 0, 0.1);
             border-radius: 50%;
-            border-top: 3px solid #48bb78;
+            border-top: 3px solid #2563eb;
             width: 24px;
             height: 24px;
             animation: spin 1s linear infinite;
@@ -35,21 +36,51 @@
             transform: translateY(0);
             transition: opacity 300ms, transform 300ms;
         }
+        
+        /* Navigation styles */
+        .main-nav {
+            background-color: #2563eb;
+            color: white;
+        }
+        
+        .main-nav .nav-link {
+            color: white;
+            transition: all 0.2s ease;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+        }
+        
+        .main-nav .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .main-nav .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            font-weight: 600;
+        }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50" style="background: var(--color-bg); color: var(--color-text);">
     <!-- Navigation -->
-    <nav class="bg-white shadow-lg fixed w-full z-50">
+    <nav class="main-nav shadow-lg fixed w-full z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <a href="Product.html" class="flex items-center hover:text-green-600 transition-colors">
-                        <i class="fas fa-leaf text-green-600 text-2xl mr-2"></i>
-                        <span class="text-xl font-bold text-gray-800">Eco Store</span>
+                    <a href="Product.html" class="flex items-center">
+                        <i class="fas fa-coins text-yellow-400 text-2xl mr-2"></i>
+                        <span class="text-xl font-bold text-white">CryptoGate</span>
                     </a>
+                    <div class="hidden md:flex ml-6 space-x-1">
+                        <a href="Product.html" class="nav-link">Store</a>
+                        <a href="merchant-dashboard.html" class="nav-link">Dashboard</a>
+                        <a href="admin-dashboard.html" class="nav-link">Admin</a>
+                    </div>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <div class="flex items-center px-3 py-1 rounded-full bg-green-50 text-sm text-green-700">
+                    <button class="btn btn-outline-light ms-2" onclick="toggleTheme()" title="Toggle dark mode">
+                        <i class="fa fa-moon"></i>
+                    </button>
+                    <div class="text-sm text-white px-3 py-1 bg-blue-700 rounded-full flex items-center">
                         <i class="fas fa-network-wired mr-2"></i>
                         <span id="networkStatus">
                             <span class="flex items-center">
@@ -75,7 +106,7 @@
                 <div id="empty-cart" class="hidden text-center py-8">
                     <i class="fas fa-shopping-cart text-gray-300 text-5xl mb-4"></i>
                     <p class="text-gray-500">Your cart is empty</p>
-                    <a href="Product.html" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                    <a href="Product.html" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                         Start Shopping
                     </a>
                 </div>
@@ -123,7 +154,7 @@
                 <!-- Payment Method Tabs -->
                 <div class="mb-6">
                     <div class="flex border-b">
-                        <button id="crypto-tab" onclick="switchPaymentTab('crypto')" class="px-4 py-2 font-medium text-sm focus:outline-none border-b-2 border-green-500 text-green-600">
+                        <button id="crypto-tab" onclick="switchPaymentTab('crypto')" class="px-4 py-2 font-medium text-sm focus:outline-none border-b-2 border-blue-500 text-blue-600">
                             <i class="fab fa-ethereum mr-2"></i>Cryptocurrency
                         </button>
                         <button id="card-tab" onclick="switchPaymentTab('card')" class="px-4 py-2 font-medium text-sm focus:outline-none border-b-2 border-transparent hover:border-gray-300 text-gray-500 hover:text-gray-700">
@@ -137,7 +168,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <label class="crypto-option relative">
                             <input type="radio" name="crypto" value="ETH" class="hidden" onchange="selectCrypto('ETH')">
-                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all duration-200">
                                 <i class="fab fa-ethereum text-3xl mb-3 text-blue-600"></i>
                                 <span class="font-medium text-gray-900">Ethereum</span>
                                 <span class="text-sm text-gray-500 mt-1">ETH</span>
@@ -148,7 +179,7 @@
                         </label>
                         <label class="crypto-option relative">
                             <input type="radio" name="crypto" value="MATIC" class="hidden" onchange="selectCrypto('MATIC')">
-                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all duration-200">
                                 <i class="fas fa-gem text-3xl mb-3 text-purple-500"></i>
                                 <span class="font-medium text-gray-900">Polygon</span>
                                 <span class="text-sm text-gray-500 mt-1">MATIC</span>
@@ -159,7 +190,7 @@
                         </label>
                         <label class="crypto-option relative">
                             <input type="radio" name="crypto" value="BNB" class="hidden" onchange="selectCrypto('BNB')">
-                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all duration-200">
+                            <div class="cursor-pointer flex flex-col items-center p-6 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all duration-200">
                                 <i class="fas fa-coins text-3xl mb-3 text-yellow-600"></i>
                                 <span class="font-medium text-gray-900">Binance Coin</span>
                                 <span class="text-sm text-gray-500 mt-1">BNB</span>
@@ -191,7 +222,7 @@
                     </div>
                 </div>
 
-                <button id="pay-button" onclick="proceedToPayment()" class="w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 hidden">
+                <button id="pay-button" onclick="proceedToPayment()" class="w-full bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 hidden">
                     <span class="flex items-center justify-center">
                         <i class="fas fa-lock mr-2"></i>
                         Proceed to Secure Payment
@@ -201,10 +232,36 @@
             </div>
         </div>
     </div>
+    
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <i class="fas fa-coins text-blue-600 text-2xl mr-2"></i>
+                    <span class="text-lg font-semibold text-gray-800">CryptoGate</span>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="merchant-dashboard.html" class="text-gray-600 hover:text-blue-600">
+                        <i class="fas fa-tachometer-alt mr-1"></i>
+                        Dashboard
+                    </a>
+                    <a href="admin-dashboard.html" class="text-gray-600 hover:text-blue-600">
+                        <i class="fas fa-cog mr-1"></i>
+                        Admin
+                    </a>
+                </div>
+                <div class="text-sm text-gray-500 mt-4 md:mt-0">
+                    &copy; 2023 CryptoGate - Blockchain Payment Gateway
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
 
+    <script src="js/theme-toggle.js"></script>
     <script>
         let cart = [];
         let selectedCrypto = null;
@@ -408,9 +465,9 @@
             document.querySelectorAll('.crypto-option').forEach(option => {
                 const div = option.querySelector('div');
                 if (div) {
-                    div.classList.remove('border-green-500', 'bg-green-50');
+                    div.classList.remove('border-blue-500', 'bg-blue-50');
                     if (option.querySelector(`input[value="${crypto}"]`)) {
-                        div.classList.add('border-green-500', 'bg-green-50');
+                        div.classList.add('border-blue-500', 'bg-blue-50');
                     }
                 }
             });
@@ -619,13 +676,13 @@
             selectedPaymentMethod = tab;
             
             // Update tab buttons
-            document.getElementById('crypto-tab').classList.remove('border-green-500', 'text-green-600');
+            document.getElementById('crypto-tab').classList.remove('border-blue-500', 'text-blue-600');
             document.getElementById('crypto-tab').classList.add('border-transparent', 'text-gray-500');
-            document.getElementById('card-tab').classList.remove('border-green-500', 'text-green-600');
+            document.getElementById('card-tab').classList.remove('border-blue-500', 'text-blue-600');
             document.getElementById('card-tab').classList.add('border-transparent', 'text-gray-500');
             
             document.getElementById(`${tab}-tab`).classList.remove('border-transparent', 'text-gray-500');
-            document.getElementById(`${tab}-tab`).classList.add('border-green-500', 'text-green-600');
+            document.getElementById(`${tab}-tab`).classList.add('border-blue-500', 'text-blue-600');
             
             // Show/hide payment sections
             document.getElementById('crypto-payment').classList.add('hidden');

@@ -18,6 +18,7 @@ const walletRoutes = require('./server/routes/walletRoutes');
 const merchantRoutes = require('./server/routes/merchantRoutes');
 const adminRoutes = require('./server/routes/adminRoutes');
 const stripeRoutes = require('./server/routes/stripeRoutes');
+const secretsBackendRoutes = require('./server/routes/secretsBackendRoutes');
 const { initDatabaseRecovery, startScheduledBackups, checkDatabaseStatus } = require('./server/utils/databaseMonitor');
 const { validateDatabaseOnStartup } = require('./server/utils/startupValidator');
 const secureKeysRoutes = require('./server/routes/secureKeysRoutes');
@@ -899,6 +900,7 @@ app.use('/api', merchantRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/secure-keys', secureKeysRoutes);
+app.use('/api/secrets', secretsBackendRoutes);
 
 // Add API key config endpoint
 app.get('/api/config/api-key', (req, res) => {

@@ -6,35 +6,69 @@
     <title>Blockchain Payment Admin Dashboard</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Custom icon box style */
-        .icon-box {
-            width: 45px;
-            height: 45px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        /* Clipboard fix for address display */
-        code.text-break {
-            word-break: break-all;
-        }
-        
-        /* Table responsiveness improvements */
-        .table-responsive {
-            min-height: 200px;
-        }
-    </style>
+    <link rel="stylesheet" href="css/admin-dashboard.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
+<body style="background: var(--color-bg); color: var(--color-text);">
+
+     <!-- Main Navigation -->
+     <nav class="navbar navbar-expand-lg navbar-dark sticky-top navbar-cryptogate">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="index.html">
+                <i class="fas fa-coins text-yellow-400 text-2xl mr-2"></i>
+                <span class="fw-bold">CryptoGate</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="Product.html">
+                            <i class="bx bx-store-alt me-1"></i> Store
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="merchant-dashboard.html">
+                            <i class="bx bx-dashboard me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="admin-dashboard.html">
+                            <i class="bx bx-cog me-1"></i> Admin
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="secrets-demo.html">
+                            <i class="fas fa-key me-1"></i> Secrets Demo
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="gcp-secrets-dashboard.html">
+                            <i class="fab fa-google me-1"></i> GCP Dashboard
+                        </a>
+                    </li>
+                </ul>
+                <button class="btn btn-outline-light ms-2" onclick="toggleTheme()" title="Toggle dark mode">
+                    <i class="fa fa-moon"></i>
+                </button>
+                <div class="text-sm text-white px-3 py-1 bg-blue-700 rounded-full flex items-center">
+                    <i class="fas fa-wallet mr-1"></i>
+                    <span>Sepolia Network</span>
+                    <span class="badge bg-success rounded-pill ml-2">Connected</span>
+                    </div>
+            </div>
+        </div>
+    </nav>
     <div class="container-fluid py-4">
         <div class="row">
             <div class="col-12">
                 <div class="card mb-4">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
                             <div>
                                 <h1 class="h3 mb-1">Admin Dashboard</h1>
                                 <p class="text-secondary mb-0">Monitor all user and merchant activities, transactions, and payment addresses. No sensitive data is ever shown.</p>
@@ -189,7 +223,7 @@
                                                 Available Backups
                                             </h5>
                                             <div class="input-group input-group-sm w-auto">
-                                                <input type="text" class="form-control" id="backup-search" placeholder="Search backups..." oninput="filterBackups(this.value)">
+                                                <input type="text" class="form-control search-box" id="backup-search" placeholder="Search backups..." oninput="filterBackups(this.value)">
                                                 <button class="btn btn-outline-secondary" type="button" id="btn-refresh-backups" onclick="loadDatabaseBackups()">
                                                     <i class="fas fa-sync-alt"></i>
                                                 </button>
@@ -238,7 +272,7 @@
             </div>
         </div>
     </div>
-    <footer class="bg-white shadow-sm mt-15 py-4">
+    <footer class="bg-white shadow-sm py-4">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="text-secondary small">
@@ -252,12 +286,6 @@
         </div>
     </footer>
     
-    <!-- Debug Buttons (Always visible) -->
-    <div style="position:fixed; bottom:10px; right:10px; z-index:9999;">
-        <button id="debug-api-btn" class="btn btn-danger me-2" style="font-size:12px;">Debug API</button>
-        <button id="fix-api-urls-btn" class="btn btn-success" style="font-size:12px;">Fix API URLs</button>
-    </div>
-    
     <!-- Load JavaScript at the end of the body for better performance -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
@@ -266,7 +294,7 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.35.0/dist/apexcharts.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js"></script>
     <script src="js/admin-dashboard.js"></script>
-    <script src="js/debug.js"></script>
-    <script src="js/test-functions.js"></script>
+    <script src="js/theme-toggle.js"></script>
+    
 </body>
 </html> 

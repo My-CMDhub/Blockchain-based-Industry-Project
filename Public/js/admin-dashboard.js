@@ -1134,7 +1134,7 @@
             const addressCell = etherscanAddress 
                 ? `<td>
                     <div class="d-flex align-items-center">
-                        <code>${displayId}</code>
+                        <code class="transaction-id">${displayId}</code>
                         ${etherscanAddress ? `
                             <a href="https://sepolia.etherscan.io/address/${etherscanAddress}" 
                                 target="_blank" 
@@ -1153,7 +1153,7 @@
                             </a>` : ''}
                     </div>
                 </td>`
-                : `<td><code>${displayId}</code></td>`;
+                : `<td><code class="transaction-id">${displayId}</code></td>`;
                 
             // Determine amount display
             const amountText = activity.amount || '0';

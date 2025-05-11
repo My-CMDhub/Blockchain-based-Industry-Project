@@ -1,0 +1,148 @@
+/* Theme CSS for light/dark mode */
+
+:root {
+  /* Light theme (default) */
+  --color-bg: #f8f9fa;
+  --color-text: #212529;
+  --color-primary: #0d6efd;
+  --color-secondary: #6c757d;
+  --color-border: #dee2e6;
+  --color-card-bg: #ffffff;
+  --color-card-header: #f1f3f5;
+  --color-pre-bg: #f5f5f5;
+  --color-navbar-bg: #343a40;
+  --color-footer-bg: #ffffff;
+}
+
+[data-theme="dark"] {
+  /* Dark theme */
+  --color-bg: #212529;
+  --color-text: #f8f9fa;
+  --color-primary: #0d6efd;
+  --color-secondary: #adb5bd;
+  --color-border: #495057;
+  --color-card-bg: #343a40;
+  --color-card-header: #2c3034;
+  --color-pre-bg: #2c3034;
+  --color-navbar-bg: #1a1d20;
+  --color-footer-bg: #343a40;
+}
+
+/* Apply variables */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.card {
+  background-color: var(--color-card-bg);
+  border-color: var(--color-border);
+}
+
+.card-header {
+  background-color: var(--color-card-header);
+  border-color: var(--color-border);
+}
+
+.navbar-cryptogate {
+  background-color: var(--color-navbar-bg);
+}
+
+pre, code {
+  background-color: var(--color-pre-bg);
+  color: var(--color-text);
+}
+
+footer {
+  background-color: var(--color-footer-bg) !important;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Dark mode text adjustments */
+[data-theme="dark"] .text-secondary {
+  color: #adb5bd !important;
+}
+
+[data-theme="dark"] .text-muted {
+  color: #adb5bd !important;
+}
+
+[data-theme="dark"] .bg-light {
+  background-color: #343a40 !important;
+}
+
+/* Smooth theme transitions */
+.theme-transition,
+.theme-transition * {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+}
+
+/* Bootstrap and utility class overrides for robust theming */
+.bg-white, .bg-light, .card, .modal-content, .dropdown-menu, .popover {
+  background-color: var(--color-card-bg) !important;
+  color: var(--color-text) !important;
+}
+.bg-dark, .navbar-dark, .offcanvas, .toast {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text) !important;
+}
+.text-dark, .text-body, .text-primary, .navbar, body, html {
+  color: var(--color-text) !important;
+}
+.text-secondary, .text-muted {
+  color: var(--color-secondary) !important;
+}
+.border, .border-top, .border-bottom, .border-start, .border-end {
+  border-color: var(--color-border) !important;
+}
+.btn-primary, .btn-outline-primary {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+}
+.btn-primary:hover, .btn-outline-primary:hover {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* Robust CryptoGate navbar theme */
+.navbar-cryptogate {
+  background-color: var(--color-navbar-bg) !important;
+  color: #fff !important;
+}
+[data-theme="dark"] .navbar-cryptogate {
+  background-color: #23272b !important;
+  color: #fff !important;
+}
+.navbar-cryptogate .nav-link,
+.navbar-cryptogate .navbar-brand,
+.navbar-cryptogate .btn,
+.navbar-cryptogate .navbar-text {
+  color: #fff !important;
+}
+.navbar-cryptogate .nav-link.active::after {
+  background-color: #fff;
+}
+
+/* Tailwind text color overrides for dark mode */
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-gray-300,
+[data-theme="dark"] .text-gray-200,
+[data-theme="dark"] .text-gray-100,
+[data-theme="dark"] .text-black {
+  color: var(--color-text) !important;
+}
+[data-theme="dark"] .text-muted,
+[data-theme="dark"] .text-secondary {
+  color: var(--color-secondary) !important;
+}
+[data-theme="dark"] .product-main,
+[data-theme="dark"] footer {
+  color: var(--color-text) !important;
+} 

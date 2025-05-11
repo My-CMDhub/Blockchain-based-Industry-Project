@@ -1,34 +1,85 @@
-:root {
-    --primary-color: #2563eb;
-    --secondary-color: #1e40af;
-    --success-color: #059669;
-    --danger-color: #dc2626;
-    --warning-color: #d97706;
-    --info-color: #0891b2;
-    --background-color: #f8fafc;
-    --card-bg: #ffffff;
-    --text-primary: #1f2937;
-    --text-secondary: #4b5563;
-    --border-color: #e5e7eb;
+body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
-body {
-    background-color: var(--background-color);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/* Navbar styles */
+.navbar {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    background-color: var(--color-navbar) !important;
+    color: var(--color-navbar-text) !important;
+}
+
+.navbar-brand {
+    font-size: 1.25rem;
+}
+
+.navbar .nav-link {
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    position: relative;
+    color: var(--color-navbar-text) !important;
+}
+
+.navbar .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 3px;
+    background-color: var(--color-navbar-text);
+    border-radius: 3px;
+}
+
+.navbar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
 }
 
 .dashboard-container {
     padding: 2rem;
+    flex: 1;
 }
 
+/* Card styles */
+.card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: all 0.25s ease-in-out;
+    overflow: hidden;
+    background: var(--color-card);
+    color: var(--color-text);
+}
+
+.card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.card-title {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Stats cards */
 .stats-card {
-    background: var(--card-bg);
+    background: var(--color-card);
     border-radius: 1rem;
     padding: 1.5rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease-in-out;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--color-border);
 }
 
 .stats-card:hover {
@@ -38,25 +89,26 @@ body {
 .stats-value {
     font-size: 1.8rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--color-primary);
 }
 
 .stats-label {
-    color: var(--text-secondary);
+    color: var(--color-text-secondary);
     font-size: 0.9rem; 
     margin-top: 0.5rem;
 }
 
+/* Transaction table */
 .transaction-table {
-    background: var(--card-bg);
+    background: var(--color-card);
     border-radius: 1rem;
     overflow: hidden;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .transaction-table th {
-    background: var(--background-color);
-    color: var(--text-secondary);
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
     font-weight: 600;
     text-transform: uppercase;
     font-size: 0.8rem;
@@ -68,104 +120,135 @@ body {
     vertical-align: middle;
 }
 
+/* Status badges */
 .status-badge {
     font-size: 0.75rem;
     padding: 2px 8px;
     border-radius: 12px;
-    background-color: #e9ecef;
-    color: #495057;
+    background-color: var(--color-border);
+    color: var(--color-text-secondary);
 }
+
 .status-confirmed {
-    background-color: #d1e7dd;
-    color: #0f5132;
-}
-.status-pending {
-    background-color: #fff3cd;
-    color: #856404;
-}
-.status-failed {
-    background-color: #f8d7da;
-    color: #842029;
-}
-.status-success {
-    background-color: #198754;
+    background-color: var(--color-success);
     color: white;
 }
+
+.status-pending {
+    background-color: var(--color-warning);
+    color: #856404;
+}
+
+.status-failed {
+    background-color: var(--color-danger);
+    color: white;
+}
+
+.status-success {
+    background-color: var(--color-success);
+    color: white;
+}
+
 .status-expired {
-    background-color: #e2e3e5;
-    color: #41464b;
+    background-color: var(--color-border);
+    color: var(--color-text-secondary);
 }
+
 .status-payment {
-    background-color: #cfe2ff;
-    color: #084298;
+    background-color: var(--color-info);
+    color: white;
 }
+
 .status-release {
-    background-color: #d1e7dd;
-    color: #0f5132;
+    background-color: var(--color-success);
+    color: white;
 }
+
 .status-other {
-    background-color: #e9ecef;
-    color: #495057;
+    background-color: var(--color-border);
+    color: var(--color-text-secondary);
 }
+
+/* Dashboard cards */
 .dashboard-card {
     transition: all 0.3s ease;
+    height: 100%;
+    background: var(--color-card);
+    color: var(--color-text);
 }
+
 .dashboard-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
+
+/* Row styling for different payment states */
 .wrong-payment-row {
     background-color: rgba(248, 215, 218, 0.3);
 }
+
 .wrong-payment-row:hover {
     background-color: rgba(248, 215, 218, 0.5);
 }
+
 .expired-address-row {
     background-color: rgba(226, 227, 229, 0.3);
 }
+
 .expired-address-row:hover {
     background-color: rgba(226, 227, 229, 0.5);
 }
+
 .failed-release-row {
     background-color: rgba(255, 243, 205, 0.3);
 }
+
 .failed-release-row:hover {
     background-color: rgba(255, 243, 205, 0.5);
 }
+
 .success-release-row {
     background-color: rgba(209, 231, 221, 0.3);
 }
+
 .success-release-row:hover {
     background-color: rgba(209, 231, 221, 0.5);
 }
+
 .confirmed-payment-row {
     background-color: rgba(207, 226, 255, 0.3);
 }
+
 .confirmed-payment-row:hover {
     background-color: rgba(207, 226, 255, 0.5);
 }
+
+/* Tags for payment statuses */
 .wrong-payment-tag {
     font-size: 0.65rem;
     padding: 1px 5px;
     border-radius: 8px;
-    background-color: #dc3545;
+    background-color: var(--color-danger);
     color: white;
     margin-left: 5px;
     vertical-align: middle;
 }
+
 .expired-tag {
     font-size: 0.65rem;
     padding: 1px 5px;
     border-radius: 8px;
-    background-color: #6c757d;
+    background-color: var(--color-border);
     color: white;
     margin-left: 5px;
     vertical-align: middle;
 }
+
 .wallet-address {
     font-family: monospace;
     font-size: 0.9rem;
 }
+
 .balance-info {
     width: 100px;
     display: inline-block;
@@ -177,16 +260,17 @@ body {
 
 .wrong-payment-row {
     background-color: rgba(220, 38, 38, 0.15) !important;
-    border-left: 4px solid #dc2626 !important;
+    border-left: 4px solid var(--color-danger) !important;
 }
 
 .wrong-payment-details {
     background-color: rgba(220, 38, 38, 0.05);
-    border-left: 4px solid #dc2626;
+    border-left: 4px solid var(--color-danger);
     padding: 0.5rem 1rem;
     margin-top: 0.5rem;
 }
 
+/* Action buttons */
 .action-button {
     padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
@@ -195,100 +279,183 @@ body {
 }
 
 .action-button-primary {
-    background: var(--primary-color);
+    background: var(--color-primary);
     color: white;
     border: none;
 }
 
 .action-button-primary:hover {
-    background: var(--secondary-color);
+    background: var(--color-primary-hover);
+}
+
+.action-button-primary:disabled {
+    background: var(--color-border);
+    cursor: not-allowed;
 }
 
 .action-button-outline {
     background: transparent;
-    border: 2px solid var(--primary-color);
-    color: var(--primary-color);
+    border: 2px solid var(--color-primary);
+    color: var(--color-primary);
 }
 
 .action-button-outline:hover {
-    background: var(--primary-color);
+    background: var(--color-primary);
     color: white;
 }
 
-.address-card {
-    background: var(--card-bg);
-    border-radius: 1rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border: 1px solid var(--border-color);
-}
-
-.address-card .address {
-    font-family: monospace;
-        font-size: 0.9rem;
-    word-break: break-all;
-}
-
-.copy-button {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8rem;
-    border-radius: 0.25rem;
-    background: var(--background-color);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    cursor: pointer;
-}
-
-.copy-button:hover {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.toast {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    background: var(--card-bg);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    display: none;
-}
-
-.toast.success {
-    border-left: 4px solid var(--success-color);
-}
-
-.toast.error {
-    border-left: 4px solid var(--danger-color);
-}
-
-.toast.warning {
-    border-left: 4px solid var(--warning-color);
-}
-
-@media (max-width: 768px) {
-    .dashboard-container {
-        padding: 1rem;
-    }
-
-    .stats-card {
-    margin-bottom: 1rem;
-    }
-
-    .transaction-table {
-        font-size: 0.9rem;
-    }
+.action-button-outline:disabled {
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: not-allowed;
 }
 
 .action-button-danger {
-    background: var(--danger-color);
+    background: var(--color-danger);
     color: white;
     border: none;
 }
 
 .action-button-danger:hover {
     background: #b91c1c;
+}
+
+/* Address cards */
+.address-card {
+    background: var(--color-card);
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--color-border);
+}
+
+.address-card .address {
+    font-family: monospace;
+    font-size: 0.9rem;
+    word-break: break-all;
+}
+
+/* Copy button */
+.copy-button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 0.25rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.copy-button:hover {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+/* Toast notifications */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    background: var(--color-card);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: none;
+}
+
+.toast.success {
+    border-left: 4px solid var(--color-success);
+}
+
+.toast.error {
+    border-left: 4px solid var(--color-danger);
+}
+
+.toast.warning {
+    border-left: 4px solid var(--color-warning);
+}
+
+/* Fund Release Progress Bar */
+#releaseProgressContainer {
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.progress {
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: var(--color-border);
+}
+
+.progress-bar {
+    background-color: var(--color-primary);
+    transition: width 0.5s ease;
+}
+
+.progress-bar-striped {
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-size: 1rem 1rem;
+}
+
+.progress-bar-animated {
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    from { background-position: 1rem 0; }
+    to { background-position: 0 0; }
+}
+
+/* Footer */
+footer {
+    border-top: 1px solid var(--color-border);
+    padding: 1.5rem 0;
+    margin-top: 2rem;
+    background: var(--color-card);
+    color: var(--color-text-secondary);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 1rem;
+    }
+
+    .stats-card {
+        margin-bottom: 1rem;
+    }
+
+    .transaction-table {
+        font-size: 0.9rem;
+    }
+    
+    .action-button {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .d-flex.gap-2 {
+        flex-direction: column;
+    }
+}
+
+/* Animation for cards */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card, .stats-card {
+    animation: fade-in 0.5s ease-out forwards;
+}
 }

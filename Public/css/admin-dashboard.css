@@ -10,6 +10,8 @@
     --border-color: #e2e8f0;
     --text-primary: #1e293b;
     --text-secondary: #64748b;
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+    --card-shadow-hover: 0 10px 15px rgba(0, 0, 0, 0.05), 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 body {
@@ -17,19 +19,59 @@ body {
     background-color: var(--light-bg);
     color: var(--text-primary);
     line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
+/* Container and layout */
+.container-fluid {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Cards */
 .card {
     border: none;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow);
     transition: all 0.2s ease;
+    margin-bottom: 1.5rem;
 }
 
 .card:hover {
-    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05), 0 4px 6px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow-hover);
 }
 
+.card-header {
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 1.25rem;
+    background-color: var(--card-bg) !important;
+    border-top-left-radius: 12px !important;
+    border-top-right-radius: 12px !important;
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+.card-footer {
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 1.25rem;
+    background-color: var(--card-bg) !important;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+/* Stat cards */
 .stat-card {
     text-align: center;
     padding: 1.5rem;
@@ -47,12 +89,17 @@ body {
     font-size: 0.95rem;
 }
 
+/* Navigation tabs */
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+}
+
 .nav-tabs .nav-link {
     border: none;
     color: var(--secondary-color);
     font-weight: 500;
     padding: 0.75rem 1.25rem;
-    border-radius: 8px;
+    border-radius: 8px 8px 0 0;
     margin-right: 0.5rem;
     transition: all 0.2s ease;
 }
@@ -66,6 +113,14 @@ body {
     background-color: var(--primary-color);
     color: white;
     border: none;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
 
 .btn-primary {
@@ -88,9 +143,17 @@ body {
     color: white;
 }
 
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Tables */
 .table {
     border-collapse: separate;
     border-spacing: 0;
+    width: 100%;
+    margin-bottom: 0;
 }
 
 .table th {
@@ -99,14 +162,29 @@ body {
     background-color: #f8fafc;
     border-bottom: 1px solid var(--border-color);
     padding: 1rem;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
 }
 
 .table td {
     padding: 1rem;
     vertical-align: middle;
     border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
 }
 
+.table-hover tbody tr:hover {
+    background-color: rgba(37, 99, 235, 0.02);
+}
+
+.table-responsive {
+    min-height: 200px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Badges */
 .badge {
     padding: 0.5em 0.75em;
     font-weight: 500;
@@ -133,6 +211,7 @@ body {
     color: var(--secondary-color);
 }
 
+/* Search box */
 .search-box {
     border-radius: 8px;
     border: 1px solid var(--border-color);
@@ -149,6 +228,7 @@ body {
     background-color: #f0f6ff;
 }
 
+/* Action buttons */
 .action-btn {
     padding: 0.4rem 0.75rem;
     border-radius: 6px;
@@ -165,10 +245,12 @@ body {
     border-color: var(--primary-color);
 }
 
+/* Alerts */
 .alert {
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1.5rem;
+    border: none;
 }
 
 .alert-info {
@@ -177,6 +259,7 @@ body {
     color: var(--primary-color);
 }
 
+/* Wallet elements */
 .wallet-card {
     max-width: 640px;
     margin: 0 auto;
@@ -202,6 +285,22 @@ body {
     color: var(--text-secondary);
 }
 
+/* Filter buttons */
+.filter-group .btn {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0;
+}
+
+.filter-group .btn:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.filter-group .btn:last-child {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
 .filter-btn {
     padding: 0.5rem 1rem;
     border-radius: 8px;
@@ -215,4 +314,91 @@ body {
     color: white;
 }
 
-/* Keep your original custom styles for backward compatibility */ 
+/* Footer */
+footer {
+    margin-top: auto;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Custom icon box style */
+.icon-box {
+    width: 45px;
+    height: 45px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+}
+
+/* Clipboard fix for address display */
+code.text-break {
+    word-break: break-all;
+    background-color: var(--light-bg);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+/* Loading spinner */
+.spinner-border {
+    vertical-align: middle;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .d-flex {
+        flex-direction: column;
+    }
+    
+    .d-flex .btn-group {
+        margin-bottom: 0.5rem;
+        width: 100%;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .input-group {
+        width: 100% !important;
+        margin-top: 0.5rem;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* --- DARK MODE SUPPORT FOR ADMIN DASHBOARD --- */
+[data-theme="dark"] {
+    --light-bg: #181a20;
+    --card-bg: #23272f;
+    --border-color: #23272f;
+    --text-primary: #f5f6fa;
+    --text-secondary: #b0b8c1;
+    --table-header-bg: #23272f;
+    --table-row-hover: #222a36;
+}
+
+[data-theme="dark"] .transaction-id {
+    color: #ffb3d1 !important; /* bright pink for transaction IDs */
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+[data-theme="dark"] .table th {
+    background-color: var(--table-header-bg) !important;
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .table td {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover {
+    background-color: var(--table-row-hover) !important;
+} 

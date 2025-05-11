@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.0.1",
     "@moralisweb3/common-evm-utils": "^2.25.1",
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",

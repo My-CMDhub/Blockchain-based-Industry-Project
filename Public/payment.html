@@ -87,16 +87,16 @@
     </style>
 </head>
 <body style="background: var(--color-bg); color: var(--color-text);">
-    <!-- Navigation -->
-    <nav class="main-nav shadow-lg fixed w-full z-50">
+     <!-- Navigation -->
+     <nav class="main-nav shadow-lg fixed w-full z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
                     <i class="fas fa-coins text-yellow-400 text-2xl mr-2"></i>
                     <span class="text-xl font-bold text-white">CryptoGate</span>
                     <div class="hidden md:flex ml-6 space-x-1">
-                        <a href="Product.html" class="nav-link">Store</a>
-                        <a href="merchant-dashboard.html" class="nav-link">Merchant</a>
+                        <a href="Product.html" class="nav-link active">Store</a>
+                        <a href="merchant-dashboard.html" class="nav-link">Dashboard</a>
                         <a href="admin-dashboard.html" class="nav-link">Admin</a>
                     </div>
                 </div>
@@ -104,10 +104,15 @@
                     <button class="btn btn-outline-light ms-2" onclick="toggleTheme()" title="Toggle dark mode">
                         <i class="fa fa-moon"></i>
                     </button>
+                    <div class="relative" id="cartIcon">
+                       <a href="Cart.html" class="text-white"> 
+                         <i class="fas fa-shopping-cart text-xl cursor-pointer"></i> 
+                       </a>
+                        <span id="cartCount" class="absolute -top-2 -right-2 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">0</span>
+                    </div>
                     <div class="text-sm text-white px-3 py-1 bg-blue-700 rounded-full flex items-center">
                         <i class="fas fa-wallet mr-1"></i>
-                        <span>Sepolia Network</span>
-                        <span class="badge bg-success rounded-pill ml-2">Connected</span>
+                        <span id="networkStatus">Sepolia Network</span>
                     </div>
                 </div>
             </div>

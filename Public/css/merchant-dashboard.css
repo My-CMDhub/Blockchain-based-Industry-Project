@@ -108,7 +108,7 @@ body {
 
 .transaction-table th {
     background: var(--color-bg);
-    color: var(--color-text-secondary);
+    color: #111 !important;
     font-weight: 600;
     text-transform: uppercase;
     font-size: 0.8rem;
@@ -120,18 +120,33 @@ body {
     vertical-align: middle;
 }
 
+/* Make TYPE and STATUS cell text black for visibility */
+.transaction-table td.type-col, .transaction-table td.status-col {
+    color: #111 !important;
+}
+
 /* Status badges */
 .status-badge {
     font-size: 0.75rem;
     padding: 2px 8px;
     border-radius: 12px;
     background-color: var(--color-border);
-    color: var(--color-text-secondary);
+    color: #111 !important;
+    letter-spacing: 0.5px;
 }
 
 .status-confirmed {
-    background-color: var(--color-success);
-    color: white;
+    background-color: rgba(255, 255, 0, 0.18) !important; /* transparent yellow */
+    color: #856404 !important;
+    font-size: 0.75rem;
+   
+}
+
+.status-success {
+    background-color: rgba(40, 167, 69, 0.18) !important; /* transparent green */
+    color: #155724 !important;
+    font-size: 0.75rem;
+   
 }
 
 .status-pending {
@@ -144,14 +159,9 @@ body {
     color: white;
 }
 
-.status-success {
-    background-color: var(--color-success);
-    color: white;
-}
-
 .status-expired {
     background-color: var(--color-border);
-    color: var(--color-text-secondary);
+    color: #111 !important;
 }
 
 .status-payment {
@@ -166,7 +176,7 @@ body {
 
 .status-other {
     background-color: var(--color-border);
-    color: var(--color-text-secondary);
+    color: #111 !important;
 }
 
 /* Dashboard cards */
@@ -225,21 +235,27 @@ body {
 
 /* Tags for payment statuses */
 .wrong-payment-tag {
-    font-size: 0.65rem;
-    padding: 1px 5px;
+    font-size: 0.7rem;
+    padding: 2px 6px;
     border-radius: 8px;
-    background-color: var(--color-danger);
+    background-color: #dc3545;
     color: white;
     margin-left: 5px;
     vertical-align: middle;
+    font-weight: bold;
+    display: inline-block;
 }
 
 .expired-tag {
-    font-size: 0.65rem;
-    padding: 1px 5px;
+    font-size: 0.7rem;
+    padding: 2px 6px;
     border-radius: 8px;
-    background-color: var(--color-border);
+    background-color: #6c757d;
     color: white;
+    margin-left: 5px;
+    vertical-align: middle;
+    font-weight: bold;
+    display: inline-block;
     margin-left: 5px;
     vertical-align: middle;
 }
@@ -285,7 +301,7 @@ body {
 }
 
 .action-button-primary:hover {
-    background: var(--color-primary-hover);
+    background:rgb(14, 97, 207);
 }
 
 .action-button-primary:disabled {
@@ -458,4 +474,40 @@ footer {
 .card, .stats-card {
     animation: fade-in 0.5s ease-out forwards;
 }
+
+/* Type badges */
+.type-badge {
+    font-size: 0.85rem;
+    padding: 3px 12px;
+    border-radius: 10px;
+    display: inline-block;
+    margin-right: 4px;
+}
+.type-payment {
+    background-color: #2563eb; /* professional blue */
+    color: #fff;
+}
+.type-release {
+    background-color: #7c3aed; /* professional purple */
+    color: #fff;
+}
+
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+}
+
+.wrong-payment-monitor-btn {
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.wrong-payment-monitor-btn:hover {
+    background-color: #dc3545;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
 }

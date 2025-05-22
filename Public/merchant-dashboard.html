@@ -221,10 +221,10 @@
                             <div>
                                 <small class="text-muted">Action</small>
                                 <div>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="showWrongPaymentsHelp()">
+                                    <button class="btn btn-sm btn-outline-danger wrong-payment-monitor-btn" id="wrongPaymentsHelpBtn" onclick="showWrongPaymentsHelp()" title="Get help with wrong payments">
                                         <i class="bx bx-help-circle me-1"></i> Help
                                     </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="showWrongPaymentsList()">
+                                    <button class="btn btn-sm btn-outline-danger wrong-payment-monitor-btn" id="wrongPaymentsListBtn" onclick="showWrongPaymentsList()" title="View detailed wrong payment information">
                                         <i class="bx bx-list-ul me-1"></i> Details
                                     </button>
                                 </div>
@@ -324,5 +324,42 @@
     
     <!-- User Guide JS -->
     <script src="js/user-guide.js"></script>
+    
+    <!-- Ensure wrong payment buttons work -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Make sure buttons have direct click handlers
+            const helpBtn = document.getElementById('wrongPaymentsHelpBtn');
+            const listBtn = document.getElementById('wrongPaymentsListBtn');
+            
+            if (helpBtn) {
+                console.log('Adding click handler to help button');
+                helpBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('Help button clicked');
+                    showWrongPaymentsHelp();
+                });
+            }
+            
+            if (listBtn) {
+                console.log('Adding click handler to list button');
+                listBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('List button clicked');
+                    showWrongPaymentsList();
+                });
+            }
+            
+            // Check that Bootstrap is available
+            if (!window.bootstrap) {
+                console.warn('Bootstrap not found on page load, loading dynamically...');
+                if (typeof loadBootstrapIfNeeded === 'function') {
+                    loadBootstrapIfNeeded();
+                }
+
+            }
+        });
+    </script>
 </body>
 </html>
+

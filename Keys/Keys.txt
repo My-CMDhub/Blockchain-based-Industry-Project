@@ -33,3 +33,38 @@ CMC_API_KEY=18f82d8f-dcb6-4fc7-9df0-8e927b0ae6fc
 
 
 
+# Stripe Configuration
+STRIPE_PUBLISHABLE_KEY=pk_test_51Qn6wnF16YiElpQDnOI6ocQingoz396nVoXhb4OcN2izYPqGK8eLF9Uo1T63RiRgYpwD6NyaxoGkh6gNOLMKAOqQ00NGMp3YTx
+STRIPE_SECRET_KEY=sk_test_51Qn6wnF16YiElpQDkfYxv3eqwSPDgEjytL8PmQihlnkVJj8tQmDSt7bHAxdeKVuAbF8X9zYOGGgAVaOVEbTVCxnd00nUVo4oe4
+STRIPE_WEBHOOK_SECRET=whsec_c5a3fcaf436974757351d840016bd7251b6dc0113ca3d518bd30b186b1ae459f
+
+
+GCP_PROJECT_ID=blockchain-pg-secrets
+# USE_FILE_FALLBACK=false
+# USE_CLOUD_SECRET_MANAGER=true
+USE_SECRET_MANAGER=true
+USE_MOCK_SECRETS=false
+GOOGLE_APPLICATION_CREDENTIALS=secure/blockchain-pg-secrets-6fa61e9cd154.json
+
+
+# Secure Keys Authentication
+ADMIN_PASSWORD=Admin
+RECOVERY_PHRASE=test wallet recovery phrase please do not use in production environment
+SECRET_KEY_PASSWORD=Admin123
+# JWT Configuration
+JWT_SECRET=secure_jwt_test_key_74692d1a8b3e5f7c9d0a2b4c6e8f0a2d4b6c8e0f2a4d6b8c0
+
+# Notification Configuration
+NOTIFICATION_EMAIL=getnewone2022@gmail.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=getnewone2022@gmail.com
+SMTP_PASS=japu kyta beea cofc
+
+# Database Backup Configuration
+BACKUP_ENABLED=true
+BACKUP_INTERVAL=1h
+MAX_BACKUPS=10 
+
+TEST_MODE=true
+SECRETS_BACKEND=gcp

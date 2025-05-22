@@ -123,6 +123,7 @@
                        </a>
                         <span id="cartCount" class="absolute -top-2 -right-2 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">0</span>
                     </div>
+                    <button onclick="clearCart()" class="ml-2 bg-red-500 text-white px-3 py-1 rounded text-xs">Clear Cart</button>
                     <div class="text-sm text-white px-3 py-1 bg-blue-700 rounded-full flex items-center">
                         <i class="fas fa-wallet mr-1"></i>
                         <span id="networkStatus">Sepolia Network</span>
@@ -535,13 +536,19 @@
             }
         }
 
-        // Initialize
+        // Clear cart and update everything
+        function clearCart() {
+            cart = [];
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartCount();
+            showToast('Cart cleared!', 'success');
+        }
+
+        // Load cart from localStorage on page load and update cart count
         document.addEventListener('DOMContentLoaded', () => {
-            // Load cart from localStorage if it exists
             const savedCart = JSON.parse(localStorage.getItem('cart')) || [];
             cart = savedCart;
             updateCartCount();
-            
             displayProducts();
             fetchCryptoPrices();
             setInterval(fetchCryptoPrices, 60000); // Update prices every minute

@@ -1,0 +1,218 @@
+/* A4 size styling */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+/* Gradients for dark theme */
+.bg-gradient-glow {
+  background: linear-gradient(to bottom, rgba(20, 20, 20, 1), rgba(10, 10, 10, 1));
+}
+
+.text-gradient {
+  background: linear-gradient(to right, #10b981, #3b82f6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 3D model container styling */
+.eth-3d-display {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eth-3d-display:after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(45, 212, 191, 0.2) 0%, rgba(59, 130, 246, 0.15) 70%, transparent 100%);
+  border-radius: 9999px;
+  filter: blur(15px);
+  z-index: -1;
+}
+
+/* Static Ethereum placeholder for loading state or SSR */
+.eth-static-placeholder {
+  font-size: 80px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2dd4bf 0%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 20px rgba(45, 212, 191, 0.5);
+}
+
+/* Constrain to A4 size */
+.print-container {
+  width: 210mm;
+  height: 297mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Content sizing */
+.print-container > div {
+  height: 100%;
+  max-height: 297mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Prevent duplicate 3D models */
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* QR Code animation */
+@keyframes qrPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(45, 212, 191, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0);
+  }
+}
+
+/* Enhanced QR code styling */
+.qr-code-container {
+  animation: qrPulse 2s infinite;
+  border-radius: 16px;
+  transition: transform 0.3s ease;
+  position: relative;
+  z-index: 10;
+  background: linear-gradient(#fff, #fff) padding-box,
+              linear-gradient(135deg, #2dd4bf, #3b82f6) border-box;
+  border: 4px solid transparent;
+}
+
+.qr-code-container:hover {
+  transform: scale(1.02);
+}
+
+.qr-code-container:after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  background: linear-gradient(135deg, #2dd4bf, #3b82f6);
+  filter: blur(8px);
+  opacity: 0.5;
+  border-radius: 16px;
+}
+
+@media print {
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    color: black !important;
+  }
+  
+  .print-container {
+    width: 210mm;
+    height: 297mm;
+    page-break-after: always;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+    overflow: hidden;
+  }
+
+  /* Make sure QR code is black on white for better scanning */
+  svg path {
+    fill: black !important;
+  }
+
+  svg rect {
+    fill: white !important;
+  }
+  
+  /* Turn off animations for print */
+  .qr-code-container {
+    animation: none !important;
+    box-shadow: none !important;
+    border: 2px solid #000 !important;
+    background: white !important;
+  }
+  
+  .qr-code-container:after {
+    display: none !important;
+  }
+  
+  /* Adjust text colors for printing */
+  h1, h2, h3, p, span, li {
+    color: black !important;
+  }
+  
+  .text-teal-400, .text-blue-400, .text-white, .text-gray-300, .text-gray-400 {
+    color: black !important;
+  }
+  
+  /* Preserve gradients in text but make them darker for print */
+  .bg-gradient-to-r.bg-clip-text.text-transparent {
+    background: linear-gradient(to right, #0f766e, #1e40af);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: black !important;
+  }
+  
+  /* Adjust backgrounds for better print visibility */
+  .bg-black\/40, .bg-black\/30, .bg-white\/5 {
+    background: white !important;
+    border: 1px solid #ddd !important;
+  }
+  
+  /* Make sure icons are visible */
+  svg {
+    color: #000 !important;
+  }
+  
+  /* Style for static ethereum symbol in print mode */
+  .eth-static-placeholder {
+    color: #000 !important;
+    text-shadow: none !important;
+  }
+  
+  /* 3D model doesn't print well, replace with a static Ethereum logo */
+  .eth-3d-display {
+    position: relative;
+    width: 180px !important;
+    height: 180px !important;
+  }
+  
+  .eth-3d-display canvas {
+    display: none !important;
+  }
+  
+  .eth-3d-display:before {
+    content: '⧫'; /* Ethereum diamond symbol */
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    color: #000 !important;
+  }
+  
+  /* Hide any elements we don't want to print */
+  .no-print {
+    display: none !important;
+  }
+} 

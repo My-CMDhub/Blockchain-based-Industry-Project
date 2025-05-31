@@ -60,9 +60,11 @@ tasks/
 cursor-memory-bank
 memory-bank
 .cursorrules
-
+Keys/Keys.txt
 
 #JSON
 .json
 database_backups
 corruption_backups
+shotgun_code
+secure/blockchain-pg-secrets-d1180136801c.json

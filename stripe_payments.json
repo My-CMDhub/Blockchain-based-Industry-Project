@@ -1,3 +1,51 @@
 {
-  "payments": []
+  "payments": [
+    {
+      "id": "cs_test_b10tukRVihMSwbmxHAADyvppMpX0V90lrgipa2tq8XXeozFeVj6XF3KGMA",
+      "orderId": "ORD-MB5YZNL2",
+      "amount": 32.47,
+      "currency": "aud",
+      "status": "pending",
+      "createdAt": "2025-05-27T03:41:58.171Z",
+      "items": [
+        {
+          "id": 3,
+          "name": "Organic Cotton Tote Bag",
+          "price": 7.49,
+          "image": "https://plus.unsplash.com/premium_photo-1681233752477-eabbe41ca963?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8T3JnYW5pYyUyMENvdHRvbiUyMFRvdGUlMjBCYWd8ZW58MHx8MHx8fDA%3D",
+          "category": "fashion",
+          "rating": 4.3,
+          "stock": 80,
+          "badge": "eco",
+          "description": "Reusable organic cotton tote bag"
+        },
+        {
+          "id": 2,
+          "name": "Reusable Water Bottle",
+          "price": 19.99,
+          "image": "https://images.unsplash.com/photo-1568395216634-ab1b1e848751?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTZ8fHdhdGVyJTIwYm90dGVsfGVufDB8fDB8fHww",
+          "category": "kitchen",
+          "rating": 4.8,
+          "stock": 60,
+          "badge": "eco",
+          "description": "Stainless steel reusable bottle"
+        },
+        {
+          "id": 1,
+          "name": "Bamboo Toothbrush",
+          "price": 4.99,
+          "image": "https://images.unsplash.com/photo-1592372554345-22ced975691d?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8YmFtYm9vJTIwdG9vdGhicnVzaHxlbnwwfHwwfHx8MA%3D%3D",
+          "category": "personal care",
+          "rating": 4.5,
+          "stock": 100,
+          "badge": "eco",
+          "description": "Eco-friendly bamboo toothbrush"
+        }
+      ],
+      "metadata": {
+        "orderId": "ORD-MB5YZNL2"
+      },
+      "timestamp": "2025-05-27T03:41:58.172Z"
+    }
+  ]
 }

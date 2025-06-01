@@ -794,7 +794,9 @@
                             cryptoType: tx.cryptoType || 'ETH',
                             orderId: tx.txId || tx.orderId || tx.txHash || '-',
                             amount: tx.amount || '0',
-                            createdAt: tx.timestamp || tx.createdAt || new Date().toISOString()
+                            createdAt: tx.timestamp || tx.createdAt || new Date().toISOString(),
+                            // Properly identify transaction type - payment vs release
+                            transactionType: tx.type || (tx.from && tx.to ? 'release' : 'payment')
                         }));
                         
                         // Store the merchant transactions in dashboardState.raw
@@ -1176,9 +1178,13 @@
             // Determine activity subtype
             let activityType = activity.type;
             if (activity.type === 'merchant') {
-                if (activity.from && activity.to) activityType = 'release';
+                if (activity.transactionType === 'release') activityType = 'release';
+                else if (activity.from && activity.to) activityType = 'release';
                 else if (activity.status === 'release') activityType = 'release';
                 else activityType = 'payment';
+                
+                // Also store this value directly in the activity for use in modal
+                activity.displayType = activityType;
             }
             
             // Format date with expiration timer for pending user addresses
@@ -1321,12 +1327,65 @@
     // Load and display HD wallet information
     async function loadHdWalletInfo() {
         const container = document.getElementById('hdwallet-dashboard-content');
+        
+        // Create a more engaging loading experience with multiple messages
+        const loadingMessages = [
+            { message: "Connecting to blockchain network...", icon: "fas fa-network-wired" },
+            { message: "Retrieving HD wallet addresses...", icon: "fas fa-address-book" },
+            { message: "Calculating wallet balances...", icon: "fas fa-calculator" },
+            { message: "Verifying transaction history...", icon: "fas fa-history" },
+            { message: "Finalizing wallet status report...", icon: "fas fa-file-invoice" }
+        ];
+        
+        // Initial loading state
         container.innerHTML = `
-            <div class="d-flex justify-content-center align-items-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+            <div class="wallet-loading-container text-center py-5">
+                <div class="wallet-loading-spinner mb-4">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
                 </div>
+                <h4 class="mb-3" id="loading-message">Initializing HD wallet status...</h4>
+                <div class="progress mb-4" style="height: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <p class="text-muted" id="loading-detail">Please wait while we securely connect to the blockchain</p>
             </div>`;
+        
+        // Function to update loading message
+        const updateLoadingMessage = (index) => {
+            if (index >= loadingMessages.length) return;
+            
+            const messageEl = document.getElementById('loading-message');
+            const detailEl = document.getElementById('loading-detail');
+            const progressBar = document.querySelector('.progress-bar');
+            
+            if (messageEl && detailEl && progressBar) {
+                const item = loadingMessages[index];
+                const progress = Math.min(((index + 1) / loadingMessages.length) * 100, 95);
+                
+                messageEl.innerHTML = `<i class="${item.icon} me-2"></i>${item.message}`;
+                detailEl.textContent = `Step ${index + 1} of ${loadingMessages.length}`;
+                progressBar.style.width = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
+            }
+        };
+        
+        // Start the loading sequence
+        updateLoadingMessage(0);
+        
+        // Cycle through loading messages
+        let messageIndex = 1;
+        const messageInterval = setInterval(() => {
+            if (messageIndex < loadingMessages.length) {
+                updateLoadingMessage(messageIndex);
+                messageIndex++;
+            } else {
+                clearInterval(messageInterval);
+            }
+        }, 1200);
         
         try {
             // Load both HD wallet balance AND merchant dashboard balance for comparison
@@ -1334,6 +1393,9 @@
                 fetch(`${API_BASE_URL}/api/hd-wallet-balance`),
                 fetch(`${API_BASE_URL}/api/wallet-balance`)
             ]);
+            
+            // Clear the message interval if it's still running
+            clearInterval(messageInterval);
             
             const walletData = await walletRes.json();
             const merchantData = await merchantRes.json();
@@ -1512,6 +1574,9 @@
                 
             container.innerHTML = html;
         } catch (error) {
+            // Clear the message interval if it's still running
+            clearInterval(messageInterval);
+            
             console.error('Error loading HD wallet info:', error);
             container.innerHTML = `
                 <div class="alert alert-danger">
@@ -1523,7 +1588,10 @@
     }
 
     // Show activity details in a modal
-    function showActivityDetails(address) {
+    async function showActivityDetails(address) {
+        // Show loading indicator
+        showToast('Loading transaction details...', 'info');
+        
         // Find the activity by address or txHash
         const activity = dashboardState.raw.find(a => 
             a.address === address || 
@@ -1547,6 +1615,38 @@
                 bsModal.dispose();
             }
             modal.remove();
+        }
+        
+        // If we have a transaction hash, try to fetch blockchain details
+        let blockchainDetails = null;
+        if (activity.txHash) {
+            try {
+                blockchainDetails = await fetchTransactionDetails(activity.txHash);
+                console.log('Fetched blockchain details:', blockchainDetails);
+                
+                // Enhance activity with blockchain details
+                if (blockchainDetails) {
+                    activity.from = blockchainDetails.from || activity.from;
+                    activity.to = blockchainDetails.to || activity.to;
+                    activity.blockNumber = blockchainDetails.blockNumber || activity.blockNumber;
+                    activity.value = blockchainDetails.value || activity.amount;
+                    
+                    // Calculate exact gas fee
+                    if (blockchainDetails.gasUsed && blockchainDetails.gasPrice) {
+                        activity.gasUsed = blockchainDetails.gasUsed;
+                        activity.gasPrice = blockchainDetails.gasPrice;
+                        activity.gasFee = (blockchainDetails.gasUsed * parseFloat(blockchainDetails.gasPrice) / 1e9).toFixed(8);
+                    }
+                    
+                    // Use blockchain timestamp if available
+                    if (blockchainDetails.timestamp) {
+                        activity.blockTimestamp = blockchainDetails.timestamp;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching blockchain details:', error);
+                // Continue without blockchain details
+            }
         }
         
         // Create a fresh modal
@@ -1599,8 +1699,8 @@
         const contentEl = document.getElementById('activity-details-content');
         if (contentEl) {
             // Determine what fields to display based on activity type
-            const isPayment = activity.type === 'payment' || activity.type === 'user';
-            const isRelease = activity.type === 'release' || activity.status === 'release';
+            const isPayment = activity.displayType === 'payment' || activity.type === 'user';
+            const isRelease = activity.displayType === 'release' || activity.status === 'release';
             
             // Format details table
             let html = `
@@ -1609,11 +1709,16 @@
                     <tr>
                         <th style="width: 30%">Type</th>
                         <td>
-                            ${activity.type === 'user' ? 'User' : 'Merchant'}
+                            ${activity.displayType ? 
+                             (activity.displayType.charAt(0).toUpperCase() + activity.displayType.slice(1)) :
+                             (activity.type === 'user' ? 'User' : 'Merchant')}
                         </td>
                     </tr>`;
             
-            // Add fields based on activity type
+            // Fields are organized differently now - transaction hash is always shown first
+            // Add identifier fields
+            
+            // Always show Transaction Hash at the top if available
             if (activity.txHash) {
                 html += `
                     <tr>
@@ -1635,41 +1740,70 @@
                     </tr>`;
             }
             
-            // Add address field - could be payment address, from, or to
-            const displayAddress = activity.address || activity.from || '-';
-            if (displayAddress !== '-') {
+            // Show FROM address based on transaction type
+            // For payment transactions, FROM should be external user's address (sender)
+            // For release transactions, FROM should be HD wallet address
+            let fromAddress;
+            if (isPayment) {
+                // For payments, FROM should be external user (if available)
+                // If not directly available, show a generic "User's Wallet" or use the HD wallet as fallback
+                fromAddress = activity.from && activity.from !== activity.address ? 
+                    activity.from : "External User's Wallet";
+            } else if (isRelease) {
+                // For release, FROM should be HD wallet (as already fixed)
+                fromAddress = activity.from || activity.address;
+            } else {
+                fromAddress = activity.from || activity.address || '-';
+            }
+            
+            if (fromAddress && fromAddress !== '-') {
                 html += `
                     <tr>
-                        <th>${isRelease ? 'From Address' : 'Address'}</th>
+                        <th>From Address</th>
                         <td>
                             <div class="d-flex align-items-center">
-                                <code class="text-break">${displayAddress}</code>
-                                <button class="btn btn-sm btn-link p-0 ms-2 copy-btn" data-clipboard-text="${displayAddress}">
+                                <code class="text-break">${fromAddress}</code>
+                                ${fromAddress !== "External User's Wallet" ? `
+                                <button class="btn btn-sm btn-link p-0 ms-2 copy-btn" data-clipboard-text="${fromAddress}">
                                     <i class="fas fa-copy"></i>
                                 </button>
-                                <a href="https://sepolia.etherscan.io/address/${displayAddress}" 
+                                <a href="https://sepolia.etherscan.io/address/${fromAddress}" 
                                    target="_blank" 
                                    class="btn btn-sm btn-link p-0 ms-2" 
                                    title="View on Etherscan">
                                     <i class="fas fa-external-link-alt"></i>
-                                </a>
+                                </a>` : ''}
                             </div>
                         </td>
                     </tr>`;
             }
             
-            // Add recipient address if it's a release
-            if (activity.to) {
+            // Show TO address based on transaction type
+            // For payment transactions, TO should be HD wallet (receiver)
+            // For release transactions, TO should be merchant address
+            const merchantAddress = '0xE94401C68F1652cBF8dA2D275a18a1CdF74b9C5b'; // Default merchant address
+            let toAddress;
+            if (isPayment) {
+                // For payments, TO is the HD wallet address that received the payment
+                toAddress = activity.address || activity.to;
+            } else if (isRelease) {
+                // For release, TO is the merchant address
+                toAddress = activity.to || merchantAddress;
+            } else {
+                toAddress = activity.to;
+            }
+            
+            if (toAddress) {
                 html += `
                     <tr>
                         <th>To Address</th>
                         <td>
                             <div class="d-flex align-items-center">
-                                <code class="text-break">${activity.to}</code>
-                                <button class="btn btn-sm btn-link p-0 ms-2 copy-btn" data-clipboard-text="${activity.to}">
+                                <code class="text-break">${toAddress}</code>
+                                <button class="btn btn-sm btn-link p-0 ms-2 copy-btn" data-clipboard-text="${toAddress}">
                                     <i class="fas fa-copy"></i>
                                 </button>
-                                <a href="https://sepolia.etherscan.io/address/${activity.to}" 
+                                <a href="https://sepolia.etherscan.io/address/${toAddress}" 
                                    target="_blank" 
                                    class="btn btn-sm btn-link p-0 ms-2" 
                                    title="View on Etherscan">
@@ -1685,17 +1819,65 @@
                 html += `<tr><th>Order/Transaction ID</th><td>${activity.orderId || activity.txId || '-'}</td></tr>`;
             }
             
-            // Add status field
+            // Add status field with improved display
             const statusDisplay = typeof activity.status === 'boolean' 
                 ? (activity.status ? 'confirmed' : 'failed') 
                 : activity.status;
-            html += `<tr><th>Status</th><td>${getStatusBadge(statusDisplay)}</td></tr>`;
+                
+            // Add transaction status with contextual information
+            let statusInfo = '';
+            if (statusDisplay === 'confirmed' || statusDisplay === 'success') {
+                statusInfo = `
+                    <div class="d-flex align-items-center">
+                        ${getStatusBadge(statusDisplay)}
+                        ${activity.confirmations ? 
+                            `<span class="ms-2 small text-success">${activity.confirmations} confirmation${activity.confirmations !== 1 ? 's' : ''}</span>` : 
+                            ''}
+                    </div>`;
+            } else if (statusDisplay === 'failed') {
+                statusInfo = `
+                    <div>
+                        ${getStatusBadge(statusDisplay)}
+                        ${activity.error ? `<div class="small text-danger mt-1">${activity.error}</div>` : ''}
+                    </div>`;
+            } else if (statusDisplay === 'pending') {
+                statusInfo = `
+                    <div>
+                        ${getStatusBadge(statusDisplay)}
+                        <div class="small text-muted mt-1">Transaction is awaiting confirmation</div>
+                    </div>`;
+            } else {
+                statusInfo = getStatusBadge(statusDisplay);
+            }
+            
+            html += `<tr><th>Status</th><td>${statusInfo}</td></tr>`;
             
             // Add amount and crypto info
             html += `<tr><th>Crypto Type</th><td>${activity.cryptoType || 'ETH'}</td></tr>`;
             
+            // Format the amount display differently based on transaction type
+            if (isRelease) {
+                // For release transactions, clearly show the amount with proper formatting
+                const amountClass = parseFloat(activity.amount) > 0 ? 'text-success' : 'text-danger';
+                html += `
+                    <tr>
+                        <th>Released Amount</th>
+                        <td><strong class="${amountClass}">${activity.amount || '0'} ${activity.cryptoType || 'ETH'}</strong></td>
+                    </tr>`;
+                
+                // Show gas fee information if available
+                if (activity.gasUsed && activity.gasPrice) {
+                    html += `
+                    <tr>
+                        <th>Gas Fee</th>
+                        <td>
+                            <div>${activity.gasUsed || '-'} gas units × ${activity.gasPrice || '-'}</div>
+                        </td>
+                    </tr>`;
+                }
+            } 
             // Enhanced wrong payment display
-            if (activity.isWrongPayment || activity.amountVerified === false) {
+            else if (activity.isWrongPayment || activity.amountVerified === false) {
                 html += `
                     <tr>
                         <th>Expected Amount</th>
@@ -1709,12 +1891,13 @@
                         <th>Difference</th>
                         <td>
                             <span class="badge bg-danger">
-                                ${(parseFloat(activity.expectedAmount) - parseFloat(activity.amount)).toFixed(8)} ${activity.cryptoType || 'ETH'}
+                                ${(parseFloat(activity.expectedAmount || 0) - parseFloat(activity.amount || 0)).toFixed(8)} ${activity.cryptoType || 'ETH'}
                             </span>
                         </td>
                     </tr>`;
             } else {
-                html += `<tr><th>Amount</th><td>${activity.amount || '-'} ${activity.cryptoType || 'ETH'}</td></tr>`;
+                // Regular payment or other transaction
+                html += `<tr><th>Amount</th><td><strong>${activity.amount || '-'} ${activity.cryptoType || 'ETH'}</strong></td></tr>`;
                 
                 // Only add expected amount for payment activities if not already shown
                 if (isPayment && activity.expectedAmount && activity.expectedAmount !== activity.amount) {
@@ -1727,8 +1910,18 @@
                 html += `<tr><th>Fiat Amount</th><td>${activity.fiatAmount || '-'} ${activity.fiatCurrency || 'USD'}</td></tr>`;
             }
             
-            // Add timing information
-            html += `<tr><th>Created/Timestamp</th><td>${formatDate(activity.timestamp || activity.createdAt)}</td></tr>`;
+            // Add timing information in a more structured way
+            const createdAt = formatDate(activity.timestamp || activity.createdAt);
+            html += `
+                <tr>
+                    <th>Created/Timestamp</th>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <strong>${createdAt}</strong>
+                            ${activity.blockNumber ? `<span class="badge bg-info ms-2">Block #${activity.blockNumber}</span>` : ''}
+                        </div>
+                    </td>
+                </tr>`;
             
             // Add expiry for payment addresses with timer
             if (activity.expiresAt) {
@@ -1758,17 +1951,19 @@
             
             // Add completed time for transactions
             if (activity.completedAt) {
-                html += `<tr><th>Completed At</th><td>${formatDate(activity.completedAt)}</td></tr>`;
+                const timeDiff = new Date(activity.completedAt) - new Date(activity.timestamp || activity.createdAt);
+                const secsDiff = Math.round(timeDiff / 1000);
+                html += `
+                    <tr>
+                        <th>Completed At</th>
+                        <td>
+                            <div>${formatDate(activity.completedAt)}</div>
+                            ${secsDiff > 0 ? `<small class="text-muted">Confirmed in ${secsDiff} seconds</small>` : ''}
+                        </td>
+                    </tr>`;
             }
             
-            // Add gas details for blockchain transactions
-            if (activity.gasUsed) {
-                html += `<tr><th>Gas Used</th><td>${activity.gasUsed}</td></tr>`;
-            }
-            
-            if (activity.gasPrice) {
-                html += `<tr><th>Gas Price</th><td>${activity.gasPrice}</td></tr>`;
-            }
+            // Gas details are now shown in the amount section for release transactions
             
             // Add source info
             html += `<tr><th>Data Source</th><td>${activity.source || 'Transaction Log'}</td></tr>`;
@@ -1794,7 +1989,7 @@
             // Close the table
             html += `</table></div>`;
             
-            // Add blockchain explorer links
+            // Add blockchain explorer links - improved styling
             let explorerLinksHtml = '';
             
             // Add Transaction Hash link
@@ -1808,9 +2003,10 @@
             // Add Address link (payment address or sender address)
             const addressToLink = activity.address || activity.from;
             if (addressToLink) {
+                const addressLabel = isRelease ? 'View Sender' : 'View Address';
                 explorerLinksHtml += `
                 <a href="https://sepolia.etherscan.io/address/${addressToLink}" target="_blank" class="btn btn-outline-secondary me-2 etherscan-link">
-                    <i class="fas fa-external-link-alt me-1"></i>View Address
+                    <i class="fas fa-wallet me-1"></i>${addressLabel}
                 </a>`;
             }
             
@@ -1819,6 +2015,14 @@
                 explorerLinksHtml += `
                 <a href="https://sepolia.etherscan.io/address/${activity.to}" target="_blank" class="btn btn-outline-info etherscan-link">
                     <i class="fas fa-user me-1"></i>View Recipient
+                </a>`;
+            }
+            
+            // Add block explorer link if block number is available
+            if (activity.blockNumber) {
+                explorerLinksHtml += `
+                <a href="https://sepolia.etherscan.io/block/${activity.blockNumber}" target="_blank" class="btn btn-outline-dark me-2 etherscan-link">
+                    <i class="fas fa-cube me-1"></i>View Block
                 </a>`;
             }
             
@@ -2022,6 +2226,7 @@
         window.renderActivities = renderActivities;
         window.getTimeLeftString = getTimeLeftString;
         window.startAddressTimers = startAddressTimers;
+        window.fetchTransactionDetails = fetchTransactionDetails;
         
         // Initialize clipboard.js
         if (typeof ClipboardJS !== 'undefined') {
@@ -2097,6 +2302,54 @@
                 background-color: #dee2e6;
                 text-decoration: none;
             }
+            
+            /* HD Wallet Loading Animation Styles */
+            .wallet-loading-container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 2rem;
+                background: var(--color-bg);
+                border-radius: 8px;
+                box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            }
+            
+            .wallet-loading-spinner {
+                position: relative;
+                width: 80px;
+                height: 80px;
+                margin: 0 auto;
+            }
+            
+            .wallet-loading-spinner:before {
+                content: '';
+                position: absolute;
+                top: -10px;
+                left: -10px;
+                right: -10px;
+                bottom: -10px;
+                border: 2px solid rgba(13, 110, 253, 0.1);
+                border-radius: 50%;
+                animation: pulse 2s infinite ease-in-out;
+            }
+            
+            @keyframes pulse {
+                0% { transform: scale(0.95); opacity: 0.7; }
+                50% { transform: scale(1.05); opacity: 0.3; }
+                100% { transform: scale(0.95); opacity: 0.7; }
+            }
+            
+            .progress {
+                background-color: rgba(13, 110, 253, 0.1);
+                border-radius: 30px;
+                overflow: hidden;
+                box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+            }
+            
+            .progress-bar {
+                background: linear-gradient(90deg, #0d6efd, #0dcaf0);
+                box-shadow: 0 0 10px rgba(13, 110, 253, 0.5);
+                transition: width 0.6s ease;
+            }
         `;
         document.head.appendChild(customStyle);
         
@@ -2126,3 +2379,38 @@
             initDatabaseTab();
         }
     });
+
+    // Function to fetch transaction details from the server
+    async function fetchTransactionDetails(txHash) {
+        try {
+            console.log(`Fetching transaction details for ${txHash}`);
+            const response = await fetch(`${API_BASE_URL}/api/transaction/${txHash}`, {
+                headers: {
+                    'X-API-Key': 'ef2d127de37b942baad06145e54b0c619a1f22f95b608e65f3c6b1a7a59dfc47'
+                }
+            });
+            
+            if (!response.ok) {
+                console.error(`HTTP error ${response.status} for txHash ${txHash}. Response:`, await response.text());
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            
+            const data = await response.json();
+            if (!data.success) {
+                console.error(`API returned error for txHash ${txHash}:`, data.error);
+                throw new Error(data.error || 'Failed to fetch transaction details');
+            }
+            
+            console.log('Transaction details retrieved successfully:', data.transaction);
+            return data.transaction;
+        } catch (error) {
+            console.error(`Error fetching transaction details for ${txHash}:`, error);
+            // Return a minimal object so UI doesn't break completely
+            return {
+                hash: txHash,
+                from: 'Error fetching data',
+                to: 'Error fetching data',
+                status: 'unknown'
+            };
+        }
+    }

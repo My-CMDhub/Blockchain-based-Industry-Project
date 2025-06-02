@@ -1748,7 +1748,7 @@
                 // For payments, FROM should be external user (if available)
                 // If not directly available, show a generic "User's Wallet" or use the HD wallet as fallback
                 fromAddress = activity.from && activity.from !== activity.address ? 
-                    activity.from : "External User's Wallet";
+                    activity.from : "0x4689fB9F6397b4b7258f0CDF0B79D2470641Bf04";
             } else if (isRelease) {
                 // For release, FROM should be HD wallet (as already fixed)
                 fromAddress = activity.from || activity.address;
@@ -1763,7 +1763,7 @@
                         <td>
                             <div class="d-flex align-items-center">
                                 <code class="text-break">${fromAddress}</code>
-                                ${fromAddress !== "External User's Wallet" ? `
+                                ${fromAddress !== "0x4689fB9F6397b4b7258f0CDF0B79D2470641Bf04" ? `
                                 <button class="btn btn-sm btn-link p-0 ms-2 copy-btn" data-clipboard-text="${fromAddress}">
                                     <i class="fas fa-copy"></i>
                                 </button>
